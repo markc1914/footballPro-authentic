@@ -61,6 +61,9 @@
 		SVC014 /* CalendarDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC048; };
 		SVC015 /* ScheduleTemplateDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC049; };
 		SVC016 /* MagazineDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC050; };
+		SVC017 /* ScreenshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC051; };
+		SVC018 /* ScreenshotHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC052; };
+		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -165,6 +168,9 @@
 		SRC048 /* CalendarDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDecoder.swift; sourceTree = "<group>"; };
 		SRC049 /* ScheduleTemplateDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleTemplateDecoder.swift; sourceTree = "<group>"; };
 		SRC050 /* MagazineDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagazineDecoder.swift; sourceTree = "<group>"; };
+		SRC051 /* ScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotService.swift; sourceTree = "<group>"; };
+		SRC052 /* ScreenshotHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHarness.swift; sourceTree = "<group>"; };
+		SRC053 /* ScreenshotCaptureWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureWindow.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -311,6 +317,8 @@
 				SRC048 /* CalendarDecoder.swift */,
 				SRC049 /* ScheduleTemplateDecoder.swift */,
 				SRC050 /* MagazineDecoder.swift */,
+				SRC051 /* ScreenshotService.swift */,
+				SRC052 /* ScreenshotHarness.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -358,6 +366,7 @@
 				SRC024 /* StatTable.swift */,
 				SRC025 /* NavigationBar.swift */,
 				SRC032 /* GameAnimations.swift */,
+				SRC053 /* ScreenshotCaptureWindow.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -505,6 +514,9 @@
 				NEW003BF /* FPSPlayResultOverlay.swift in Sources */,
 				NEW004BF /* FPSRefereeOverlay.swift in Sources */,
 				NEW005BF /* FPSReplayControls.swift in Sources */,
+				SVC017 /* ScreenshotService.swift in Sources */,
+				SVC018 /* ScreenshotHarness.swift in Sources */,
+				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

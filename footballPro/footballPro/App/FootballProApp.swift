@@ -41,6 +41,12 @@ struct FootballProApp: App {
         .defaultSize(width: 1280, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) { }
+            CommandMenu("Debug") {
+                Button("Capture Screenshots...") {
+                    gameState.showScreenshotCapture = true
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift, .option])
+            }
             CommandMenu("Game") {
                 Button("New Game") {
                     gameState.showNewGameDialog = true
@@ -94,6 +100,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $gameState.showSaveGameDialog) {
             SaveGameDialogView(modelContext: modelContext)
+        }
+        .sheet(isPresented: $gameState.showScreenshotCapture) {
+            ScreenshotCaptureWindow()
+                .frame(width: 560, height: 400)
         }
     }
 }
@@ -207,6 +217,7 @@ class GameState: ObservableObject {
     @Published var showNewGameDialog = false
     @Published var showLoadGameDialog = false
     @Published var showSaveGameDialog = false
+    @Published var showScreenshotCapture = false
     @Published var hasActiveGame = false
 
     @Published var currentLeague: League?
