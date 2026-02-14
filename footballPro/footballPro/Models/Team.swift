@@ -243,6 +243,7 @@ public struct Team: Identifiable, Codable, Equatable { // Public
     public var abbreviation: String // e.g., "PHI"
     public var colors: TeamColors
     public var stadiumName: String
+    public var coachName: String
     public var divisionId: UUID
 
     public var roster: [Player]
@@ -277,6 +278,7 @@ public struct Team: Identifiable, Codable, Equatable { // Public
          abbreviation: String,
          colors: TeamColors,
          stadiumName: String,
+         coachName: String = "",
          divisionId: UUID,
          offensiveScheme: OffensiveScheme = .proStyle,
          defensiveScheme: DefensiveScheme = .base43,
@@ -287,6 +289,7 @@ public struct Team: Identifiable, Codable, Equatable { // Public
         self.abbreviation = abbreviation
         self.colors = colors
         self.stadiumName = stadiumName
+        self.coachName = coachName
         self.divisionId = divisionId
         self.roster = []
         self.depthChart = DepthChart()

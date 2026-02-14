@@ -50,6 +50,13 @@
 		SVC003 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC031; };
 		SVC004 /* PRFDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC037; };
 		SVC005 /* AuthenticPlaybookLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC038; };
+		SVC006 /* NameDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC040; };
+		SVC007 /* InjuryDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC041; };
+		SVC008 /* CitiesDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC042; };
+		SVC009 /* PALDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC043; };
+		SVC010 /* GameIntroDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC044; };
+		SVC011 /* LGEDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC045; };
+		SVC012 /* PYRDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC046; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -143,6 +150,13 @@
 		SRC037 /* PRFDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFDecoder.swift; sourceTree = "<group>"; };
 		SRC038 /* AuthenticPlaybookLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticPlaybookLoader.swift; sourceTree = "<group>"; };
 		SRC039 /* RouteScriptDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteScriptDecoder.swift; sourceTree = "<group>"; };
+		SRC040 /* NameDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameDecoder.swift; sourceTree = "<group>"; };
+		SRC041 /* InjuryDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InjuryDecoder.swift; sourceTree = "<group>"; };
+		SRC042 /* CitiesDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitiesDecoder.swift; sourceTree = "<group>"; };
+		SRC043 /* PALDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PALDecoder.swift; sourceTree = "<group>"; };
+		SRC044 /* GameIntroDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameIntroDecoder.swift; sourceTree = "<group>"; };
+		SRC045 /* LGEDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGEDecoder.swift; sourceTree = "<group>"; };
+		SRC046 /* PYRDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PYRDecoder.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -278,6 +292,13 @@
 				SRC031 /* SoundManager.swift */,
 				SRC037 /* PRFDecoder.swift */,
 				SRC038 /* AuthenticPlaybookLoader.swift */,
+				SRC040 /* NameDecoder.swift */,
+				SRC041 /* InjuryDecoder.swift */,
+				SRC042 /* CitiesDecoder.swift */,
+				SRC043 /* PALDecoder.swift */,
+				SRC044 /* GameIntroDecoder.swift */,
+				SRC045 /* LGEDecoder.swift */,
+				SRC046 /* PYRDecoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -448,6 +469,13 @@
 				SVC003 /* SoundManager.swift in Sources */,
 				SVC004 /* PRFDecoder.swift in Sources */,
 				SVC005 /* AuthenticPlaybookLoader.swift in Sources */,
+				SVC006 /* NameDecoder.swift in Sources */,
+				SVC007 /* InjuryDecoder.swift in Sources */,
+				SVC008 /* CitiesDecoder.swift in Sources */,
+				SVC009 /* PALDecoder.swift in Sources */,
+				SVC010 /* GameIntroDecoder.swift in Sources */,
+				SVC011 /* LGEDecoder.swift in Sources */,
+				SVC012 /* PYRDecoder.swift in Sources */,
 				VIW007 /* GameAnimations.swift in Sources */,
 				VIW008 /* RetroFieldView.swift in Sources */,
 				VIW009 /* FieldView3D.swift in Sources */,

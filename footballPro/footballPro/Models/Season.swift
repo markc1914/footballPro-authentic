@@ -355,8 +355,8 @@ struct Season: Identifiable, Codable, Equatable {
 // MARK: - Season Generator
 
 struct SeasonGenerator {
-    static func generateSeason(for league: League) -> Season {
-        var season = Season(year: 2024, divisions: league.divisions)
+    static func generateSeason(for league: League, year: Int = 2024) -> Season {
+        var season = Season(year: year, divisions: league.divisions)
 
         // Initialize standings for all teams
         for team in league.teams {

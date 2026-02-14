@@ -404,6 +404,7 @@ public struct Player: Identifiable, Codable, Equatable { // Public
     public var college: String
     public var experience: Int // years in league
 
+    public var jerseyNumber: Int
     public var ratings: PlayerRatings
     public var seasonStats: SeasonStats
     public var careerStats: SeasonStats
@@ -433,6 +434,7 @@ public struct Player: Identifiable, Codable, Equatable { // Public
          weight: Int,
          college: String,
          experience: Int,
+         jerseyNumber: Int = 0,
          ratings: PlayerRatings,
          contract: Contract) {
         self.id = id
@@ -444,6 +446,7 @@ public struct Player: Identifiable, Codable, Equatable { // Public
         self.weight = weight
         self.college = college
         self.experience = experience
+        self.jerseyNumber = jerseyNumber
         self.ratings = ratings
         self.seasonStats = SeasonStats()
         self.careerStats = SeasonStats()

@@ -476,6 +476,128 @@ struct League: Identifiable, Codable, Equatable {
 // MARK: - League Generator
 
 struct LeagueGenerator {
+    // MARK: - Authentic 1993 NFL Team Colors
+    private static let nflColors: [String: TeamColors] = [
+        "BUF": TeamColors(primary: "00338D", secondary: "C60C30", accent: "FFFFFF"),
+        "MIA": TeamColors(primary: "008E97", secondary: "F26A24", accent: "FFFFFF"),
+        "NE":  TeamColors(primary: "002244", secondary: "C60C30", accent: "B0B7BC"),
+        "NYJ": TeamColors(primary: "125740", secondary: "FFFFFF", accent: "000000"),
+        "IND": TeamColors(primary: "002C5F", secondary: "FFFFFF", accent: "A2AAAD"),
+        "HOU": TeamColors(primary: "03202F", secondary: "A71930", accent: "FFFFFF"),
+        "CLE": TeamColors(primary: "311D00", secondary: "FF3C00", accent: "FFFFFF"),
+        "PIT": TeamColors(primary: "FFB612", secondary: "101820", accent: "FFFFFF"),
+        "CIN": TeamColors(primary: "FB4F14", secondary: "000000", accent: "FFFFFF"),
+        "DEN": TeamColors(primary: "FB4F14", secondary: "002244", accent: "FFFFFF"),
+        "KC":  TeamColors(primary: "E31837", secondary: "FFB81C", accent: "FFFFFF"),
+        "LAR": TeamColors(primary: "003594", secondary: "FFD100", accent: "FFFFFF"),
+        "SD":  TeamColors(primary: "002A5E", secondary: "FFC20E", accent: "FFFFFF"),
+        "SEA": TeamColors(primary: "002244", secondary: "69BE28", accent: "A5ACAF"),
+        "DAL": TeamColors(primary: "003594", secondary: "869397", accent: "FFFFFF"),
+        "NYG": TeamColors(primary: "0B2265", secondary: "A71930", accent: "FFFFFF"),
+        "PHI": TeamColors(primary: "004C54", secondary: "A5ACAF", accent: "FFFFFF"),
+        "PHX": TeamColors(primary: "97233F", secondary: "000000", accent: "FFB612"),
+        "WAS": TeamColors(primary: "773141", secondary: "FFB612", accent: "FFFFFF"),
+        "CHI": TeamColors(primary: "0B162A", secondary: "C83803", accent: "FFFFFF"),
+        "DET": TeamColors(primary: "0076B6", secondary: "B0B7BC", accent: "FFFFFF"),
+        "GB":  TeamColors(primary: "203731", secondary: "FFB612", accent: "FFFFFF"),
+        "MIN": TeamColors(primary: "4F2683", secondary: "FFC62F", accent: "FFFFFF"),
+        "TB":  TeamColors(primary: "D50A0A", secondary: "FF7900", accent: "FFFFFF"),
+        "ATL": TeamColors(primary: "A71930", secondary: "000000", accent: "A5ACAF"),
+        "NO":  TeamColors(primary: "D3BC8D", secondary: "101820", accent: "FFFFFF"),
+        "SF":  TeamColors(primary: "AA0000", secondary: "B3995D", accent: "FFFFFF"),
+        "LAM": TeamColors(primary: "003594", secondary: "FFD100", accent: "FFFFFF"),
+    ]
+
+    /// Try to load authentic 1993 NFLPA league from game files.
+    /// Returns nil if game files aren't available.
+    static func loadAuthenticLeague() -> League? {
+        guard let lgeData = LGEDecoder.loadDefault(),
+              let pyrFile = PYRDecoder.loadDefault() else {
+            print("[LeagueGenerator] Authentic game files not found, will use synthetic league")
+            return nil
+        }
+
+        guard !lgeData.teams.isEmpty else { return nil }
+
+        var league = League(name: lgeData.leagueName.isEmpty ? "NFLPA '93" : lgeData.leagueName)
+
+        // Build divisions from LGE data
+        var divisionMap: [Int: Division] = [:]  // LGE div index → Division
+        for lgeDivision in lgeData.divisions {
+            let div = Division(name: lgeDivision.name)
+            divisionMap[lgeDivision.index] = div
+            league.divisions.append(div)
+        }
+
+        // If no divisions were parsed, create defaults
+        if league.divisions.isEmpty {
+            let div1 = Division(name: "AFC")
+            let div2 = Division(name: "NFC")
+            divisionMap[0] = div1
+            divisionMap[1] = div2
+            league.divisions = [div1, div2]
+        }
+
+        // Track which PYR player indices are rostered
+        var rosteredIndices: Set<Int> = []
+
+        // Build teams
+        for lgeTeam in lgeData.teams {
+            let divIndex = lgeTeam.divisionIndex
+            guard let division = divisionMap[divIndex] else { continue }
+            let divisionId = division.id
+
+            // Look up team colors by abbreviation
+            let colors = nflColors[lgeTeam.abbreviation] ?? TeamColors(primary: "333333", secondary: "AAAAAA", accent: "FFFFFF")
+
+            var team = Team(
+                name: lgeTeam.mascot,
+                city: lgeTeam.city,
+                abbreviation: lgeTeam.abbreviation,
+                colors: colors,
+                stadiumName: lgeTeam.stadiumName,
+                coachName: lgeTeam.coachName,
+                divisionId: divisionId,
+                offensiveScheme: .proStyle,
+                defensiveScheme: .base43
+            )
+
+            // Build roster from PYR player data with jersey numbers
+            let players = PYRDecoder.buildTeamRoster(lgeTeam: lgeTeam, pyrFile: pyrFile)
+            for player in players {
+                team.addPlayer(player)
+            }
+
+            // Track rostered player indices
+            for idx in lgeTeam.rosterPlayerIndices {
+                rosteredIndices.insert(idx)
+            }
+
+            // Auto-populate depth chart: sort by overall at each position
+            for position in Position.allCases {
+                let positionPlayers = team.players(at: position).sorted { $0.overall > $1.overall }
+                for (i, player) in positionPlayers.enumerated() {
+                    if i == 0 {
+                        team.setStarter(player.id, at: position)
+                    }
+                }
+            }
+
+            league.addTeam(team, to: divisionId)
+        }
+
+        // Build free agent pool from unrostered PYR players
+        for pyrPlayer in pyrFile.players {
+            if !rosteredIndices.contains(pyrPlayer.playerIndex) {
+                let player = pyrPlayer.toPlayer()
+                league.freeAgents.append(FreeAgent(player: player))
+            }
+        }
+
+        print("[LeagueGenerator] Authentic league loaded: \(league.teams.count) teams, \(league.freeAgents.count) free agents")
+        return league
+    }
+
     static func generateLeague() -> League {
         var league = League()
 

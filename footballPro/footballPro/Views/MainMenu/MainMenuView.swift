@@ -247,7 +247,7 @@ struct NewGameView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(16)
                         .onAppear {
-                            let generatedLeague = LeagueGenerator.generateLeague()
+                            let generatedLeague = LeagueGenerator.loadAuthenticLeague() ?? LeagueGenerator.generateLeague()
                             league = generatedLeague
                             teams = generatedLeague.teams
                         }
