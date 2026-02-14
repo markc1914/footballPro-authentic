@@ -74,13 +74,17 @@ class PlayResolver {
         let mlb = defensiveTeam.starter(at: .middleLinebacker)
         let olb1 = defensiveTeam.starter(at: .outsideLinebacker)
 
+        // Pick a random tackler from defensive front
+        let allDefenders = [dt1, dt2, mlb, olb1].compactMap { $0 }
+        let tackler = allDefenders.randomElement()
+
         // Calculate offensive line rating
         let oLineRating = [lt, lg, c, rg, rt]
             .compactMap { $0?.ratings.runBlock }
             .reduce(0, +) / 5
 
         // Calculate defensive front rating (weighted more heavily)
-        let defenders = [dt1, dt2, mlb, olb1].compactMap { $0 }
+        let defenders = allDefenders
         let dLineRating = defenders.isEmpty ? 70 : defenders
             .map { ($0.ratings.tackle + $0.ratings.blockShedding + $0.ratings.pursuit) / 3 }
             .reduce(0, +) / defenders.count
@@ -148,6 +152,10 @@ class PlayResolver {
                 penalty: nil,
                 isInjury: false,
                 injuredPlayerId: nil,
+                passerId: nil,
+                rusherId: rb?.id,
+                receiverId: nil,
+                primaryTacklerId: tackler?.id,
                 description: generateRunDescription(rb: rb, yards: yards, fumble: true, recovered: recovered)
             )
         }
@@ -159,6 +167,9 @@ class PlayResolver {
         // Time elapsed
         let timeElapsed = yards > 0 ? Int.random(in: 25...40) : Int.random(in: 5...15)
 
+        // Check for injury (~2% chance on runs, higher on big hits)
+        let injuryResult = checkForInjury(ballCarrierId: rb?.id, tacklerId: tackler?.id, isBigHit: yards <= 0)
+
         return PlayOutcome(
             yardsGained: yards,
             timeElapsed: timeElapsed,
@@ -168,8 +179,12 @@ class PlayResolver {
             turnoverType: nil,
             isPenalty: false,
             penalty: nil,
-            isInjury: false,
-            injuredPlayerId: nil,
+            isInjury: injuryResult.isInjury,
+            injuredPlayerId: injuryResult.injuredPlayerId,
+            passerId: nil,
+            rusherId: rb?.id,
+            receiverId: nil,
+            primaryTacklerId: tackler?.id,
             description: generateRunDescription(rb: rb, yards: yards)
         )
     }
@@ -271,9 +286,16 @@ class PlayResolver {
                     penalty: nil,
                     isInjury: false,
                     injuredPlayerId: nil,
+                    passerId: qb?.id,
+                    rusherId: nil,
+                    receiverId: nil,
+                    primaryTacklerId: de1?.id,
                     description: desc
                 )
             }
+
+            // Check for injury on sack (~3% chance)
+            let sackInjury = checkForInjury(ballCarrierId: qb?.id, tacklerId: de1?.id, isBigHit: true)
 
             return PlayOutcome(
                 yardsGained: sackYards,
@@ -284,8 +306,12 @@ class PlayResolver {
                 turnoverType: nil,
                 isPenalty: false,
                 penalty: nil,
-                isInjury: false,
-                injuredPlayerId: nil,
+                isInjury: sackInjury.isInjury,
+                injuredPlayerId: sackInjury.injuredPlayerId,
+                passerId: qb?.id,
+                rusherId: nil,
+                receiverId: nil,
+                primaryTacklerId: de1?.id,
                 description: "\(qb?.fullName ?? "QB") sacked for a loss of \(abs(sackYards)) yards"
             )
         }
@@ -363,6 +389,10 @@ class PlayResolver {
                     penalty: nil,
                     isInjury: false,
                     injuredPlayerId: nil,
+                    passerId: qb?.id,
+                    rusherId: nil,
+                    receiverId: targetReceiver?.id,
+                    primaryTacklerId: cb1?.id,
                     description: "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(cb1?.fullName ?? "defender")!"
                 )
             }
@@ -383,6 +413,10 @@ class PlayResolver {
                 penalty: nil,
                 isInjury: false,
                 injuredPlayerId: nil,
+                passerId: qb?.id,
+                rusherId: nil,
+                receiverId: targetReceiver?.id,
+                primaryTacklerId: nil,
                 description: breakupDesc
             )
         }
@@ -400,6 +434,12 @@ class PlayResolver {
 
         let timeElapsed = Int.random(in: 5...15)
 
+        // Pick a tackler from defensive backs
+        let dbTackler = [cb1, cb2, fs, ss].compactMap { $0 }.randomElement()
+
+        // Check for injury on completed pass (~1.5% chance)
+        let passInjury = checkForInjury(ballCarrierId: targetReceiver?.id, tacklerId: dbTackler?.id, isBigHit: false)
+
         return PlayOutcome(
             yardsGained: totalYards,
             timeElapsed: timeElapsed,
@@ -409,8 +449,12 @@ class PlayResolver {
             turnoverType: nil,
             isPenalty: false,
             penalty: nil,
-            isInjury: false,
-            injuredPlayerId: nil,
+            isInjury: passInjury.isInjury,
+            injuredPlayerId: passInjury.injuredPlayerId,
+            passerId: qb?.id,
+            rusherId: nil,
+            receiverId: targetReceiver?.id,
+            primaryTacklerId: dbTackler?.id,
             description: generatePassDescription(qb: qb, receiver: targetReceiver, yards: totalYards, touchdown: isTouchdown)
         )
     }
@@ -451,8 +495,30 @@ class PlayResolver {
             penalty: penalty,
             isInjury: false,
             injuredPlayerId: nil,
+            passerId: nil,
+            rusherId: nil,
+            receiverId: nil,
+            primaryTacklerId: nil,
             description: "FLAG: \(penalty.description)"
         )
+    }
+
+    // MARK: - Injury Check
+
+    private struct InjuryCheckResult {
+        let isInjury: Bool
+        let injuredPlayerId: UUID?
+    }
+
+    /// Roll for injury. Base ~1.5% per play; big hits (sacks, TFLs) bump to ~3%.
+    private func checkForInjury(ballCarrierId: UUID?, tacklerId: UUID?, isBigHit: Bool) -> InjuryCheckResult {
+        let baseChance = isBigHit ? 0.03 : 0.015
+        guard Double.random(in: 0...1) < baseChance else {
+            return InjuryCheckResult(isInjury: false, injuredPlayerId: nil)
+        }
+        // Injured player is the ball carrier (more common) or tackler
+        let injuredId = Double.random(in: 0...1) < 0.80 ? ballCarrierId : tacklerId
+        return InjuryCheckResult(isInjury: injuredId != nil, injuredPlayerId: injuredId)
     }
 
     // MARK: - Description Generation

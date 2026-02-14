@@ -368,6 +368,12 @@ public struct PlayOutcome: Codable, Equatable {
     public var isInjury: Bool
     public var injuredPlayerId: UUID?
 
+    // Individual player tracking
+    public var passerId: UUID?
+    public var rusherId: UUID?
+    public var receiverId: UUID?
+    public var primaryTacklerId: UUID?
+
     public var description: String // Play-by-play text
 
     public static func incomplete() -> PlayOutcome {
@@ -382,6 +388,10 @@ public struct PlayOutcome: Codable, Equatable {
             penalty: nil,
             isInjury: false,
             injuredPlayerId: nil,
+            passerId: nil,
+            rusherId: nil,
+            receiverId: nil,
+            primaryTacklerId: nil,
             description: "Pass incomplete"
         )
     }

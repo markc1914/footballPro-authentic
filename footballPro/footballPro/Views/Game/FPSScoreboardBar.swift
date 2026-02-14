@@ -151,10 +151,15 @@ struct FPSScoreboardBar: View {
                 Text("TIME OUTS")
                     .font(RetroFont.tiny())
                     .foregroundColor(VGA.lightGray)
-                // Show timeout count (placeholder)
-                Text("3")
-                    .font(RetroFont.small())
-                    .foregroundColor(VGA.white)
+                // Show timeout pips (filled = remaining, empty = used)
+                let timeouts = game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .fill(i < timeouts ? VGA.digitalAmber : VGA.darkGray)
+                            .frame(width: 8, height: 8)
+                    }
+                }
             }
 
             VStack(spacing: 1) {

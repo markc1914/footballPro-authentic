@@ -126,6 +126,12 @@ class SimulationEngine: ObservableObject {
             updateStats(for: &game, outcome: outcome, offensiveCall: offensiveCall)
         }
 
+        // Handle injury
+        if outcome.isInjury, let injuredId = outcome.injuredPlayerId {
+            let injuryMsg = handleInjury(playerId: injuredId, game: &game)
+            result.description += injuryMsg.map { " | \($0)" } ?? ""
+        }
+
         // Handle touchdown (from PlayResolver flagging it directly)
         if outcome.isTouchdown {
             result.scoringPlay = .touchdown
@@ -146,6 +152,11 @@ class SimulationEngine: ObservableObject {
 
             currentGame = game
             return result
+        }
+
+        // Track OT possessions
+        if game.clock.quarter >= 5 && (outcome.isTurnover || outcome.isTouchdown) {
+            game.overtimePossessions += 1
         }
 
         // Handle turnover
@@ -444,6 +455,44 @@ class SimulationEngine: ObservableObject {
         return success
     }
 
+    func executeTwoPointConversion() async -> Bool {
+        guard var game = currentGame,
+              let offTeam = game.isHomeTeamPossession ? homeTeam : awayTeam,
+              let defTeam = game.isHomeTeamPossession ? awayTeam : homeTeam else { return false }
+
+        // Resolve a single play from the 2-yard line
+        let tempFieldPos = FieldPosition(yardLine: 98) // 2 yards from end zone
+        let tempDown = DownAndDistance.firstDown(at: 98)
+
+        let offCall = StandardPlayCall(formation: .goalLine, playType: .shortPass)
+        let defCall = StandardDefensiveCall(formation: .goalLine, coverage: .manCoverage, isBlitzing: false)
+
+        let outcome = playResolver.resolvePlay(
+            offensiveCall: offCall,
+            defensiveCall: defCall,
+            offensiveTeam: offTeam,
+            defensiveTeam: defTeam,
+            fieldPosition: tempFieldPos,
+            downAndDistance: tempDown,
+            weather: game.weather
+        )
+
+        let success = outcome.isTouchdown || (outcome.isComplete && outcome.yardsGained >= 2)
+
+        if success {
+            game.score.addScore(points: 2, isHome: game.isHomeTeamPossession, quarter: game.clock.quarter)
+        }
+
+        game.isExtraPoint = false
+
+        // Kickoff to other team
+        game.switchPossession()
+        game.isKickoff = true
+
+        currentGame = game
+        return success
+    }
+
     func executeFieldGoal(from yardLine: Int) async -> Bool {
         guard var game = currentGame,
               let kickingTeam = game.isHomeTeamPossession ? homeTeam : awayTeam else { return false }
@@ -608,16 +657,30 @@ class SimulationEngine: ObservableObject {
 
     private func handleEndOfQuarter(game: inout Game) {
         if game.clock.quarter == 2 {
-            // Halftime
+            // Halftime — reset timeouts
             game.gameStatus = .halftime
+            game.homeTimeouts = 3
+            game.awayTimeouts = 3
             game.clock.nextQuarter()
         } else if game.clock.quarter == 4 {
             // End of regulation
             if game.score.isTied {
-                // Overtime
+                // Start overtime: 15:00 clock, coin-toss possession
                 game.clock.nextQuarter()
+                game.overtimePossessions = 0
+                // Coin toss for OT — flip possession randomly
+                if Bool.random() { game.switchPossession() }
+                game.isKickoff = true
             } else {
                 game.gameStatus = .final
+            }
+        } else if game.clock.quarter >= 5 {
+            // End of overtime period
+            if !game.score.isTied {
+                game.gameStatus = .final
+            } else {
+                // Still tied — sudden death: next score wins
+                game.clock.nextQuarter()
             }
         } else {
             game.clock.nextQuarter()
@@ -667,6 +730,126 @@ class SimulationEngine: ObservableObject {
                 game.awayTeamStats.rushingYards += yards
             }
         }
+
+        // Update individual player stats
+        updatePlayerStats(outcome: outcome, offensiveCall: offensiveCall, isSack: isSack)
+    }
+
+    /// Accumulate individual player stats from play outcome
+    private func updatePlayerStats(outcome: PlayOutcome, offensiveCall: any PlayCall, isSack: Bool) {
+        // Passer stats
+        if let passerId = outcome.passerId {
+            updatePlayerStat(playerId: passerId) { player in
+                player.seasonStats.passAttempts += 1
+                if outcome.isComplete {
+                    player.seasonStats.passCompletions += 1
+                    player.seasonStats.passingYards += outcome.yardsGained
+                    if outcome.isTouchdown { player.seasonStats.passingTouchdowns += 1 }
+                }
+                if outcome.isTurnover && outcome.turnoverType == .interception {
+                    player.seasonStats.interceptions += 1
+                }
+                if isSack {
+                    player.seasonStats.sacks += 1
+                }
+            }
+        }
+
+        // Rusher stats
+        if let rusherId = outcome.rusherId, offensiveCall.playType.isRun {
+            updatePlayerStat(playerId: rusherId) { player in
+                player.seasonStats.rushAttempts += 1
+                player.seasonStats.rushingYards += outcome.yardsGained
+                if outcome.isTouchdown { player.seasonStats.rushingTouchdowns += 1 }
+                if outcome.isTurnover && outcome.turnoverType == .fumble {
+                    player.seasonStats.fumbles += 1
+                    player.seasonStats.fumblesLost += 1
+                }
+            }
+        }
+
+        // Receiver stats
+        if let receiverId = outcome.receiverId, offensiveCall.playType.isPass {
+            updatePlayerStat(playerId: receiverId) { player in
+                player.seasonStats.targets += 1
+                if outcome.isComplete {
+                    player.seasonStats.receptions += 1
+                    player.seasonStats.receivingYards += outcome.yardsGained
+                    if outcome.isTouchdown { player.seasonStats.receivingTouchdowns += 1 }
+                }
+            }
+        }
+
+        // Tackler stats
+        if let tacklerId = outcome.primaryTacklerId, outcome.isComplete || isSack {
+            updatePlayerStat(playerId: tacklerId) { player in
+                player.seasonStats.totalTackles += 1
+                player.seasonStats.soloTackles += 1
+                if isSack { player.seasonStats.defSacks += 1.0 }
+                if outcome.isTurnover && outcome.turnoverType == .interception {
+                    player.seasonStats.interceptionsDef += 1
+                }
+                if outcome.isTurnover && outcome.turnoverType == .fumble {
+                    player.seasonStats.forcedFumbles += 1
+                }
+                if outcome.yardsGained < 0 { player.seasonStats.tacklesForLoss += 1 }
+            }
+        }
+    }
+
+    /// Find a player by UUID in either team's roster and apply a mutation
+    private func updatePlayerStat(playerId: UUID, update: (inout Player) -> Void) {
+        if let idx = homeTeam?.roster.firstIndex(where: { $0.id == playerId }) {
+            update(&homeTeam!.roster[idx])
+        } else if let idx = awayTeam?.roster.firstIndex(where: { $0.id == playerId }) {
+            update(&awayTeam!.roster[idx])
+        }
+    }
+
+    // MARK: - Injury Handling
+
+    /// Process an injury from a play outcome using authentic INJURY.DAT names
+    private func handleInjury(playerId: UUID, game: inout Game) -> String? {
+        // Roll severity: 60% minor, 25% moderate, 12% major, 3% season-ending
+        let roll = Double.random(in: 0...1)
+        let injuryType: InjuryType
+        if roll < 0.60 { injuryType = .minor }
+        else if roll < 0.85 { injuryType = .moderate }
+        else if roll < 0.97 { injuryType = .major }
+        else { injuryType = .seasonEnding }
+
+        let weeks = Int.random(in: injuryType.recoveryWeeks)
+
+        // Load authentic injury name from INJURY.DAT
+        let injuries = InjuryDecoder.loadDefault()
+        let injuryName: String
+        if !injuries.isEmpty {
+            // Pick a random injury of matching severity
+            let targetSeverity: GameInjury.InjurySeverity
+            switch injuryType {
+            case .minor: targetSeverity = .minor
+            case .moderate: targetSeverity = .moderate
+            case .major: targetSeverity = .major
+            case .seasonEnding: targetSeverity = .severe
+            }
+            let matching = injuries.filter { $0.severity == targetSeverity }
+            injuryName = (matching.randomElement() ?? injuries.randomElement()!).name
+        } else {
+            injuryName = injuryType.rawValue
+        }
+
+        // Update the player's status
+        var playerName = "Unknown"
+        var jerseyNum = 0
+        updatePlayerStat(playerId: playerId) { player in
+            player.status.injuryType = injuryType
+            player.status.health = 40
+            player.status.weeksInjured = weeks
+            playerName = player.fullName
+            jerseyNum = player.jerseyNumber
+        }
+
+        return "INJURY — #\(jerseyNum) \(playerName) (\(injuryName), out \(weeks) week\(weeks == 1 ? "" : "s"))"
     }
 
     private func updateTimeOfPossession(for game: inout Game, timeElapsed: Int) {

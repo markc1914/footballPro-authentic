@@ -313,6 +313,13 @@ public struct Game: Identifiable, Codable, Equatable {
     public var isExtraPoint: Bool
     public var awaitingUserInput: Bool
 
+    // Timeout tracking (3 per half per team)
+    public var homeTimeouts: Int
+    public var awayTimeouts: Int
+
+    // Overtime tracking
+    public var overtimePossessions: Int
+
     public var drives: [Drive]
     public var currentDrive: Drive?
 
@@ -340,6 +347,10 @@ public struct Game: Identifiable, Codable, Equatable {
         self.isKickoff = true
         self.isExtraPoint = false
         self.awaitingUserInput = false
+
+        self.homeTimeouts = 3
+        self.awayTimeouts = 3
+        self.overtimePossessions = 0
 
         self.drives = []
         self.currentDrive = nil

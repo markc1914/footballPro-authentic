@@ -20,6 +20,25 @@ struct GameDayView: View {
             if let game = viewModel.game {
                 // State machine: show the right screen for the current phase
                 switch viewModel.currentPhase {
+                case .pregameNarration:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        VStack(spacing: 24) {
+                            Spacer()
+                            Text(viewModel.narrationText)
+                                .font(RetroFont.body())
+                                .foregroundColor(VGA.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                                .lineSpacing(4)
+                            Spacer()
+                            FPSButton("START GAME") {
+                                viewModel.startGameAfterNarration()
+                            }
+                            Spacer().frame(height: 40)
+                        }
+                    }
+
                 case .playCalling:
                     FPSPlayCallingScreen(viewModel: viewModel)
 
@@ -50,6 +69,27 @@ struct GameDayView: View {
                             .font(RetroFont.score())
                             .foregroundColor(VGA.digitalAmber)
                             .shadow(color: .black, radius: 0, x: 2, y: 2)
+                    }
+
+                case .extraPointChoice:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        FPSDialog("TOUCHDOWN!") {
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 8)
+                                Text("\(viewModel.possessionTeamName) scored!")
+                                    .font(RetroFont.header())
+                                    .foregroundColor(VGA.digitalAmber)
+                                FPSButton("KICK EXTRA POINT") {
+                                    Task { await viewModel.kickExtraPoint() }
+                                }
+                                FPSButton("GO FOR TWO") {
+                                    Task { await viewModel.attemptTwoPointConversion() }
+                                }
+                                Spacer().frame(height: 8)
+                            }
+                            .padding(24)
+                        }
                     }
 
                 case .halftime:

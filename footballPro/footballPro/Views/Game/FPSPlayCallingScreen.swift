@@ -54,8 +54,10 @@ struct FPSPlayCallingScreen: View {
     private var topButtonBar: some View {
         HStack(spacing: 0) {
             FPSButton("TIME OUT") {
-                // TODO: Implement timeout
+                viewModel.callTimeout()
             }
+            .opacity(viewModel.possessingTeamTimeouts > 0 ? 1.0 : 0.3)
+            .disabled(viewModel.possessingTeamTimeouts <= 0)
 
             Spacer()
 

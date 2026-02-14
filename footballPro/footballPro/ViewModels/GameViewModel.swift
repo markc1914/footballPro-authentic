@@ -15,12 +15,14 @@ import Combine // Import Combine for @Published (already implicitly there, but g
 // MARK: - Game Phase State Machine
 
 public enum GamePhase: Equatable { // Made public
+    case pregameNarration     // Pre-game intro text from GAMINTRO.DAT
     case playCalling          // Full-screen play calling grid
     case presnap              // Brief pre-snap field view
     case playAnimation        // Full-screen field during play
     case playResult           // Result overlay ON the field
     case refereeCall(String)  // Referee overlay with message
     case specialResult(String) // Drive result (TD, turnover overlay)
+    case extraPointChoice     // TD scored — kick PAT or go for 2?
     case halftime             // Halftime display
     case gameOver             // Final score
     case paused               // Pause menu overlay
@@ -66,6 +68,7 @@ public class GameViewModel: ObservableObject { // Made public
 
     @Published public var playByPlay: [PlayResult] = [] // Made public
     @Published public var lastPlayResult: PlayResult? // Made public
+    @Published public var narrationText: String = "" // Pre-game narration from GAMINTRO.DAT
 
     // Phase before pause was entered (to restore on resume)
     private var phaseBeforePause: GamePhase = .playCalling
@@ -117,9 +120,25 @@ public class GameViewModel: ObservableObject { // Made public
         simulationEngine.startGame()
         self.game = simulationEngine.currentGame
 
-        // Execute opening kickoff automatically
-        Task {
-            await self.executeOpeningKickoff() // Added self
+        // Generate pre-game narration from authentic GAMINTRO.DAT
+        if let narration = GameIntroDecoder.randomIntro(
+            homeCity: homeTeam.city,
+            homeMascot: homeTeam.name,
+            homeCoach: homeTeam.coachName,
+            homeRecord: "0-0",
+            awayCity: awayTeam.city,
+            awayMascot: awayTeam.name,
+            awayCoach: awayTeam.coachName,
+            awayRecord: "0-0",
+            stadium: homeTeam.stadiumName
+        ) {
+            narrationText = narration
+            currentPhase = .pregameNarration
+        } else {
+            // No narration available — skip straight to kickoff
+            Task {
+                await self.executeOpeningKickoff()
+            }
         }
     }
 
@@ -151,6 +170,70 @@ public class GameViewModel: ObservableObject { // Made public
         }
         isUserPossession = game.possessingTeamId == userTeamId
         currentPlaybookPage = 0 // Reset pagination on possession change
+    }
+
+    /// Called when user taps "START GAME" on pre-game narration screen
+    public func startGameAfterNarration() {
+        Task {
+            await self.executeOpeningKickoff()
+        }
+    }
+
+    // MARK: - Timeout Management
+
+    public func callTimeout() {
+        guard var game = game else { return }
+        let isPossessing = game.isHomeTeamPossession
+
+        // Check if timeouts remain
+        let remaining = isPossessing ? game.homeTimeouts : game.awayTimeouts
+        guard remaining > 0 else { return }
+
+        // Decrement
+        if isPossessing {
+            game.homeTimeouts -= 1
+        } else {
+            game.awayTimeouts -= 1
+        }
+
+        // Stop the clock
+        game.clock.isRunning = false
+        self.game = game
+        simulationEngine.currentGame = game
+
+        // Show referee call
+        let teamName = isPossessing ? (homeTeam?.name ?? "Home") : (awayTeam?.name ?? "Away")
+        currentPhase = .refereeCall("TIMEOUT — \(teamName)")
+    }
+
+    /// Returns remaining timeouts for the possessing team
+    public var possessingTeamTimeouts: Int {
+        guard let game = game else { return 3 }
+        return game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
+    }
+
+    // MARK: - Two-Point Conversion
+
+    public func kickExtraPoint() async {
+        await attemptExtraPoint()
+    }
+
+    public func attemptTwoPointConversion() async {
+        isSimulating = true
+        defer { isSimulating = false }
+
+        let success = await simulationEngine.executeTwoPointConversion()
+        let text = success ? "TWO-POINT CONVERSION IS GOOD!" : "TWO-POINT CONVERSION FAILED!"
+        showDriveResult(text: text)
+        self.game = simulationEngine.currentGame
+
+        if self.game?.isKickoff == true {
+            let result = await simulationEngine.executeKickoff()
+            self.game = simulationEngine.currentGame
+            lastPlayResult = result
+            playByPlay.append(result)
+        }
+        updatePossessionStatus()
     }
 
     // MARK: - Play Calling
@@ -351,10 +434,25 @@ public class GameViewModel: ObservableObject { // Made public
         guard game != nil else { return }
 
         if self.game?.isExtraPoint == true {
-            let success = await simulationEngine.executeExtraPoint()
-            let text = success ? "Extra point is GOOD!" : "Extra point MISSED!"
-            showDriveResult(text: text)
-            self.game = simulationEngine.currentGame
+            // Check if user's team scored the TD
+            if isUserPossession {
+                // Show choice dialog — user decides PAT vs 2PT
+                currentPhase = .extraPointChoice
+                return // Don't auto-advance; user will call kickExtraPoint() or attemptTwoPointConversion()
+            } else {
+                // AI team: auto-kick PAT (unless trailing by specific amounts late)
+                let shouldGoForTwo = shouldAIAttemptTwoPoint()
+                if shouldGoForTwo {
+                    let success = await simulationEngine.executeTwoPointConversion()
+                    let text = success ? "Two-point conversion is GOOD!" : "Two-point conversion FAILED!"
+                    showDriveResult(text: text)
+                } else {
+                    let success = await simulationEngine.executeExtraPoint()
+                    let text = success ? "Extra point is GOOD!" : "Extra point MISSED!"
+                    showDriveResult(text: text)
+                }
+                self.game = simulationEngine.currentGame
+            }
         }
 
         if self.game?.isKickoff == true {
@@ -364,6 +462,16 @@ public class GameViewModel: ObservableObject { // Made public
             playByPlay.append(result)
         }
 
+        // Show injury notification if the last play had one
+        if let result = lastPlayResult, result.description.contains("INJURY —") {
+            // Extract injury text from description
+            if let injuryRange = result.description.range(of: "INJURY —") {
+                let injuryText = String(result.description[injuryRange.lowerBound...])
+                currentPhase = .refereeCall(injuryText)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+
         if self.game?.gameStatus == .halftime {
             showDriveResult(text: "HALFTIME")
         }
@@ -371,6 +479,21 @@ public class GameViewModel: ObservableObject { // Made public
         if self.game?.gameStatus == .final {
             showDriveResult(text: "FINAL")
         }
+    }
+
+    /// AI decision: go for 2 if trailing by 1, 2, 4, 5, or 8+ points in Q4
+    private func shouldAIAttemptTwoPoint() -> Bool {
+        guard let game = game else { return false }
+        let situation = currentSituation()
+        // scoreDifferential is from possessing team's perspective (negative = trailing)
+        let deficit = -situation.scoreDifferential
+        let isLate = game.clock.quarter >= 4
+
+        if isLate {
+            // Go for 2 when trailing by amounts where 2 pts helps more than 1
+            return deficit == 2 || deficit == 5 || deficit >= 8
+        }
+        return false
     }
 
     // MARK: - Special Teams
