@@ -1350,11 +1350,14 @@ struct GameSetupView: View {
               let season = gameState.currentSeason,
               let nextGame = season.nextGame(for: userTeam.id) else { return }
 
+        let homeTeam = gameState.currentLeague?.team(withId: nextGame.homeTeamId)
+        let weather = Weather.forZone(homeTeam?.weatherZone ?? 2)
         let game = Game(
             homeTeamId: nextGame.homeTeamId,
             awayTeamId: nextGame.awayTeamId,
             week: nextGame.week,
-            seasonYear: season.year
+            seasonYear: season.year,
+            weather: weather
         )
         gameState.currentGame = game
         showGameSetup = false

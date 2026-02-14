@@ -519,6 +519,13 @@ struct LeagueGenerator {
 
         guard !lgeData.teams.isEmpty else { return nil }
 
+        // Load cities for weather zone data
+        let cities = CitiesDecoder.loadDefault()
+        var cityWeatherMap: [String: Int] = [:]
+        for city in cities {
+            cityWeatherMap[city.name.lowercased()] = city.weatherZone
+        }
+
         var league = League(name: lgeData.leagueName.isEmpty ? "NFLPA '93" : lgeData.leagueName)
 
         // Build divisions from LGE data
@@ -550,6 +557,9 @@ struct LeagueGenerator {
             // Look up team colors by abbreviation
             let colors = nflColors[lgeTeam.abbreviation] ?? TeamColors(primary: "333333", secondary: "AAAAAA", accent: "FFFFFF")
 
+            // Look up weather zone from cities data by matching city name
+            let weatherZone = cityWeatherMap[lgeTeam.city.lowercased()] ?? 2
+
             var team = Team(
                 name: lgeTeam.mascot,
                 city: lgeTeam.city,
@@ -557,6 +567,7 @@ struct LeagueGenerator {
                 colors: colors,
                 stadiumName: lgeTeam.stadiumName,
                 coachName: lgeTeam.coachName,
+                weatherZone: weatherZone,
                 divisionId: divisionId,
                 offensiveScheme: .proStyle,
                 defensiveScheme: .base43

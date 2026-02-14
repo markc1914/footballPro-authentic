@@ -33,7 +33,8 @@ class SimulationEngine: ObservableObject {
             awayTeamId: awayTeam.id,
             week: week,
             seasonYear: seasonYear,
-            quarterMinutes: quarterMinutes
+            quarterMinutes: quarterMinutes,
+            weather: Weather.forZone(homeTeam.weatherZone)
         )
         currentGame?.gameStatus = .pregame
     }

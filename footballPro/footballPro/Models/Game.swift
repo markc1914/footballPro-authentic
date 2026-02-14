@@ -323,7 +323,7 @@ public struct Game: Identifiable, Codable, Equatable {
     public var homeTeamStats: TeamGameStats
     public var awayTeamStats: TeamGameStats
 
-    public init(homeTeamId: UUID, awayTeamId: UUID, week: Int, seasonYear: Int, quarterMinutes: Int = 15) {
+    public init(homeTeamId: UUID, awayTeamId: UUID, week: Int, seasonYear: Int, quarterMinutes: Int = 15, weather: Weather? = nil) {
         self.id = UUID()
         self.homeTeamId = homeTeamId
         self.awayTeamId = awayTeamId
@@ -345,7 +345,7 @@ public struct Game: Identifiable, Codable, Equatable {
         self.currentDrive = nil
 
         self.gameStatus = .pregame
-        self.weather = Weather.random()
+        self.weather = weather ?? Weather.random()
 
         self.homeTeamStats = TeamGameStats()
         self.awayTeamStats = TeamGameStats()
@@ -422,6 +422,58 @@ public struct Weather: Codable, Equatable {
 
     public static var dome: Weather {
         Weather(condition: .dome, temperature: 72, windSpeed: 0)
+    }
+
+    /// Generate weather based on CITIES.DAT weather zone.
+    /// Zones from the original game map to climate regions:
+    ///   0 = dome/indoor, 1 = warm/southern, 2 = temperate, 3 = cold/northern,
+    ///   4 = extreme cold, 5+ = variable/coastal
+    public static func forZone(_ zone: Int) -> Weather {
+        switch zone {
+        case 0:
+            // Dome — always perfect
+            return .dome
+        case 1:
+            // Warm climate (Miami, Tampa, Phoenix, New Orleans)
+            let conditions: [WeatherCondition] = [.clear, .clear, .clear, .cloudy, .rain]
+            return Weather(
+                condition: conditions.randomElement()!,
+                temperature: Int.random(in: 70...95),
+                windSpeed: Int.random(in: 0...12)
+            )
+        case 2:
+            // Temperate (Dallas, San Francisco, Washington)
+            let conditions: [WeatherCondition] = [.clear, .clear, .cloudy, .cloudy, .rain]
+            return Weather(
+                condition: conditions.randomElement()!,
+                temperature: Int.random(in: 45...80),
+                windSpeed: Int.random(in: 0...18)
+            )
+        case 3:
+            // Cold (Chicago, Pittsburgh, New York, Denver)
+            let conditions: [WeatherCondition] = [.clear, .cloudy, .cloudy, .rain, .snow]
+            return Weather(
+                condition: conditions.randomElement()!,
+                temperature: Int.random(in: 25...55),
+                windSpeed: Int.random(in: 5...25)
+            )
+        case 4:
+            // Extreme cold (Green Bay, Buffalo, Minnesota outdoor)
+            let conditions: [WeatherCondition] = [.clear, .cloudy, .snow, .snow, .heavyRain]
+            return Weather(
+                condition: conditions.randomElement()!,
+                temperature: Int.random(in: 10...40),
+                windSpeed: Int.random(in: 8...30)
+            )
+        default:
+            // Coastal/variable (Seattle, San Diego)
+            let conditions: [WeatherCondition] = [.cloudy, .cloudy, .clear, .rain, .rain]
+            return Weather(
+                condition: conditions.randomElement()!,
+                temperature: Int.random(in: 40...70),
+                windSpeed: Int.random(in: 3...20)
+            )
+        }
     }
 }
 
