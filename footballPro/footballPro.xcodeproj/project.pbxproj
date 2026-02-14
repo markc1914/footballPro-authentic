@@ -1,0 +1,668 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		/* App */
+		APP001 /* FootballProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC001; };
+
+		/* Models */
+		MOD001 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC002; };
+		MOD002 /* Team.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC003; };
+		MOD003 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC004; };
+		MOD004 /* Play.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC005; };
+		MOD005 /* Season.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC006; };
+		MOD006 /* League.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC007; };
+
+		/* Engine */
+		ENG001 /* SimulationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC008; };
+		ENG002 /* PlayResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC009; };
+		ENG003 /* StatCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC010; };
+		ENG004 /* AICoach.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC011; };
+		ENG005 /* DraftEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC012; };
+
+		/* Input */
+		INP001 /* InputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC013; };
+		INP002 /* ControllerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC014; };
+		INP003 /* KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC015; };
+
+		/* ViewModels */
+		VWM001 /* GameViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC016; };
+		VWM002 /* TeamViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC017; };
+		VWM003 /* SeasonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC018; };
+		VWM004 /* LeagueViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC019; };
+
+		/* Views */
+		VIW001 /* MainMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC020; };
+		VIW002 /* GameDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC021; };
+		VIW003 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC022; };
+		VIW004 /* PlayerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC023; };
+		VIW005 /* StatTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC024; };
+		VIW006 /* NavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC025; };
+
+		/* Services */
+		SVC001 /* SaveGameService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC026; };
+		SVC002 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC027; };
+		SVC003 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC031; };
+		SVC004 /* PRFDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC037; };
+		SVC005 /* AuthenticPlaybookLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC038; };
+
+		/* Additional Views */
+		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
+		VIW008 /* RetroFieldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC033; };
+		VIW009 /* FieldView3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC034; };
+		VIW010 /* InteractiveFieldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC036; };
+
+		/* Physics Engine */
+		ENG006 /* PhysicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC035; };
+		ENG007 /* RouteScriptDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC039; };
+
+		/* Resources */
+		RES001 /* PlaybookData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC028; };
+		RES002 /* TeamData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC029; };
+		RES003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = SRC030; };
+		914732D6C9240E9B10B3A29B /* RetroStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBE3A96EF1C83F6D1C037C1 /* RetroStyle.swift */; };
+		897F2E43EE774621E5A28342 /* PlayRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E44E63DDDC5274C33620B28 /* PlayRoute.swift */; };
+		6796A29516984646DC0CA87F /* PlayerRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84D11AB8190F08D13810BA1 /* PlayerRole.swift */; };
+		B60695C31803EF15DAB6ECAA /* DefensivePlayArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C8BC81932798AE978F7215 /* DefensivePlayArt.swift */; };
+		B74C37943A02234FEE0BF045 /* SpecialTeamsPlayArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB3948F3F97A7A0356BEC7D /* SpecialTeamsPlayArt.swift */; };
+		D001BDE0440565DDE3109F67 /* PlayDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A546A62F1266E456547D5C36 /* PlayDiagramView.swift */; };
+		21BE0E9D9EAEA11E5DAF6910 /* PlayAnimationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C4A044231699EDDDFD4ABA /* PlayAnimationEngine.swift */; };
+		68FA4D5AF7C5A100C11C022B /* FPSFieldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7342355E3DA1E34E764E7FF /* FPSFieldView.swift */; };
+		4A99508DF8BE4E42DB728747 /* FieldPhysics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B0ACAF1FC2984D3F73D7F4 /* FieldPhysics.swift */; };
+		A80A961EF7B43000700D2CC5 /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B616A116A1B386593A1B5E5E /* SplashScreen.swift */; };
+		C206A443E87EA7FEFBA62E7A /* PlayAnimationBlueprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = B433A2E0D0AA1760A54BDB2F /* PlayAnimationBlueprint.swift */; };
+		3937F22D72A5371AA6B9A9E8 /* PlayBlueprintGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEB89F5B73F019E858B139B4 /* PlayBlueprintGenerator.swift */; };
+		NEW001BF /* FPSPlayCallingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW001FR /* FPSPlayCallingScreen.swift */; };
+		NEW002BF /* FPSScoreboardBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW002FR /* FPSScoreboardBar.swift */; };
+		NEW003BF /* FPSPlayResultOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW003FR /* FPSPlayResultOverlay.swift */; };
+		NEW004BF /* FPSRefereeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW004FR /* FPSRefereeOverlay.swift */; };
+		NEW005BF /* FPSReplayControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW005FR /* FPSReplayControls.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		PROD001 /* footballPro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = footballPro.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		/* App */
+		SRC001 /* FootballProApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballProApp.swift; sourceTree = "<group>"; };
+
+		/* Models */
+		SRC002 /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
+		SRC003 /* Team.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Team.swift; sourceTree = "<group>"; };
+		SRC004 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
+		SRC005 /* Play.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Play.swift; sourceTree = "<group>"; };
+		SRC006 /* Season.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Season.swift; sourceTree = "<group>"; };
+		SRC007 /* League.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = League.swift; sourceTree = "<group>"; };
+
+		/* Engine */
+		SRC008 /* SimulationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulationEngine.swift; sourceTree = "<group>"; };
+		SRC009 /* PlayResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayResolver.swift; sourceTree = "<group>"; };
+		SRC010 /* StatCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCalculator.swift; sourceTree = "<group>"; };
+		SRC011 /* AICoach.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICoach.swift; sourceTree = "<group>"; };
+		SRC012 /* DraftEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftEngine.swift; sourceTree = "<group>"; };
+
+		/* Input */
+		SRC013 /* InputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputManager.swift; sourceTree = "<group>"; };
+		SRC014 /* ControllerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerManager.swift; sourceTree = "<group>"; };
+		SRC015 /* KeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcuts.swift; sourceTree = "<group>"; };
+
+		/* ViewModels */
+		SRC016 /* GameViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModel.swift; sourceTree = "<group>"; };
+		SRC017 /* TeamViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamViewModel.swift; sourceTree = "<group>"; };
+		SRC018 /* SeasonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonViewModel.swift; sourceTree = "<group>"; };
+		SRC019 /* LeagueViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueViewModel.swift; sourceTree = "<group>"; };
+
+		/* Views */
+		SRC020 /* MainMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuView.swift; sourceTree = "<group>"; };
+		SRC021 /* GameDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDayView.swift; sourceTree = "<group>"; };
+		SRC022 /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
+		SRC023 /* PlayerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerCard.swift; sourceTree = "<group>"; };
+		SRC024 /* StatTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatTable.swift; sourceTree = "<group>"; };
+		SRC025 /* NavigationBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationBar.swift; sourceTree = "<group>"; };
+
+		/* Services */
+		SRC026 /* SaveGameService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveGameService.swift; sourceTree = "<group>"; };
+		SRC027 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
+
+		/* Resources */
+		SRC028 /* PlaybookData.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = PlaybookData.json; sourceTree = "<group>"; };
+		SRC029 /* TeamData.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = TeamData.json; sourceTree = "<group>"; };
+		SRC030 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+
+		/* Additional Files */
+		SRC031 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		SRC032 /* GameAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAnimations.swift; sourceTree = "<group>"; };
+		SRC033 /* RetroFieldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroFieldView.swift; sourceTree = "<group>"; };
+		SRC034 /* FieldView3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldView3D.swift; sourceTree = "<group>"; };
+		SRC035 /* PhysicsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsEngine.swift; sourceTree = "<group>"; };
+		SRC036 /* InteractiveFieldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveFieldView.swift; sourceTree = "<group>"; };
+		SRC037 /* PRFDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRFDecoder.swift; sourceTree = "<group>"; };
+		SRC038 /* AuthenticPlaybookLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticPlaybookLoader.swift; sourceTree = "<group>"; };
+		SRC039 /* RouteScriptDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteScriptDecoder.swift; sourceTree = "<group>"; };
+
+		/* Entitlements */
+		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
+		0DBE3A96EF1C83F6D1C037C1 /* RetroStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Styles/RetroStyle.swift; sourceTree = SOURCE_ROOT; };
+		1E44E63DDDC5274C33620B28 /* PlayRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Models/PlayRoute.swift; sourceTree = SOURCE_ROOT; };
+		E84D11AB8190F08D13810BA1 /* PlayerRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Models/PlayerRole.swift; sourceTree = SOURCE_ROOT; };
+		93C8BC81932798AE978F7215 /* DefensivePlayArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Models/DefensivePlayArt.swift; sourceTree = SOURCE_ROOT; };
+		1AB3948F3F97A7A0356BEC7D /* SpecialTeamsPlayArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Models/SpecialTeamsPlayArt.swift; sourceTree = SOURCE_ROOT; };
+		A546A62F1266E456547D5C36 /* PlayDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/PlayDiagramView.swift; sourceTree = SOURCE_ROOT; };
+		52C4A044231699EDDDFD4ABA /* PlayAnimationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/PlayAnimationEngine.swift; sourceTree = SOURCE_ROOT; };
+		B7342355E3DA1E34E764E7FF /* FPSFieldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSFieldView.swift; sourceTree = SOURCE_ROOT; };
+		10B0ACAF1FC2984D3F73D7F4 /* FieldPhysics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FieldPhysics.swift; sourceTree = SOURCE_ROOT; };
+		B616A116A1B386593A1B5E5E /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Components/SplashScreen.swift; sourceTree = SOURCE_ROOT; };
+		B433A2E0D0AA1760A54BDB2F /* PlayAnimationBlueprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayAnimationBlueprint.swift; sourceTree = "<group>"; };
+		FEB89F5B73F019E858B139B4 /* PlayBlueprintGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayBlueprintGenerator.swift; sourceTree = "<group>"; };
+		NEW001FR /* FPSPlayCallingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSPlayCallingScreen.swift; sourceTree = SOURCE_ROOT; };
+		NEW002FR /* FPSScoreboardBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSScoreboardBar.swift; sourceTree = SOURCE_ROOT; };
+		NEW003FR /* FPSPlayResultOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSPlayResultOverlay.swift; sourceTree = SOURCE_ROOT; };
+		NEW004FR /* FPSRefereeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSRefereeOverlay.swift; sourceTree = SOURCE_ROOT; };
+		NEW005FR /* FPSReplayControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSReplayControls.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FRM001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		GRP000 = {
+			isa = PBXGroup;
+			children = (
+				GRP001 /* footballPro */,
+				GRP999 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		GRP001 /* footballPro */ = {
+			isa = PBXGroup;
+			children = (
+				GRP002 /* App */,
+				GRP003 /* Models */,
+				GRP004 /* Engine */,
+				GRP005 /* Input */,
+				GRP006 /* ViewModels */,
+				GRP007 /* Views */,
+				GRP008 /* Services */,
+				GRP009 /* Resources */,
+				SRC030 /* Assets.xcassets */,
+				ENT001 /* footballPro.entitlements */,
+			);
+			path = footballPro;
+			sourceTree = "<group>";
+		};
+		GRP002 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				SRC001 /* FootballProApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		GRP003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				SRC002 /* Player.swift */,
+				SRC003 /* Team.swift */,
+				SRC004 /* Game.swift */,
+				SRC005 /* Play.swift */,
+				SRC006 /* Season.swift */,
+				SRC007 /* League.swift */,
+				B433A2E0D0AA1760A54BDB2F /* PlayAnimationBlueprint.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		GRP004 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				SRC008 /* SimulationEngine.swift */,
+				SRC009 /* PlayResolver.swift */,
+				SRC010 /* StatCalculator.swift */,
+				SRC011 /* AICoach.swift */,
+				SRC012 /* DraftEngine.swift */,
+				SRC035 /* PhysicsEngine.swift */,
+				FEB89F5B73F019E858B139B4 /* PlayBlueprintGenerator.swift */,
+				SRC039 /* RouteScriptDecoder.swift */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		GRP005 /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				SRC013 /* InputManager.swift */,
+				SRC014 /* ControllerManager.swift */,
+				SRC015 /* KeyboardShortcuts.swift */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		GRP006 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				SRC016 /* GameViewModel.swift */,
+				SRC017 /* TeamViewModel.swift */,
+				SRC018 /* SeasonViewModel.swift */,
+				SRC019 /* LeagueViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		GRP007 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				GRP010 /* MainMenu */,
+				GRP011 /* Game */,
+				GRP012 /* Team */,
+				GRP013 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		GRP008 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				SRC026 /* SaveGameService.swift */,
+				SRC027 /* SettingsService.swift */,
+				SRC031 /* SoundManager.swift */,
+				SRC037 /* PRFDecoder.swift */,
+				SRC038 /* AuthenticPlaybookLoader.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		GRP009 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				SRC028 /* PlaybookData.json */,
+				SRC029 /* TeamData.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		GRP010 /* MainMenu */ = {
+			isa = PBXGroup;
+			children = (
+				SRC020 /* MainMenuView.swift */,
+			);
+			path = MainMenu;
+			sourceTree = "<group>";
+		};
+		GRP011 /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				SRC021 /* GameDayView.swift */,
+				SRC033 /* RetroFieldView.swift */,
+				SRC034 /* FieldView3D.swift */,
+				SRC036 /* InteractiveFieldView.swift */,
+			);
+			path = Game;
+			sourceTree = "<group>";
+		};
+		GRP012 /* Team */ = {
+			isa = PBXGroup;
+			children = (
+				SRC022 /* RosterView.swift */,
+			);
+			path = Team;
+			sourceTree = "<group>";
+		};
+		GRP013 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				SRC023 /* PlayerCard.swift */,
+				SRC024 /* StatTable.swift */,
+				SRC025 /* NavigationBar.swift */,
+				SRC032 /* GameAnimations.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		GRP999 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				PROD001 /* footballPro.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TGT001 /* footballPro */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFG003 /* Build configuration list for PBXNativeTarget "footballPro" */;
+			buildPhases = (
+				BLD001 /* Sources */,
+				FRM001 /* Frameworks */,
+				BLD002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = footballPro;
+			productName = footballPro;
+			productReference = PROD001 /* footballPro.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PRJ001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					TGT001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = CFG001 /* Build configuration list for PBXProject "footballPro" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = GRP000;
+			productRefGroup = GRP999 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TGT001 /* footballPro */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BLD002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				RES001 /* PlaybookData.json in Resources */,
+				RES002 /* TeamData.json in Resources */,
+				RES003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BLD001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				914732D6C9240E9B10B3A29B /* RetroStyle.swift in Sources */,
+				897F2E43EE774621E5A28342 /* PlayRoute.swift in Sources */,
+				6796A29516984646DC0CA87F /* PlayerRole.swift in Sources */,
+				B60695C31803EF15DAB6ECAA /* DefensivePlayArt.swift in Sources */,
+				B74C37943A02234FEE0BF045 /* SpecialTeamsPlayArt.swift in Sources */,
+				D001BDE0440565DDE3109F67 /* PlayDiagramView.swift in Sources */,
+				21BE0E9D9EAEA11E5DAF6910 /* PlayAnimationEngine.swift in Sources */,
+				68FA4D5AF7C5A100C11C022B /* FPSFieldView.swift in Sources */,
+				4A99508DF8BE4E42DB728747 /* FieldPhysics.swift in Sources */,
+				A80A961EF7B43000700D2CC5 /* SplashScreen.swift in Sources */,
+				APP001 /* FootballProApp.swift in Sources */,
+				MOD001 /* Player.swift in Sources */,
+				MOD002 /* Team.swift in Sources */,
+				MOD003 /* Game.swift in Sources */,
+				MOD004 /* Play.swift in Sources */,
+				MOD005 /* Season.swift in Sources */,
+				MOD006 /* League.swift in Sources */,
+				ENG001 /* SimulationEngine.swift in Sources */,
+				ENG002 /* PlayResolver.swift in Sources */,
+				ENG003 /* StatCalculator.swift in Sources */,
+				ENG004 /* AICoach.swift in Sources */,
+				ENG005 /* DraftEngine.swift in Sources */,
+				INP001 /* InputManager.swift in Sources */,
+				INP002 /* ControllerManager.swift in Sources */,
+				INP003 /* KeyboardShortcuts.swift in Sources */,
+				VWM001 /* GameViewModel.swift in Sources */,
+				VWM002 /* TeamViewModel.swift in Sources */,
+				VWM003 /* SeasonViewModel.swift in Sources */,
+				VWM004 /* LeagueViewModel.swift in Sources */,
+				VIW001 /* MainMenuView.swift in Sources */,
+				VIW002 /* GameDayView.swift in Sources */,
+				VIW003 /* RosterView.swift in Sources */,
+				VIW004 /* PlayerCard.swift in Sources */,
+				VIW005 /* StatTable.swift in Sources */,
+				VIW006 /* NavigationBar.swift in Sources */,
+				SVC001 /* SaveGameService.swift in Sources */,
+				SVC002 /* SettingsService.swift in Sources */,
+				SVC003 /* SoundManager.swift in Sources */,
+				SVC004 /* PRFDecoder.swift in Sources */,
+				SVC005 /* AuthenticPlaybookLoader.swift in Sources */,
+				VIW007 /* GameAnimations.swift in Sources */,
+				VIW008 /* RetroFieldView.swift in Sources */,
+				VIW009 /* FieldView3D.swift in Sources */,
+				ENG006 /* PhysicsEngine.swift in Sources */,
+				ENG007 /* RouteScriptDecoder.swift in Sources */,
+				VIW010 /* InteractiveFieldView.swift in Sources */,
+				C206A443E87EA7FEFBA62E7A /* PlayAnimationBlueprint.swift in Sources */,
+				3937F22D72A5371AA6B9A9E8 /* PlayBlueprintGenerator.swift in Sources */,
+				NEW001BF /* FPSPlayCallingScreen.swift in Sources */,
+				NEW002BF /* FPSScoreboardBar.swift in Sources */,
+				NEW003BF /* FPSPlayResultOverlay.swift in Sources */,
+				NEW004BF /* FPSRefereeOverlay.swift in Sources */,
+				NEW005BF /* FPSReplayControls.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CFG101 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CFG102 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		CFG201 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = footballPro/footballPro.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Football Pro";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports-games";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.footballpro.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		CFG202 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = footballPro/footballPro.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Football Pro";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports-games";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.footballpro.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CFG001 /* Build configuration list for PBXProject "footballPro" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG101 /* Debug */,
+				CFG102 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFG003 /* Build configuration list for PBXNativeTarget "footballPro" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG201 /* Debug */,
+				CFG202 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = PRJ001 /* Project object */;
+}

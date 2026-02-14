@@ -1,0 +1,337 @@
+//
+//  GameDayView.swift
+//  footballPro
+//
+//  Main game interface — ZStack state machine driven by GamePhase
+//
+
+import SwiftUI
+import SwiftData
+
+struct GameDayView: View {
+    @EnvironmentObject var gameState: GameState
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var viewModel = GameViewModel()
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let game = viewModel.game {
+                // State machine: show the right screen for the current phase
+                switch viewModel.currentPhase {
+                case .playCalling:
+                    FPSPlayCallingScreen(viewModel: viewModel)
+
+                case .presnap:
+                    FPSFieldView(viewModel: viewModel)
+
+                case .playAnimation:
+                    FPSFieldView(viewModel: viewModel)
+
+                case .playResult:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSPlayResultOverlay(viewModel: viewModel)
+                    }
+
+                case .refereeCall(let message):
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSRefereeOverlay(message: message) {
+                            viewModel.continueAfterResult()
+                        }
+                    }
+
+                case .specialResult(let text):
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        Text(text)
+                            .font(RetroFont.score())
+                            .foregroundColor(VGA.digitalAmber)
+                            .shadow(color: .black, radius: 0, x: 2, y: 2)
+                    }
+
+                case .halftime:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        FPSDialog("HALFTIME") {
+                            VStack(spacing: 16) {
+                                HStack(spacing: 24) {
+                                    VStack(spacing: 4) {
+                                        Text(viewModel.awayTeam?.abbreviation ?? "AWY")
+                                            .font(RetroFont.header())
+                                            .foregroundColor(VGA.lightGray)
+                                        Text("\(game.score.awayScore)")
+                                            .font(RetroFont.score())
+                                            .foregroundColor(VGA.digitalAmber)
+                                    }
+                                    Text("-")
+                                        .font(RetroFont.huge())
+                                        .foregroundColor(VGA.darkGray)
+                                    VStack(spacing: 4) {
+                                        Text(viewModel.homeTeam?.abbreviation ?? "HME")
+                                            .font(RetroFont.header())
+                                            .foregroundColor(VGA.lightGray)
+                                        Text("\(game.score.homeScore)")
+                                            .font(RetroFont.score())
+                                            .foregroundColor(VGA.digitalAmber)
+                                    }
+                                }
+                                FPSButton("START 2ND HALF") {
+                                    viewModel.startSecondHalf()
+                                    viewModel.transitionTo(.playCalling)
+                                }
+                            }
+                            .padding(24)
+                        }
+                    }
+
+                case .gameOver:
+                    GameOverView(
+                        homeTeam: viewModel.homeTeam,
+                        awayTeam: viewModel.awayTeam,
+                        game: game,
+                        onContinue: {
+                            recordGameResult()
+                            gameState.currentScreen = .season
+                        }
+                    )
+
+                case .paused:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        PauseMenuView(viewModel: viewModel)
+                    }
+                }
+
+                // Game Over detection (auto-transition)
+                if game.gameStatus == .final && viewModel.currentPhase != .gameOver {
+                    Color.clear.onAppear {
+                        viewModel.transitionTo(.gameOver)
+                    }
+                }
+
+                // Halftime detection (auto-transition)
+                if game.gameStatus == .halftime && viewModel.currentPhase != .halftime &&
+                   viewModel.currentPhase != .paused {
+                    Color.clear.onAppear {
+                        viewModel.transitionTo(.halftime)
+                    }
+                }
+            } else {
+                Text("No game loaded")
+                    .font(RetroFont.header())
+                    .foregroundColor(VGA.digitalAmber)
+            }
+        }
+        .onAppear {
+            setupGame()
+        }
+    }
+
+    private func recordGameResult() {
+        guard let game = viewModel.game,
+              var season = gameState.currentSeason,
+              let userTeam = gameState.userTeam else { return }
+
+        guard let scheduledGame = season.schedule.first(where: {
+            $0.homeTeamId == game.homeTeamId &&
+            $0.awayTeamId == game.awayTeamId &&
+            $0.week == game.week
+        }) else { return }
+
+        let result = GameResult(
+            homeScore: game.score.homeScore,
+            awayScore: game.score.awayScore,
+            homeTeamStats: game.homeTeamStats,
+            awayTeamStats: game.awayTeamStats,
+            winnerId: game.score.homeScore > game.score.awayScore ? game.homeTeamId :
+                     game.score.awayScore > game.score.homeScore ? game.awayTeamId : nil,
+            loserId: game.score.homeScore > game.score.awayScore ? game.awayTeamId :
+                    game.score.awayScore > game.score.homeScore ? game.homeTeamId : nil
+        )
+
+        season.recordGameResult(gameId: scheduledGame.id, result: result)
+
+        let currentWeekGames = season.schedule.filter { $0.week == season.currentWeek }
+        let completedGames = currentWeekGames.filter { $0.result != nil }
+        if completedGames.count == currentWeekGames.count {
+            season.advanceWeek()
+        }
+
+        gameState.currentSeason = season
+        gameState.userTeam = gameState.currentLeague?.teams.first { $0.id == userTeam.id }
+        gameState.autoSave(modelContext: modelContext)
+    }
+
+    private func setupGame() {
+        guard let league = gameState.currentLeague,
+              let userTeam = gameState.userTeam,
+              let season = gameState.currentSeason,
+              let nextGame = season.nextGame(for: userTeam.id) else { return }
+
+        let homeTeam = league.team(withId: nextGame.homeTeamId)!
+        let awayTeam = league.team(withId: nextGame.awayTeamId)!
+
+        viewModel.setupGame(
+            homeTeam: homeTeam,
+            awayTeam: awayTeam,
+            week: nextGame.week,
+            seasonYear: season.year,
+            userTeamId: userTeam.id,
+            quarterMinutes: gameState.quarterLength.rawValue
+        )
+    }
+}
+
+// MARK: - Pause Menu (FPS '93 Style)
+
+struct PauseMenuView: View {
+    @ObservedObject var viewModel: GameViewModel
+    @EnvironmentObject var gameState: GameState
+    @Environment(\.modelContext) private var modelContext
+    @State private var showSaveConfirmation = false
+    @State private var saveError: String?
+
+    var body: some View {
+        FPSDialog("GAME PAUSED") {
+            VStack(spacing: 12) {
+                Spacer().frame(height: 8)
+
+                FPSButton("RESUME", width: 200) {
+                    viewModel.togglePause()
+                }
+
+                FPSButton("SAVE GAME", width: 200) {
+                    saveGame()
+                }
+
+                if showSaveConfirmation {
+                    Text("GAME SAVED!")
+                        .font(RetroFont.small())
+                        .foregroundColor(VGA.green)
+                }
+
+                if let error = saveError {
+                    Text("SAVE FAILED: \(error)")
+                        .font(RetroFont.tiny())
+                        .foregroundColor(VGA.brightRed)
+                        .lineLimit(2)
+                }
+
+                FPSButton("QUIT TO MENU", width: 200) {
+                    gameState.navigateTo(.mainMenu)
+                }
+
+                Spacer().frame(height: 8)
+            }
+            .padding()
+        }
+    }
+
+    private func saveGame() {
+        guard let league = gameState.currentLeague,
+              let season = gameState.currentSeason,
+              let userTeam = gameState.userTeam else {
+            saveError = "NO ACTIVE GAME"
+            return
+        }
+
+        do {
+            let saveService = SaveGameService(modelContext: modelContext)
+            try saveService.quickSave(league: league, season: season, userTeamId: userTeam.id)
+            showSaveConfirmation = true
+            saveError = nil
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                showSaveConfirmation = false
+            }
+        } catch {
+            saveError = error.localizedDescription.uppercased()
+            showSaveConfirmation = false
+        }
+    }
+}
+
+// MARK: - Game Over View (FPS '93 Style)
+
+struct GameOverView: View {
+    let homeTeam: Team?
+    let awayTeam: Team?
+    let game: Game
+    let onContinue: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            FPSDialog("FINAL SCORE") {
+                VStack(spacing: 16) {
+                    Spacer().frame(height: 8)
+
+                    HStack(spacing: 24) {
+                        VStack(spacing: 4) {
+                            Text(awayTeam?.abbreviation ?? "AWAY")
+                                .font(RetroFont.header())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.score.awayScore)")
+                                .font(RetroFont.score())
+                                .foregroundColor(game.score.awayScore > game.score.homeScore ? VGA.green : VGA.white)
+                        }
+
+                        Text("-")
+                            .font(RetroFont.huge())
+                            .foregroundColor(VGA.darkGray)
+
+                        VStack(spacing: 4) {
+                            Text(homeTeam?.abbreviation ?? "HOME")
+                                .font(RetroFont.header())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.score.homeScore)")
+                                .font(RetroFont.score())
+                                .foregroundColor(game.score.homeScore > game.score.awayScore ? VGA.green : VGA.white)
+                        }
+                    }
+
+                    if let winner = game.score.homeScore > game.score.awayScore ? homeTeam : awayTeam {
+                        Text("\(winner.fullName) WIN!")
+                            .font(RetroFont.title())
+                            .foregroundColor(VGA.digitalAmber)
+                    } else if game.score.isTied {
+                        Text("TIE GAME")
+                            .font(RetroFont.title())
+                            .foregroundColor(VGA.orange)
+                    }
+
+                    Spacer().frame(height: 8)
+
+                    FPSButton("CONTINUE TO SEASON") {
+                        onContinue()
+                    }
+
+                    Spacer().frame(height: 8)
+                }
+                .padding(24)
+            }
+        }
+    }
+}
+
+// MARK: - Play Type Button (legacy compat)
+
+struct PlayTypeButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        FPSButton(title, action: action)
+    }
+}
+
+#Preview {
+    GameDayView()
+        .environmentObject(GameState())
+        .environmentObject(InputManager())
+}

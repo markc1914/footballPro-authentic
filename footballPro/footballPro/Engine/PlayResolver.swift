@@ -1,0 +1,496 @@
+//
+//  PlayResolver.swift
+//  footballPro
+//
+//  Resolves play outcomes based on matchups and ratings
+//
+
+import Foundation
+
+class PlayResolver {
+
+    // MARK: - Main Resolution
+
+    func resolvePlay(
+        offensiveCall: any PlayCall, // Changed to any PlayCall
+        defensiveCall: any DefensiveCall, // Changed to any DefensiveCall
+        offensiveTeam: Team,
+        defensiveTeam: Team,
+        fieldPosition: FieldPosition,
+        downAndDistance: DownAndDistance,
+        weather: Weather
+    ) -> PlayOutcome {
+
+        // Check for penalty first (5% chance)
+        if Double.random(in: 0...1) < 0.05 {
+            return resolvePenalty()
+        }
+
+        switch offensiveCall.playType {
+        case _ where offensiveCall.playType.isRun:
+            return resolveRun(
+                playType: offensiveCall.playType,
+                offensiveTeam: offensiveTeam,
+                defensiveTeam: defensiveTeam,
+                defensiveFormation: defensiveCall.formation,
+                fieldPosition: fieldPosition
+            )
+
+        case _ where offensiveCall.playType.isPass:
+            return resolvePass(
+                playType: offensiveCall.playType,
+                offensiveTeam: offensiveTeam,
+                defensiveTeam: defensiveTeam,
+                defensiveCall: defensiveCall,
+                fieldPosition: fieldPosition,
+                weather: weather
+            )
+
+        default:
+            return PlayOutcome.incomplete()
+        }
+    }
+
+    // MARK: - Run Resolution
+
+    private func resolveRun(
+        playType: PlayType,
+        offensiveTeam: Team,
+        defensiveTeam: Team,
+        defensiveFormation: DefensiveFormation,
+        fieldPosition: FieldPosition
+    ) -> PlayOutcome {
+
+        // Get key players
+        let rb = offensiveTeam.starter(at: .runningBack)
+        let lt = offensiveTeam.starter(at: .leftTackle)
+        let lg = offensiveTeam.starter(at: .leftGuard)
+        let c = offensiveTeam.starter(at: .center)
+        let rg = offensiveTeam.starter(at: .rightGuard)
+        let rt = offensiveTeam.starter(at: .rightTackle)
+
+        let dt1 = defensiveTeam.starter(at: .defensiveTackle)
+        let dt2 = defensiveTeam.players(at: .defensiveTackle).dropFirst().first
+        let mlb = defensiveTeam.starter(at: .middleLinebacker)
+        let olb1 = defensiveTeam.starter(at: .outsideLinebacker)
+
+        // Calculate offensive line rating
+        let oLineRating = [lt, lg, c, rg, rt]
+            .compactMap { $0?.ratings.runBlock }
+            .reduce(0, +) / 5
+
+        // Calculate defensive front rating (weighted more heavily)
+        let defenders = [dt1, dt2, mlb, olb1].compactMap { $0 }
+        let dLineRating = defenders.isEmpty ? 70 : defenders
+            .map { ($0.ratings.tackle + $0.ratings.blockShedding + $0.ratings.pursuit) / 3 }
+            .reduce(0, +) / defenders.count
+
+        // Running back contribution
+        let rbRating = rb.map { ($0.ratings.speed + $0.ratings.elusiveness + $0.ratings.ballCarrierVision) / 3 } ?? 60
+
+        // Formation matchup - defense gets more credit for run-stopping formations
+        let formationModifier: Double
+        switch defensiveFormation {
+        case .goalLine: formationModifier = 0.4  // Very hard to run against goal line
+        case .base43, .base34: formationModifier = 0.85
+        case .nickel: formationModifier = 1.0
+        case .dime, .prevent: formationModifier = 1.3
+        }
+
+        // Calculate base yards - defense is now more impactful
+        let matchupDiff = Double(oLineRating + rbRating/2 - dLineRating) / 150.0
+        let baseYards = playType.averageYards * (0.8 + matchupDiff) * formationModifier
+
+        // Add randomness with more variance towards negative (TFLs are common in NFL)
+        let variance = Double.random(in: -4...4)
+        var yards = Int(baseYards + variance)
+
+        // 20% chance of tackle for loss if defense wins the matchup
+        if dLineRating > oLineRating && Double.random(in: 0...1) < 0.20 {
+            yards = Int.random(in: -3...0)
+        }
+
+        // Play type specific adjustments
+        switch playType {
+        case .qbSneak:
+            yards = max(-1, min(yards, 2))
+        case .draw:
+            // Draws are risky - can break big or get stuffed
+            if Double.random(in: 0...1) < 0.3 {
+                yards = Int.random(in: -2...1)
+            } else if Double.random(in: 0...1) < 0.1 {
+                yards += Int.random(in: 8...20)
+            }
+        case .sweep, .outsideRun:
+            // Outside runs can lose yards or break big
+            if Double.random(in: 0...1) < 0.25 {
+                yards = Int.random(in: -4...1)
+            } else if Double.random(in: 0...1) < 0.10 {
+                yards += Int.random(in: 10...25)
+            }
+        default:
+            break
+        }
+
+        // Check for fumble (2% base chance, more realistic)
+        let carryingSkill = Double(rb?.ratings.carrying ?? 70)
+        let fumbleChance = 0.02 * (1.0 - carryingSkill / 200.0)
+        if Double.random(in: 0...1) < fumbleChance {
+            let recovered = Double.random(in: 0...1) < 0.45 // Defense recovers 55% of fumbles
+            return PlayOutcome(
+                yardsGained: min(yards, 3), // Fumble usually happens after short gain
+                timeElapsed: Int.random(in: 5...10),
+                isComplete: true,
+                isTouchdown: false,
+                isTurnover: !recovered,
+                turnoverType: recovered ? nil : .fumble,
+                isPenalty: false,
+                penalty: nil,
+                isInjury: false,
+                injuredPlayerId: nil,
+                description: generateRunDescription(rb: rb, yards: yards, fumble: true, recovered: recovered)
+            )
+        }
+
+        // Cap yards at distance to end zone
+        yards = min(yards, fieldPosition.yardsToEndZone)
+        let isTouchdown = fieldPosition.yardLine + yards >= 100
+
+        // Time elapsed
+        let timeElapsed = yards > 0 ? Int.random(in: 25...40) : Int.random(in: 5...15)
+
+        return PlayOutcome(
+            yardsGained: yards,
+            timeElapsed: timeElapsed,
+            isComplete: true,
+            isTouchdown: isTouchdown,
+            isTurnover: false,
+            turnoverType: nil,
+            isPenalty: false,
+            penalty: nil,
+            isInjury: false,
+            injuredPlayerId: nil,
+            description: generateRunDescription(rb: rb, yards: yards)
+        )
+    }
+
+    // MARK: - Pass Resolution
+
+    private func resolvePass(
+        playType: PlayType,
+        offensiveTeam: Team,
+        defensiveTeam: Team,
+        defensiveCall: any DefensiveCall, // Changed to any DefensiveCall
+        fieldPosition: FieldPosition,
+        weather: Weather
+    ) -> PlayOutcome {
+
+        let qb = offensiveTeam.starter(at: .quarterback)
+        let receivers = offensiveTeam.players(at: .wideReceiver) + offensiveTeam.players(at: .tightEnd)
+        let targetReceiver = receivers.randomElement()
+
+        let cb1 = defensiveTeam.starter(at: .cornerback)
+        let cb2 = defensiveTeam.players(at: .cornerback).dropFirst().first
+        let fs = defensiveTeam.starter(at: .freeSafety)
+        let ss = defensiveTeam.starter(at: .strongSafety)
+        let de1 = defensiveTeam.starter(at: .defensiveEnd)
+
+        // QB accuracy based on pass depth
+        let qbAccuracy: Int
+        switch playType {
+        case .shortPass, .screen:
+            qbAccuracy = qb?.ratings.throwAccuracyShort ?? 70
+        case .mediumPass, .playAction, .rollout:
+            qbAccuracy = qb?.ratings.throwAccuracyMid ?? 70
+        case .deepPass:
+            qbAccuracy = qb?.ratings.throwAccuracyDeep ?? 70
+        default:
+            qbAccuracy = qb?.ratings.throwAccuracyMid ?? 70
+        }
+
+        // Receiver rating
+        let receiverRating = targetReceiver.map {
+            ($0.ratings.catching + $0.ratings.routeRunning) / 2
+        } ?? 60
+
+        // Coverage rating - more comprehensive calculation
+        let coverageRating: Int
+        switch defensiveCall.coverage {
+        case .manCoverage:
+            // Man coverage uses individual CB skills
+            let cbRating = ((cb1?.ratings.manCoverage ?? 70) + (cb2?.ratings.manCoverage ?? 70)) / 2
+            coverageRating = cbRating + 5 // Slight bonus for man coverage
+        case .coverTwo:
+            let safetyRating = ((fs?.ratings.zoneCoverage ?? 70) + (ss?.ratings.zoneCoverage ?? 70)) / 2
+            coverageRating = safetyRating
+        case .coverThree, .coverFour:
+            let dbRating = [cb1, cb2, fs, ss].compactMap { $0?.ratings.zoneCoverage }.reduce(0, +) / 4
+            coverageRating = dbRating + 8 // Zone coverage bonus
+        default:
+            coverageRating = 70
+        }
+
+        // Pass rush pressure affects everything
+        let passRushRating = de1?.ratings.passRush ?? 70
+        let oLinePassBlock = [
+            offensiveTeam.starter(at: .leftTackle)?.ratings.passBlock ?? 70,
+            offensiveTeam.starter(at: .leftGuard)?.ratings.passBlock ?? 70,
+            offensiveTeam.starter(at: .center)?.ratings.passBlock ?? 70,
+            offensiveTeam.starter(at: .rightGuard)?.ratings.passBlock ?? 70,
+            offensiveTeam.starter(at: .rightTackle)?.ratings.passBlock ?? 70
+        ].reduce(0, +) / 5
+
+        // Sack chance - more realistic (NFL average ~6-7%)
+        var sackChance = 0.07
+        if defensiveCall.isBlitzing {
+            sackChance = 0.18  // Blitzes are high risk/reward
+        }
+        // Pass rush vs pass block matchup
+        let passRushDiff = Double(passRushRating - oLinePassBlock) / 100.0
+        sackChance += passRushDiff * 0.08
+        sackChance = max(0.03, min(0.25, sackChance))
+
+        if Double.random(in: 0...1) < sackChance {
+            let sackYards = Int.random(in: -12...(-4))
+
+            // Strip sack fumble chance (~10% of sacks result in fumbles, defense recovers ~65%)
+            let stripSackChance = 0.10
+            if Double.random(in: 0...1) < stripSackChance {
+                let defenseRecovers = Double.random(in: 0...1) < 0.65
+                let desc = defenseRecovers
+                    ? "\(qb?.fullName ?? "QB") STRIP SACKED! Fumble recovered by defense!"
+                    : "\(qb?.fullName ?? "QB") stripped on the sack, but recovers the fumble"
+                return PlayOutcome(
+                    yardsGained: sackYards,
+                    timeElapsed: Int.random(in: 5...10),
+                    isComplete: false,
+                    isTouchdown: false,
+                    isTurnover: defenseRecovers,
+                    turnoverType: defenseRecovers ? .fumble : nil,
+                    isPenalty: false,
+                    penalty: nil,
+                    isInjury: false,
+                    injuredPlayerId: nil,
+                    description: desc
+                )
+            }
+
+            return PlayOutcome(
+                yardsGained: sackYards,
+                timeElapsed: Int.random(in: 5...10),
+                isComplete: false,
+                isTouchdown: false,
+                isTurnover: false,
+                turnoverType: nil,
+                isPenalty: false,
+                penalty: nil,
+                isInjury: false,
+                injuredPlayerId: nil,
+                description: "\(qb?.fullName ?? "QB") sacked for a loss of \(abs(sackYards)) yards"
+            )
+        }
+
+        // Pressure affects accuracy even without sack (hurried throws)
+        let isPressured = Double.random(in: 0...1) < (sackChance * 2.5)
+        let pressurePenalty = isPressured ? 15 : 0
+
+        // Calculate completion chance - more realistic (NFL average ~65%)
+        let effectiveQBAccuracy = qbAccuracy - pressurePenalty
+        var completionChance = Double(effectiveQBAccuracy + receiverRating - coverageRating - 20) / 120.0
+        completionChance = min(0.80, max(0.30, completionChance))  // Tighter bounds
+
+        // Weather affects passing
+        if weather.affectsPassing {
+            completionChance *= 0.80
+        }
+
+        // Play type modifiers - more conservative
+        switch playType {
+        case .screen:
+            completionChance += 0.12
+        case .deepPass:
+            completionChance -= 0.20  // Deep balls are hard
+        case .playAction:
+            completionChance += 0.05
+        case .shortPass:
+            completionChance += 0.08
+        default:
+            break
+        }
+
+        // Coverage matchup - defense gets more credit
+        switch defensiveCall.coverage {
+        case .blitz, .zoneBlitz:
+            completionChance += 0.08  // Less bonus for blitz (receivers less open)
+        case .manCoverage:
+            completionChance -= 0.08
+        case .coverThree, .coverFour:
+            completionChance -= 0.05
+        case .coverTwo:
+            completionChance -= 0.03
+        default:
+            break
+        }
+
+        // Prevent formation gives up short passes
+        if defensiveCall.formation == .prevent {
+            completionChance += 0.10
+        }
+
+        let isComplete = Double.random(in: 0...1) < completionChance
+
+        if !isComplete {
+            // Check for interception - more realistic (NFL ~2.5% of passes)
+            var intChance = 0.025
+            if playType == .deepPass { intChance = 0.06 }
+            if isPressured { intChance += 0.03 }  // Hurried throws get picked
+            if defensiveCall.coverage == .coverFour { intChance += 0.02 }
+            if defensiveCall.coverage == .manCoverage { intChance += 0.015 }
+
+            // Bad QB decisions
+            let qbAwareness = qb?.ratings.awareness ?? 70
+            if qbAwareness < 70 { intChance += 0.02 }
+
+            if Double.random(in: 0...1) < intChance {
+                return PlayOutcome(
+                    yardsGained: 0,
+                    timeElapsed: Int.random(in: 4...8),
+                    isComplete: false,
+                    isTouchdown: false,
+                    isTurnover: true,
+                    turnoverType: .interception,
+                    isPenalty: false,
+                    penalty: nil,
+                    isInjury: false,
+                    injuredPlayerId: nil,
+                    description: "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(cb1?.fullName ?? "defender")!"
+                )
+            }
+
+            // Pass breakup description
+            let breakupDesc = isPressured ?
+                "\(qb?.fullName ?? "QB") throws it away under pressure" :
+                "Pass incomplete to \(targetReceiver?.fullName ?? "receiver")"
+
+            return PlayOutcome(
+                yardsGained: 0,
+                timeElapsed: Int.random(in: 4...8),
+                isComplete: false,
+                isTouchdown: false,
+                isTurnover: false,
+                turnoverType: nil,
+                isPenalty: false,
+                penalty: nil,
+                isInjury: false,
+                injuredPlayerId: nil,
+                description: breakupDesc
+            )
+        }
+
+        // Calculate yards - reduce YAC, make coverage matter more
+        let baseYards = playType.averageYards
+        let tackleSkill = Double((cb1?.ratings.tackle ?? 70) + (ss?.ratings.tackle ?? 70)) / 200.0
+        let yacAbility = Double.random(in: 0...5) * Double(targetReceiver?.ratings.speed ?? 70) / 150.0 * (1.0 - tackleSkill * 0.5)
+        var totalYards = Int(Double(baseYards) * 0.85 + yacAbility + Double.random(in: -4...3))
+        totalYards = max(1, totalYards)  // Minimum 1 yard on completion
+
+        // Cap at end zone
+        totalYards = min(totalYards, fieldPosition.yardsToEndZone)
+        let isTouchdown = fieldPosition.yardLine + totalYards >= 100
+
+        let timeElapsed = Int.random(in: 5...15)
+
+        return PlayOutcome(
+            yardsGained: totalYards,
+            timeElapsed: timeElapsed,
+            isComplete: true,
+            isTouchdown: isTouchdown,
+            isTurnover: false,
+            turnoverType: nil,
+            isPenalty: false,
+            penalty: nil,
+            isInjury: false,
+            injuredPlayerId: nil,
+            description: generatePassDescription(qb: qb, receiver: targetReceiver, yards: totalYards, touchdown: isTouchdown)
+        )
+    }
+
+    // MARK: - Penalty Resolution
+
+    private func resolvePenalty() -> PlayOutcome {
+        let penaltyType = PenaltyType.allCases.randomElement()!
+
+        // Assign penalty to the CORRECT side based on penalty type
+        let isOnOffense: Bool
+        if penaltyType.isAlwaysOffense {
+            isOnOffense = true
+        } else if penaltyType.isAlwaysDefense {
+            isOnOffense = false
+        } else {
+            // Ambiguous penalties (holding, facemask, etc.): random side
+            isOnOffense = Bool.random()
+        }
+
+        let penalty = Penalty(
+            type: penaltyType,
+            yards: penaltyType.yards,
+            isOnOffense: isOnOffense,
+            isDeclined: false
+        )
+
+        let yardEffect = isOnOffense ? -penalty.yards : penalty.yards
+
+        return PlayOutcome(
+            yardsGained: yardEffect,
+            timeElapsed: 0,
+            isComplete: false,
+            isTouchdown: false,
+            isTurnover: false,
+            turnoverType: nil,
+            isPenalty: true,
+            penalty: penalty,
+            isInjury: false,
+            injuredPlayerId: nil,
+            description: "FLAG: \(penalty.description)"
+        )
+    }
+
+    // MARK: - Description Generation
+
+    private func generateRunDescription(rb: Player?, yards: Int, fumble: Bool = false, recovered: Bool = true) -> String {
+        let name = rb?.fullName ?? "Running back"
+
+        if fumble {
+            if recovered {
+                return "\(name) runs for \(yards) yards, FUMBLES but recovers"
+            } else {
+                return "\(name) runs for \(yards) yards, FUMBLES! Recovered by defense"
+            }
+        }
+
+        if yards <= 0 {
+            return "\(name) stuffed for no gain"
+        } else if yards <= 3 {
+            return "\(name) runs up the middle for \(yards) yards"
+        } else if yards <= 10 {
+            return "\(name) finds a hole for \(yards) yards"
+        } else {
+            return "\(name) breaks free for a \(yards) yard gain!"
+        }
+    }
+
+    private func generatePassDescription(qb: Player?, receiver: Player?, yards: Int, touchdown: Bool) -> String {
+        let qbName = qb?.fullName ?? "Quarterback"
+        let recName = receiver?.fullName ?? "receiver"
+
+        if touchdown {
+            return "\(qbName) finds \(recName) for a \(yards) yard TOUCHDOWN!"
+        } else if yards <= 5 {
+            return "\(qbName) completes a short pass to \(recName) for \(yards) yards"
+        } else if yards <= 15 {
+            return "\(qbName) hits \(recName) over the middle for \(yards) yards"
+        } else {
+            return "\(qbName) connects deep with \(recName) for \(yards) yards!"
+        }
+    }
+}

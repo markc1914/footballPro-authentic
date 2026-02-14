@@ -1,0 +1,192 @@
+{
+  "teams": [
+    {
+      "name": "Thunder",
+      "city": "Austin",
+      "abbreviation": "AUS",
+      "colors": {
+        "primary": "1A237E",
+        "secondary": "FF6F00",
+        "accent": "FFFFFF"
+      },
+      "stadium": "Lone Star Stadium",
+      "capacity": 65000,
+      "division": "Western",
+      "offensiveScheme": "spreadOption",
+      "defensiveScheme": "base43"
+    },
+    {
+      "name": "Wolves",
+      "city": "Portland",
+      "abbreviation": "POR",
+      "colors": {
+        "primary": "1B5E20",
+        "secondary": "FFFFFF",
+        "accent": "4CAF50"
+      },
+      "stadium": "Pacific Northwest Arena",
+      "capacity": 68000,
+      "division": "Western",
+      "offensiveScheme": "westCoast",
+      "defensiveScheme": "base34"
+    },
+    {
+      "name": "Titans",
+      "city": "Nashville",
+      "abbreviation": "NSH",
+      "colors": {
+        "primary": "0D47A1",
+        "secondary": "F44336",
+        "accent": "FFFFFF"
+      },
+      "stadium": "Music City Stadium",
+      "capacity": 69000,
+      "division": "Eastern",
+      "offensiveScheme": "powerRun",
+      "defensiveScheme": "base43"
+    },
+    {
+      "name": "Storm",
+      "city": "Seattle",
+      "abbreviation": "SEA",
+      "colors": {
+        "primary": "006064",
+        "secondary": "B2FF59",
+        "accent": "FFFFFF"
+      },
+      "stadium": "Emerald Field",
+      "capacity": 72000,
+      "division": "Western",
+      "offensiveScheme": "airRaid",
+      "defensiveScheme": "nickel"
+    },
+    {
+      "name": "Blazers",
+      "city": "Phoenix",
+      "abbreviation": "PHX",
+      "colors": {
+        "primary": "E65100",
+        "secondary": "000000",
+        "accent": "FFC107"
+      },
+      "stadium": "Desert Dome",
+      "capacity": 63000,
+      "division": "Western",
+      "offensiveScheme": "airRaid",
+      "defensiveScheme": "dime"
+    },
+    {
+      "name": "Knights",
+      "city": "Las Vegas",
+      "abbreviation": "LVK",
+      "colors": {
+        "primary": "212121",
+        "secondary": "CFD8DC",
+        "accent": "FFD700"
+      },
+      "stadium": "Silver State Stadium",
+      "capacity": 65000,
+      "division": "Eastern",
+      "offensiveScheme": "proStyle",
+      "defensiveScheme": "base43"
+    },
+    {
+      "name": "Hurricanes",
+      "city": "Miami",
+      "abbreviation": "MIA",
+      "colors": {
+        "primary": "00838F",
+        "secondary": "FF8A65",
+        "accent": "FFFFFF"
+      },
+      "stadium": "Tropical Bowl",
+      "capacity": 67000,
+      "division": "Eastern",
+      "offensiveScheme": "spreadOption",
+      "defensiveScheme": "tampa2"
+    },
+    {
+      "name": "Pioneers",
+      "city": "Denver",
+      "abbreviation": "DEN",
+      "colors": {
+        "primary": "4A148C",
+        "secondary": "FFC107",
+        "accent": "FFFFFF"
+      },
+      "stadium": "Mile High Field",
+      "capacity": 76000,
+      "division": "Eastern",
+      "offensiveScheme": "powerRun",
+      "defensiveScheme": "base34"
+    }
+  ],
+  "divisions": [
+    {
+      "name": "Western Division",
+      "teams": ["AUS", "POR", "SEA", "PHX"]
+    },
+    {
+      "name": "Eastern Division",
+      "teams": ["NSH", "LVK", "MIA", "DEN"]
+    }
+  ],
+  "leagueSettings": {
+    "salaryCap": 225000,
+    "minSalary": 750,
+    "rosterSize": 53,
+    "practiceSquadSize": 16,
+    "regularSeasonWeeks": 14,
+    "playoffTeams": 4,
+    "tradeDeadlineWeek": 10
+  },
+  "playerNamePools": {
+    "firstNames": [
+      "James", "Marcus", "DeShawn", "Tyler", "Brandon", "Chris", "Mike", "David",
+      "Antonio", "Derek", "Justin", "Kevin", "Ryan", "Josh", "Matt", "Drew",
+      "Dak", "Lamar", "Patrick", "Jalen", "Tua", "Joe", "Trevor", "Mac",
+      "Aaron", "Tom", "Russell", "Kyler", "Daniel", "Baker", "Sam", "Zach",
+      "Derrick", "Dalvin", "Alvin", "Nick", "Ezekiel", "Saquon", "Jonathan", "Austin",
+      "Davante", "Tyreek", "Stefon", "Cooper", "CeeDee", "Ja'Marr", "Amon-Ra",
+      "Travis", "Mark", "George", "Darren", "Kyle", "Dallas", "Micah", "Fred"
+    ],
+    "lastNames": [
+      "Johnson", "Williams", "Brown", "Jones", "Davis", "Wilson", "Anderson", "Thomas",
+      "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia", "Robinson", "Clark",
+      "Rodriguez", "Lewis", "Lee", "Walker", "Hall", "Allen", "Young", "King",
+      "Wright", "Scott", "Green", "Baker", "Adams", "Nelson", "Hill", "Campbell",
+      "Mitchell", "Roberts", "Carter", "Phillips", "Evans", "Turner", "Torres", "Parker",
+      "Collins", "Edwards", "Stewart", "Morris", "Murphy", "Rivera", "Cook", "Rogers",
+      "Morgan", "Peterson", "Cooper", "Reed", "Bailey", "Bell", "Gomez", "Kelly"
+    ],
+    "colleges": [
+      "Alabama", "Ohio State", "Georgia", "Clemson", "LSU", "Michigan", "Oklahoma",
+      "Notre Dame", "Texas", "Penn State", "Florida", "Oregon", "USC", "Auburn",
+      "Texas A&M", "Wisconsin", "Miami", "Florida State", "Tennessee", "Iowa",
+      "Ole Miss", "Kentucky", "UCF", "Boise State", "BYU", "Utah", "Baylor", "TCU"
+    ]
+  },
+  "rosterTemplate": {
+    "positions": [
+      {"position": "QB", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "RB", "startersNeeded": 1, "backupsNeeded": 2},
+      {"position": "FB", "startersNeeded": 1, "backupsNeeded": 0},
+      {"position": "WR", "startersNeeded": 3, "backupsNeeded": 2},
+      {"position": "TE", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "LT", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "LG", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "C", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "RG", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "RT", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "DE", "startersNeeded": 2, "backupsNeeded": 2},
+      {"position": "DT", "startersNeeded": 2, "backupsNeeded": 1},
+      {"position": "OLB", "startersNeeded": 2, "backupsNeeded": 2},
+      {"position": "MLB", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "CB", "startersNeeded": 2, "backupsNeeded": 2},
+      {"position": "FS", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "SS", "startersNeeded": 1, "backupsNeeded": 1},
+      {"position": "K", "startersNeeded": 1, "backupsNeeded": 0},
+      {"position": "P", "startersNeeded": 1, "backupsNeeded": 0}
+    ]
+  }
+}

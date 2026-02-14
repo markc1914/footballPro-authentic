@@ -1,0 +1,387 @@
+{
+  "offensivePlays": [
+    {
+      "name": "HB Dive",
+      "formation": "singleback",
+      "type": "insideRun",
+      "description": "Halfback runs up the middle between the guards",
+      "situationalRating": {
+        "shortYardage": 90,
+        "redZone": 85,
+        "standard": 70,
+        "twoMinute": 30
+      }
+    },
+    {
+      "name": "HB Stretch",
+      "formation": "singleback",
+      "type": "outsideRun",
+      "description": "Halfback stretches to the outside behind pulling blockers",
+      "situationalRating": {
+        "shortYardage": 60,
+        "redZone": 70,
+        "standard": 75,
+        "twoMinute": 40
+      }
+    },
+    {
+      "name": "Power O",
+      "formation": "iFormation",
+      "type": "insideRun",
+      "description": "Power run with fullback lead block",
+      "situationalRating": {
+        "shortYardage": 95,
+        "redZone": 90,
+        "standard": 70,
+        "twoMinute": 20
+      }
+    },
+    {
+      "name": "Counter",
+      "formation": "iFormation",
+      "type": "counter",
+      "description": "Misdirection run with pulling guard",
+      "situationalRating": {
+        "shortYardage": 70,
+        "redZone": 75,
+        "standard": 80,
+        "twoMinute": 30
+      }
+    },
+    {
+      "name": "HB Draw",
+      "formation": "shotgun",
+      "type": "draw",
+      "description": "Delayed handoff after pass fake",
+      "situationalRating": {
+        "shortYardage": 50,
+        "redZone": 60,
+        "standard": 80,
+        "twoMinute": 50
+      }
+    },
+    {
+      "name": "QB Sneak",
+      "formation": "singleback",
+      "type": "qbSneak",
+      "description": "Quarterback sneaks behind center for short yardage",
+      "situationalRating": {
+        "shortYardage": 100,
+        "redZone": 95,
+        "standard": 30,
+        "twoMinute": 20
+      }
+    },
+    {
+      "name": "Slant",
+      "formation": "shotgun",
+      "type": "shortPass",
+      "description": "Quick slant route to the inside receiver",
+      "situationalRating": {
+        "shortYardage": 75,
+        "redZone": 85,
+        "standard": 85,
+        "twoMinute": 90
+      }
+    },
+    {
+      "name": "Curl",
+      "formation": "singleback",
+      "type": "shortPass",
+      "description": "Receiver runs 8-10 yards then curls back",
+      "situationalRating": {
+        "shortYardage": 70,
+        "redZone": 80,
+        "standard": 80,
+        "twoMinute": 85
+      }
+    },
+    {
+      "name": "Mesh Concept",
+      "formation": "shotgun",
+      "type": "shortPass",
+      "description": "Crossing routes that mesh in the middle",
+      "situationalRating": {
+        "shortYardage": 80,
+        "redZone": 85,
+        "standard": 85,
+        "twoMinute": 85
+      }
+    },
+    {
+      "name": "Dig Route",
+      "formation": "shotgun",
+      "type": "mediumPass",
+      "description": "In-breaking route at 12-15 yards",
+      "situationalRating": {
+        "shortYardage": 50,
+        "redZone": 70,
+        "standard": 85,
+        "twoMinute": 80
+      }
+    },
+    {
+      "name": "Post",
+      "formation": "shotgun",
+      "type": "mediumPass",
+      "description": "Post route breaking toward the middle of the field",
+      "situationalRating": {
+        "shortYardage": 40,
+        "redZone": 65,
+        "standard": 80,
+        "twoMinute": 70
+      }
+    },
+    {
+      "name": "Corner Route",
+      "formation": "shotgun",
+      "type": "mediumPass",
+      "description": "Out-breaking route to the corner of the end zone",
+      "situationalRating": {
+        "shortYardage": 35,
+        "redZone": 90,
+        "standard": 75,
+        "twoMinute": 70
+      }
+    },
+    {
+      "name": "Go Route",
+      "formation": "shotgun",
+      "type": "deepPass",
+      "description": "Straight vertical route down the sideline",
+      "situationalRating": {
+        "shortYardage": 20,
+        "redZone": 40,
+        "standard": 70,
+        "twoMinute": 60
+      }
+    },
+    {
+      "name": "Seam",
+      "formation": "shotgun",
+      "type": "deepPass",
+      "description": "Vertical route down the seam between zones",
+      "situationalRating": {
+        "shortYardage": 25,
+        "redZone": 45,
+        "standard": 75,
+        "twoMinute": 65
+      }
+    },
+    {
+      "name": "Play Action Deep",
+      "formation": "singleback",
+      "type": "playAction",
+      "description": "Run fake to deep pass",
+      "situationalRating": {
+        "shortYardage": 45,
+        "redZone": 60,
+        "standard": 80,
+        "twoMinute": 55
+      }
+    },
+    {
+      "name": "PA Bootleg",
+      "formation": "singleback",
+      "type": "rollout",
+      "description": "Play action with QB rolling out",
+      "situationalRating": {
+        "shortYardage": 55,
+        "redZone": 80,
+        "standard": 80,
+        "twoMinute": 65
+      }
+    },
+    {
+      "name": "HB Screen",
+      "formation": "shotgun",
+      "type": "screen",
+      "description": "Screen pass to the halfback",
+      "situationalRating": {
+        "shortYardage": 40,
+        "redZone": 30,
+        "standard": 75,
+        "twoMinute": 70
+      }
+    },
+    {
+      "name": "WR Screen",
+      "formation": "shotgun",
+      "type": "screen",
+      "description": "Quick screen to the wide receiver",
+      "situationalRating": {
+        "shortYardage": 50,
+        "redZone": 40,
+        "standard": 75,
+        "twoMinute": 85
+      }
+    }
+  ],
+  "defensivePlays": [
+    {
+      "name": "Cover 2",
+      "formation": "base43",
+      "coverage": "coverTwo",
+      "description": "Two deep safeties, five underneath zones",
+      "blitz": false,
+      "strengths": ["Short to medium passes", "Outside runs"],
+      "weaknesses": ["Deep middle", "Seam routes"]
+    },
+    {
+      "name": "Cover 3",
+      "formation": "base43",
+      "coverage": "coverThree",
+      "description": "Three deep defenders, four underneath",
+      "blitz": false,
+      "strengths": ["Deep passes", "Preventing big plays"],
+      "weaknesses": ["Curl-flat combos", "Underneath routes"]
+    },
+    {
+      "name": "Cover 4",
+      "formation": "nickel",
+      "coverage": "coverFour",
+      "description": "Four deep quarters coverage",
+      "blitz": false,
+      "strengths": ["Deep passes", "Vertical routes"],
+      "weaknesses": ["Underneath passes", "Run game"]
+    },
+    {
+      "name": "Man Under",
+      "formation": "nickel",
+      "coverage": "manCoverage",
+      "description": "Man coverage with safety help over the top",
+      "blitz": false,
+      "strengths": ["Disrupting timing", "Press coverage"],
+      "weaknesses": ["Crossing routes", "Pick plays"]
+    },
+    {
+      "name": "Cover 0",
+      "formation": "nickel",
+      "coverage": "manCoverage",
+      "description": "Pure man coverage with no safety help",
+      "blitz": true,
+      "strengths": ["Pressure on QB", "Short yardage"],
+      "weaknesses": ["No safety help", "Big plays"]
+    },
+    {
+      "name": "Zone Blitz",
+      "formation": "base34",
+      "coverage": "zoneBlitz",
+      "description": "Zone coverage with unexpected blitzer",
+      "blitz": true,
+      "strengths": ["Confusing offense", "Pressure with coverage"],
+      "weaknesses": ["Well-read QBs", "Hot routes"]
+    },
+    {
+      "name": "Fire Zone",
+      "formation": "nickel",
+      "coverage": "blitz",
+      "description": "Five-man pressure with three deep zones",
+      "blitz": true,
+      "strengths": ["Quick pressure", "Zone behind blitz"],
+      "weaknesses": ["Quick passes", "Screen passes"]
+    },
+    {
+      "name": "Goal Line",
+      "formation": "goalLine",
+      "coverage": "manCoverage",
+      "description": "Heavy personnel to stop short runs",
+      "blitz": false,
+      "strengths": ["Short yardage runs", "Goal line stands"],
+      "weaknesses": ["Passes", "Outside runs"]
+    },
+    {
+      "name": "Prevent",
+      "formation": "prevent",
+      "coverage": "coverFour",
+      "description": "Deep coverage to prevent big plays",
+      "blitz": false,
+      "strengths": ["Preventing touchdowns", "Deep passes"],
+      "weaknesses": ["Short passes", "Run game", "Clock management"]
+    }
+  ],
+  "formations": {
+    "offensive": [
+      {
+        "name": "singleback",
+        "displayName": "Singleback",
+        "personnel": "11",
+        "description": "1 RB, 1 TE, 3 WR - Versatile formation"
+      },
+      {
+        "name": "iFormation",
+        "displayName": "I-Formation",
+        "personnel": "21",
+        "description": "2 RB (FB + HB), 1 TE, 2 WR - Power running"
+      },
+      {
+        "name": "shotgun",
+        "displayName": "Shotgun",
+        "personnel": "11",
+        "description": "1 RB, 1 TE, 3 WR - Pass-oriented"
+      },
+      {
+        "name": "pistol",
+        "displayName": "Pistol",
+        "personnel": "11",
+        "description": "1 RB directly behind QB - RPO friendly"
+      },
+      {
+        "name": "emptySet",
+        "displayName": "Empty Set",
+        "personnel": "10",
+        "description": "0 RB, 5 WR - Maximum receivers"
+      },
+      {
+        "name": "goalLine",
+        "displayName": "Goal Line",
+        "personnel": "23",
+        "description": "2 RB, 3 TE - Heavy short yardage"
+      },
+      {
+        "name": "jumbo",
+        "displayName": "Jumbo",
+        "personnel": "13",
+        "description": "1 RB, 3 TE, 1 WR - Extra blockers"
+      }
+    ],
+    "defensive": [
+      {
+        "name": "base43",
+        "displayName": "4-3 Base",
+        "personnel": "4 DL, 3 LB, 4 DB",
+        "description": "Balanced defense"
+      },
+      {
+        "name": "base34",
+        "displayName": "3-4 Base",
+        "personnel": "3 DL, 4 LB, 4 DB",
+        "description": "Versatile with OLB pressure"
+      },
+      {
+        "name": "nickel",
+        "displayName": "Nickel",
+        "personnel": "4 DL, 2 LB, 5 DB",
+        "description": "Pass defense focus"
+      },
+      {
+        "name": "dime",
+        "displayName": "Dime",
+        "personnel": "4 DL, 1 LB, 6 DB",
+        "description": "Heavy pass defense"
+      },
+      {
+        "name": "goalLine",
+        "displayName": "Goal Line",
+        "personnel": "5 DL, 4 LB, 2 DB",
+        "description": "Stop short yardage"
+      },
+      {
+        "name": "prevent",
+        "displayName": "Prevent",
+        "personnel": "3 DL, 1 LB, 7 DB",
+        "description": "Prevent big plays"
+      }
+    ]
+  }
+}
