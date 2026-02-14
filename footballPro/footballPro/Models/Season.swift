@@ -16,6 +16,7 @@ struct ScheduledGame: Identifiable, Codable, Equatable {
     var week: Int
     var isPlayoff: Bool
     var playoffRound: PlayoffRound?
+    var gameDate: Date?
 
     var result: GameResult?
 
@@ -23,13 +24,14 @@ struct ScheduledGame: Identifiable, Codable, Equatable {
         result != nil
     }
 
-    init(homeTeamId: UUID, awayTeamId: UUID, week: Int, isPlayoff: Bool = false, playoffRound: PlayoffRound? = nil) {
+    init(homeTeamId: UUID, awayTeamId: UUID, week: Int, isPlayoff: Bool = false, playoffRound: PlayoffRound? = nil, gameDate: Date? = nil) {
         self.id = UUID()
         self.homeTeamId = homeTeamId
         self.awayTeamId = awayTeamId
         self.week = week
         self.isPlayoff = isPlayoff
         self.playoffRound = playoffRound
+        self.gameDate = gameDate
         self.result = nil
     }
 }
@@ -363,22 +365,70 @@ struct SeasonGenerator {
             season.standings[team.id] = StandingsEntry(teamId: team.id)
         }
 
+        // Try authentic schedule template matching league size
+        if let data = ScheduleTemplateDecoder.loadDefault(),
+           let template = ScheduleTemplateDecoder.template(for: league.teams.count, from: data) {
+            season.schedule = buildAuthenticSchedule(template: template, league: league)
+            season.totalWeeks = template.weekCount
+        } else {
+            // Fallback: round-robin
+            let (schedule, totalWeeks) = buildRoundRobinSchedule(teams: league.teams.map { $0.id })
+            season.schedule = schedule
+            season.totalWeeks = totalWeeks
+        }
+
+        // Apply authentic calendar dates if available
+        if let calendar = CalendarDecoder.loadDefault() {
+            let weekDates = calendar.weekDates(for: year)
+            for i in season.schedule.indices {
+                let weekIdx = season.schedule[i].week - 1
+                if weekIdx >= 0 && weekIdx < weekDates.count {
+                    season.schedule[i].gameDate = weekDates[weekIdx].resolve(seasonStartYear: year)
+                }
+            }
+        }
+
+        return season
+    }
+
+    /// Build schedule from authentic STPL.DAT template
+    private static func buildAuthenticSchedule(template: ScheduleTemplate, league: League) -> [ScheduledGame] {
         var schedule: [ScheduledGame] = []
-        let allTeamIds = league.teams.map { $0.id }
+        let teams = league.teams
+
+        for (weekIndex, weekMatchups) in template.weeks.enumerated() {
+            for matchup in weekMatchups {
+                // Template indices are 1-based, league.teams is 0-based
+                let homeIdx = matchup.homeTeamIndex - 1
+                let awayIdx = matchup.awayTeamIndex - 1
+                guard homeIdx >= 0 && homeIdx < teams.count &&
+                      awayIdx >= 0 && awayIdx < teams.count else { continue }
+
+                let game = ScheduledGame(
+                    homeTeamId: teams[homeIdx].id,
+                    awayTeamId: teams[awayIdx].id,
+                    week: weekIndex + 1
+                )
+                schedule.append(game)
+            }
+        }
+
+        return schedule
+    }
+
+    /// Fallback round-robin schedule generator
+    static func buildRoundRobinSchedule(teams allTeamIds: [UUID]) -> ([ScheduledGame], Int) {
+        var schedule: [ScheduledGame] = []
         let numTeams = allTeamIds.count
 
-        // Ensure an even number of teams for standard round-robin. Add a "bye" team if odd.
         let hasBye = numTeams % 2 != 0
         let effectiveNumTeams = hasBye ? numTeams + 1 : numTeams
         var teams = allTeamIds
 
         if hasBye {
-            // Add a placeholder for scheduling if an odd number of teams
-            teams.append(UUID()) // Use a dummy UUID for the bye
+            teams.append(UUID())
         }
 
-        // Generate one full round-robin (each team plays every other team once)
-        // This will result in (numTeams - 1) weeks, with numTeams/2 games per week.
         var currentRotation = teams
         for weekNum in 1..<effectiveNumTeams {
             var weekGames: [ScheduledGame] = []
@@ -388,15 +438,12 @@ struct SeasonGenerator {
                 let teamA = currentRotation[i]
                 let teamB = currentRotation[effectiveNumTeams - 1 - i]
 
-                // Skip games involving the "bye" team
                 if teamA == teams.last && hasBye || teamB == teams.last && hasBye {
                     continue
                 }
 
-                // Ensure unique games (no duplicates within the same week)
                 guard !teamsScheduledThisWeek.contains(teamA) && !teamsScheduledThisWeek.contains(teamB) else { continue }
 
-                // Alternate home/away based on a consistent pattern (e.g., higher index team is home first)
                 let isTeamAHome = weekNum % 2 == 1
 
                 let game = ScheduledGame(
@@ -410,32 +457,25 @@ struct SeasonGenerator {
             }
             schedule.append(contentsOf: weekGames)
 
-            // Rotate teams (keep first team fixed, rotate others)
             let fixedTeam = currentRotation[0]
             var rotatedPart = Array(currentRotation.dropFirst())
-            rotatedPart.append(rotatedPart.removeFirst()) // Rotate the rest
+            rotatedPart.append(rotatedPart.removeFirst())
             currentRotation = [fixedTeam] + rotatedPart
         }
 
-        // We want 14 games per team, so we need two full cycles of the (numTeams-1) week schedule
-        // The above loop generates (numTeams-1) weeks.
-        // For 8 teams, that's 7 weeks.
-        // We need 14 weeks for 14 games per team. So we repeat the schedule with home/away flipped and incremented week numbers.
         let firstHalfSchedule = schedule
         let weeksPerHalf = effectiveNumTeams - 1
 
         for game in firstHalfSchedule {
-            // Duplicate the game for the second half of the season, flipping home/away and incrementing week
             let secondHalfGame = ScheduledGame(
-                homeTeamId: game.awayTeamId, // Flipped home/away
+                homeTeamId: game.awayTeamId,
                 awayTeamId: game.homeTeamId,
-                week: game.week + weeksPerHalf // Increment week number
+                week: game.week + weeksPerHalf
             )
             schedule.append(secondHalfGame)
         }
 
-        season.schedule = schedule
-        season.totalWeeks = weeksPerHalf * 2 // Should be 14 for 8 teams
-        return season
+        let totalWeeks = weeksPerHalf * 2
+        return (schedule, totalWeeks)
     }
 }

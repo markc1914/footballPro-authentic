@@ -423,47 +423,8 @@ struct League: Identifiable, Codable, Equatable {
         // 5. Clear pending trades
         pendingTrades.removeAll()
 
-        // 6. Generate new season schedule
-        var newSeason = Season(year: nextYear, divisions: divisions)
-
-        // Initialize standings for all teams
-        for team in teams {
-            newSeason.standings[team.id] = StandingsEntry(teamId: team.id)
-        }
-
-        // Generate schedule
-        var schedule: [ScheduledGame] = []
-        let allTeamIds = teams.map { $0.id }
-
-        for week in 1...14 {
-            var weekGames: [ScheduledGame] = []
-            var scheduled: Set<UUID> = []
-
-            for i in 0..<allTeamIds.count {
-                let teamA = allTeamIds[i]
-                if scheduled.contains(teamA) { continue }
-
-                let opponentIndex = (i + week) % allTeamIds.count
-                let teamB = allTeamIds[opponentIndex]
-
-                if teamA == teamB || scheduled.contains(teamB) { continue }
-
-                let isTeamAHome = (week + i) % 2 == 0
-                let game = ScheduledGame(
-                    homeTeamId: isTeamAHome ? teamA : teamB,
-                    awayTeamId: isTeamAHome ? teamB : teamA,
-                    week: week
-                )
-
-                weekGames.append(game)
-                scheduled.insert(teamA)
-                scheduled.insert(teamB)
-            }
-
-            schedule.append(contentsOf: weekGames)
-        }
-
-        newSeason.schedule = schedule
+        // 6. Generate new season schedule using SeasonGenerator (authentic templates + calendar dates)
+        let newSeason = SeasonGenerator.generateSeason(for: self, year: nextYear)
         return newSeason
     }
 

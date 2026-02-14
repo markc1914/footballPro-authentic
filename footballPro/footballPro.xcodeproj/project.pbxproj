@@ -58,6 +58,9 @@
 		SVC011 /* LGEDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC045; };
 		SVC012 /* PYRDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC046; };
 		SVC013 /* FormationDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC047; };
+		SVC014 /* CalendarDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC048; };
+		SVC015 /* ScheduleTemplateDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC049; };
+		SVC016 /* MagazineDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC050; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -159,6 +162,9 @@
 		SRC045 /* LGEDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGEDecoder.swift; sourceTree = "<group>"; };
 		SRC046 /* PYRDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PYRDecoder.swift; sourceTree = "<group>"; };
 		SRC047 /* FormationDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormationDecoder.swift; sourceTree = "<group>"; };
+		SRC048 /* CalendarDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDecoder.swift; sourceTree = "<group>"; };
+		SRC049 /* ScheduleTemplateDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleTemplateDecoder.swift; sourceTree = "<group>"; };
+		SRC050 /* MagazineDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagazineDecoder.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -302,6 +308,9 @@
 				SRC045 /* LGEDecoder.swift */,
 				SRC046 /* PYRDecoder.swift */,
 				SRC047 /* FormationDecoder.swift */,
+				SRC048 /* CalendarDecoder.swift */,
+				SRC049 /* ScheduleTemplateDecoder.swift */,
+				SRC050 /* MagazineDecoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -480,6 +489,9 @@
 				SVC011 /* LGEDecoder.swift in Sources */,
 				SVC012 /* PYRDecoder.swift in Sources */,
 				SVC013 /* FormationDecoder.swift in Sources */,
+				SVC014 /* CalendarDecoder.swift in Sources */,
+				SVC015 /* ScheduleTemplateDecoder.swift in Sources */,
+				SVC016 /* MagazineDecoder.swift in Sources */,
 				VIW007 /* GameAnimations.swift in Sources */,
 				VIW008 /* RetroFieldView.swift in Sources */,
 				VIW009 /* FieldView3D.swift in Sources */,
