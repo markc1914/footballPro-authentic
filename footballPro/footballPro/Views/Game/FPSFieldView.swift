@@ -17,10 +17,10 @@ import SwiftUI
 /// Projects flat field coordinates (640x360 "top-down" space) into
 /// perspective screen coordinates for the full-screen field view.
 ///
-/// Matches FPS Football Pro '93: shows ~15 yards of field centered on the LOS.
-/// Camera "follows" the ball. Very mild trapezoid perspective — wide at bottom,
-/// slightly narrower at top. Players near camera are larger.
-/// Original game runs at 320x200 with players ~35-40px tall (20% of screen height).
+/// Matches FPS Football Pro '93: shows ~25 yards of field centered on the LOS.
+/// Camera "follows" the ball. Pronounced trapezoid perspective — wide at bottom,
+/// narrower at top for isometric feel. Players near camera are noticeably larger.
+/// Original game runs at 320x200 with chunky pre-rendered sprites.
 struct PerspectiveProjection {
     let screenWidth: CGFloat
     let screenHeight: CGFloat
@@ -37,9 +37,9 @@ struct PerspectiveProjection {
     let flatEndZoneWidth: CGFloat = 32   // 640 * 0.05
     let flatPlayFieldWidth: CGFloat = 576 // 640 * 0.90
 
-    // Visible yard window — zoomed in to match original (only ~15 yards visible)
-    let visibleYardsBehind: CGFloat = 5    // yards behind LOS shown
-    let visibleYardsAhead: CGFloat = 10    // yards ahead of LOS shown
+    // Visible yard window — ~25 yards visible matching original FPS '93
+    let visibleYardsBehind: CGFloat = 8    // yards behind LOS shown
+    let visibleYardsAhead: CGFloat = 17   // yards ahead of LOS shown
     var totalVisibleYards: CGFloat { visibleYardsBehind + visibleYardsAhead }
 
     let focusYardFlatX: CGFloat
@@ -61,9 +61,9 @@ struct PerspectiveProjection {
         self.fieldTop = 0
         self.fieldBottom = screenHeight
 
-        // Very subtle perspective like original: near barely wider, far ~93% (almost flat)
-        self.nearWidth = screenWidth * 1.01
-        self.farWidth = screenWidth * 0.93
+        // Pronounced perspective like original FPS '93: wider at bottom, narrower at top
+        self.nearWidth = screenWidth * 1.05
+        self.farWidth = screenWidth * 0.82
     }
 
     /// Camera-tracking init: focus on an arbitrary flat X position (for following ball carrier).
@@ -75,26 +75,26 @@ struct PerspectiveProjection {
         self.focusYardFlatX = focusFlatX
         self.fieldTop = 0
         self.fieldBottom = screenHeight
-        self.nearWidth = screenWidth * 1.01
-        self.farWidth = screenWidth * 0.93
+        self.nearWidth = screenWidth * 1.05
+        self.farWidth = screenWidth * 0.82
     }
 
     func depthToScreenY(_ depth: CGFloat) -> CGFloat {
         let clamped = min(max(depth, 0), 1)
-        // Mild non-linear compression for depth perception
-        let t = pow(clamped, 0.88)
+        // Non-linear depth compression — more pronounced for isometric feel
+        let t = pow(clamped, 0.80)
         return fieldBottom + (fieldTop - fieldBottom) * t
     }
 
     func widthAtDepth(_ depth: CGFloat) -> CGFloat {
         let clamped = min(max(depth, 0), 1)
-        let t = pow(clamped, 0.88)
+        let t = pow(clamped, 0.80)
         return nearWidth + (farWidth - nearWidth) * t
     }
 
     func scaleAtDepth(_ depth: CGFloat) -> CGFloat {
         let w = widthAtDepth(depth)
-        return max(w / nearWidth, 0.60)
+        return max(w / nearWidth, 0.50)
     }
 
     func flatXToDepth(_ flatX: CGFloat, isFieldFlipped: Bool) -> CGFloat {
@@ -544,38 +544,50 @@ struct FPSFieldView: View {
         let w = size.width
         let h = size.height
 
-        // Solid green background — fills entire screen (matches original FPS '93)
-        let fieldGreen = Color(red: 0.14, green: 0.50, blue: 0.14)  // Medium-dark green like original
-        context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(fieldGreen))
+        // Background — field green extends to screen edges in original FPS '93
+        let bgGreen = Color(red: 0.12, green: 0.38, blue: 0.12)
+        context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(bgGreen))
+
+        // Green field surface — base trapezoid
+        let fieldDarkGreen = Color(red: 0.16, green: 0.48, blue: 0.16)   // Dark stripe
+        let fieldLightGreen = Color(red: 0.20, green: 0.50, blue: 0.20)  // Light stripe
+        let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
+        let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
+        let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
+        let farRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
+        var fieldTrapezoid = Path()
+        fieldTrapezoid.move(to: nearLeft)
+        fieldTrapezoid.addLine(to: farLeft)
+        fieldTrapezoid.addLine(to: farRight)
+        fieldTrapezoid.addLine(to: nearRight)
+        fieldTrapezoid.closeSubpath()
+        context.fill(fieldTrapezoid, with: .color(fieldDarkGreen))
 
         let (minYard, maxYard) = proj.visibleYardRange(isFieldFlipped: isFieldFlipped)
 
-        // End zone fill (if visible)
-        for yard in minYard..<maxYard {
-            if yard >= 0 && yard < 100 { continue }
-
-            let color: Color
-            if yard < 0 {
-                color = isFieldFlipped ? VGA.endZoneBlue : VGA.endZoneRed
-            } else {
-                color = isFieldFlipped ? VGA.endZoneRed : VGA.endZoneBlue
-            }
+        // Alternating grass stripes — every 5 yards, alternating light/dark green
+        // Matches original FPS '93 mowed-field look
+        for yard in stride(from: max(-5, minYard), to: min(105, maxYard), by: 5) {
+            let stripeIndex = ((yard + 5) / 5)  // Determine which stripe band
+            if stripeIndex % 2 == 0 { continue } // Only draw light stripes over dark base
 
             let depthNear = proj.yardToDepth(yard, isFieldFlipped: isFieldFlipped)
-            let depthFar = proj.yardToDepth(yard + 1, isFieldFlipped: isFieldFlipped)
+            let depthFar = proj.yardToDepth(yard + 5, isFieldFlipped: isFieldFlipped)
             let dNear = min(depthNear, depthFar)
             let dFar = max(depthNear, depthFar)
             if dFar < -0.1 || dNear > 1.1 { continue }
 
-            let (tl, tr, br, bl) = proj.trapezoid(depthNear: dNear, depthFar: dFar)
-            var path = Path()
-            path.move(to: tl)
-            path.addLine(to: tr)
-            path.addLine(to: br)
-            path.addLine(to: bl)
-            path.closeSubpath()
-            context.fill(path, with: .color(color))
+            let (tl, tr, br, bl) = proj.trapezoid(depthNear: max(0, dNear), depthFar: min(1, dFar))
+            var stripePath = Path()
+            stripePath.move(to: tl)
+            stripePath.addLine(to: tr)
+            stripePath.addLine(to: br)
+            stripePath.addLine(to: bl)
+            stripePath.closeSubpath()
+            context.fill(stripePath, with: .color(fieldLightGreen))
         }
+
+        // End zones — same green as field in original FPS '93 (no colored fill)
 
         // Yard lines — thick and prominent like original FPS '93
         for yard in stride(from: max(0, minYard), through: min(100, maxYard), by: 5) {
@@ -618,7 +630,7 @@ struct FPSFieldView: View {
             }
         }
 
-        // Hash marks — every yard, prominent like original
+        // Hash marks — every yard, short horizontal dashes like original FPS '93
         for yard in max(1, minYard)..<min(100, maxYard) {
             if yard % 5 == 0 { continue }
             let depth = proj.yardToDepth(yard, isFieldFlipped: isFieldFlipped)
@@ -627,39 +639,64 @@ struct FPSFieldView: View {
             let screenY = proj.depthToScreenY(depth)
             let halfW = proj.widthAtDepth(depth) / 2
             let scale = proj.scaleAtDepth(depth)
-            let hashLen = 10 * scale
+            let hashLen = 8 * scale
 
-            // Left hash marks (wider tick marks like original)
+            // Left hash marks — horizontal dashes parallel to yard lines
             let leftHashX = proj.fieldCenterX - halfW * 0.30
             let leftHash = Path { p in
-                p.move(to: CGPoint(x: leftHashX, y: screenY - hashLen / 2))
-                p.addLine(to: CGPoint(x: leftHashX, y: screenY + hashLen / 2))
+                p.move(to: CGPoint(x: leftHashX - hashLen / 2, y: screenY))
+                p.addLine(to: CGPoint(x: leftHashX + hashLen / 2, y: screenY))
             }
             context.stroke(leftHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
 
             // Right hash marks
             let rightHashX = proj.fieldCenterX + halfW * 0.30
             let rightHash = Path { p in
-                p.move(to: CGPoint(x: rightHashX, y: screenY - hashLen / 2))
-                p.addLine(to: CGPoint(x: rightHashX, y: screenY + hashLen / 2))
+                p.move(to: CGPoint(x: rightHashX - hashLen / 2, y: screenY))
+                p.addLine(to: CGPoint(x: rightHashX + hashLen / 2, y: screenY))
             }
             context.stroke(rightHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
         }
 
-        // Sideline border — subtle since original barely shows them
-        let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
-        let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
-        let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
-        let farRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
+        // Sideline borders — subtle in original FPS '93 (field extends to edge)
+        let slNearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
+        let slNearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
+        let slFarLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
+        let slFarRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
 
-        let leftSideline = Path { p in p.move(to: nearLeft); p.addLine(to: farLeft) }
-        context.stroke(leftSideline, with: .color(VGA.fieldLine.opacity(0.45)), lineWidth: 2)
+        let leftSideline = Path { p in p.move(to: slNearLeft); p.addLine(to: slFarLeft) }
+        context.stroke(leftSideline, with: .color(VGA.fieldLine.opacity(0.35)), lineWidth: 2)
 
-        let rightSideline = Path { p in p.move(to: nearRight); p.addLine(to: farRight) }
-        context.stroke(rightSideline, with: .color(VGA.fieldLine.opacity(0.45)), lineWidth: 2)
+        let rightSideline = Path { p in p.move(to: slNearRight); p.addLine(to: slFarRight) }
+        context.stroke(rightSideline, with: .color(VGA.fieldLine.opacity(0.35)), lineWidth: 2)
 
         // End zone text
         drawEndZoneText(context: context, proj: proj, minYard: minYard, maxYard: maxYard)
+
+        // Goalpost — simple blue vertical line at far end zone (FPS '93 style)
+        for goalYard in [0, 100] {
+            let depth = proj.yardToDepth(goalYard, isFieldFlipped: isFieldFlipped)
+            if depth < 0.6 || depth > 1.05 { continue } // Only draw when far enough away
+
+            let screenY = proj.depthToScreenY(depth)
+            let scale = proj.scaleAtDepth(depth)
+            let postHeight = 30 * scale
+            let postWidth = max(2, 3 * scale)
+
+            let postPath = Path { p in
+                p.move(to: CGPoint(x: proj.fieldCenterX, y: screenY))
+                p.addLine(to: CGPoint(x: proj.fieldCenterX, y: screenY - postHeight))
+            }
+            context.stroke(postPath, with: .color(Color(red: 0.1, green: 0.1, blue: 0.6)), lineWidth: postWidth)
+
+            // Crossbar
+            let crossWidth = 14 * scale
+            let crossPath = Path { p in
+                p.move(to: CGPoint(x: proj.fieldCenterX - crossWidth, y: screenY - postHeight))
+                p.addLine(to: CGPoint(x: proj.fieldCenterX + crossWidth, y: screenY - postHeight))
+            }
+            context.stroke(crossPath, with: .color(Color(red: 0.1, green: 0.1, blue: 0.6)), lineWidth: max(1.5, 2 * scale))
+        }
 
         // Line of scrimmage (cyan) and first down marker (yellow) — prominent like original
         if let game = viewModel.game {
@@ -878,12 +915,11 @@ public struct FPSPlayer: Identifiable {
     var pose: PlayerPose = .standing
 }
 
-// MARK: - Retro Player Sprite (FPS '93 pre-rendered 3D style)
+// MARK: - Retro Player Sprite (FPS '93 chunky pre-rendered 3D style)
 //
-// Original game at 320x200 has players ~35-40px tall (20% of screen height).
-// Our sprite base frame is 56x76 with scaleEffect applied by depth.
-// At near camera (scale 1.0) = 76px on ~500px screen = ~15%
-// At far camera (scale 0.60) = 46px = ~9%
+// Original game at 320x200 has chunky colored-block sprites.
+// Base frame is 40x52. Sprites are simple: helmet oval + jersey block + pants block.
+// No facemask detail, no separate fingers, no cleats — just solid colored shapes.
 
 struct RetroPlayerSprite: View {
     let player: FPSPlayer
@@ -913,16 +949,12 @@ struct RetroPlayerSprite: View {
         player.isHome ? .white : Color(red: 0.15, green: 0.15, blue: 0.65)
     }
 
-    private var skinColor: Color {
-        Color(red: 0.85, green: 0.70, blue: 0.55)
-    }
-
     // Linemen are wider/stockier than skill players
-    private var shoulderWidth: CGFloat {
+    private var bodyWidth: CGFloat {
         switch player.role {
-        case .lineman, .defensiveLine: return 28
-        case .linebacker, .tightend: return 24
-        default: return 20
+        case .lineman, .defensiveLine: return 22
+        case .linebacker, .tightend: return 19
+        default: return 16
         }
     }
 
@@ -954,547 +986,295 @@ struct RetroPlayerSprite: View {
 
             // === BALL CARRIER: GREEN NUMBER BOX (FPS '93 signature feature!) ===
             if player.hasBall {
-                let boxY: CGFloat = player.pose == .down ? cy - 20 : cy - 44
-                let numBoxW: CGFloat = 28
-                let numBoxH: CGFloat = 16
+                let boxY: CGFloat = player.pose == .down ? cy - 14 : cy - 30
+                let numBoxW: CGFloat = 22
+                let numBoxH: CGFloat = 13
                 let numBoxRect = CGRect(x: cx - numBoxW / 2, y: boxY, width: numBoxW, height: numBoxH)
                 context.fill(Path(numBoxRect), with: .color(Color(red: 0.0, green: 0.7, blue: 0.0)))
                 context.stroke(Path(numBoxRect), with: .color(.black), lineWidth: 1)
 
                 let ballNumText = Text("\(player.number)")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundColor(.white)
                 context.draw(context.resolve(ballNumText), at: CGPoint(x: cx, y: boxY + numBoxH / 2))
             }
         }
-        .frame(width: 56, height: 76)
+        .frame(width: 40, height: 52)
         .position(player.position)
     }
 
     // MARK: - Pose: Three-Point Stance (pre-snap linemen)
-    // Crouched low, one hand on ground, wide base
+    // Compact crouched blob — low and wide
 
     private func drawThreePointStance(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        // Ground shadow
-        drawShadow(context: context, cx: cx, cy: cy + 12, width: sw + 8)
+        // Shadow (prominent)
+        drawShadow(context: context, cx: cx, cy: cy + 10, width: bw + 10)
 
-        // Helmet (lower, tilted forward)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 10, width: 18, height: 14)
+        // Helmet (low)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 6, width: 14, height: 10)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy + 2)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads (wider, lower)
-        let shoulderY = cy + 4
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
+        // Jersey block (short, wide — crouched)
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy + 3, width: bw, height: 10)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
-        // Jersey body (short, crouched)
-        let bodyW = sw - 4
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: shoulderY + 7, width: bodyW, height: 8)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
-
-        // Number on back
+        // Number
         let numText = Text("\(player.number)")
-            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: shoulderY + 11))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy + 8))
 
-        // Down hand (one arm reaching to ground)
-        let handRect = CGRect(x: cx + 6, y: cy + 15, width: 5, height: 6)
-        context.fill(Path(handRect), with: .color(skinColor))
-
-        // Other arm tucked at side
-        let armRect = CGRect(x: cx - sw / 2 - 3, y: shoulderY + 2, width: 5, height: 8)
-        context.fill(Path(armRect), with: .color(jerseyColor))
-
-        // Wide legs (crouched stance)
-        let legW: CGFloat = 8
-        let legH: CGFloat = 10
-        let legY = shoulderY + 15
-        let leftLeg = CGRect(x: cx - legW - 4, y: legY, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 4, y: legY, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
-
-        // Cleats
-        let cleatH: CGFloat = 3
-        context.fill(Path(CGRect(x: cx - legW - 5, y: legY + legH, width: legW + 2, height: cleatH)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx + 3, y: legY + legH, width: legW + 2, height: cleatH)), with: .color(.black))
+        // Pants block (wide base)
+        let pantsRect = CGRect(x: cx - bw / 2 - 2, y: cy + 13, width: bw + 4, height: 7)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
     }
 
     // MARK: - Pose: Standing (pre-snap QB, receivers, DBs)
 
     private func drawStanding(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        drawShadow(context: context, cx: cx, cy: cy + 20, width: sw + 4)
+        drawShadow(context: context, cx: cx, cy: cy + 16, width: bw + 6)
 
         // Helmet
-        let helmetRect = CGRect(x: cx - 9, y: cy - 26, width: 18, height: 16)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 18, width: 14, height: 11)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 12)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads
-        let shoulderY = cy - 8
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 8)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        drawShoulderHighlight(context: context, cx: cx, sw: sw, y: shoulderY)
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Jersey body
-        let bodyW = sw - 4
-        let bodyH: CGFloat = 14
-        let bodyY = shoulderY + 8
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: bodyY, width: bodyW, height: bodyH)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
-        context.stroke(Path(bodyRect), with: .color(.black), lineWidth: 0.5)
+        // Jersey block
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy - 6, width: bw, height: 12)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
         // Number
         let numText = Text("\(player.number)")
-            .font(.system(size: 11, weight: .bold, design: .monospaced))
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: bodyY + bodyH / 2))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy))
 
-        // Arms at sides
-        drawArmsAtSides(context: context, cx: cx, sw: sw, armY: shoulderY + 2)
-
-        // Legs together
-        let legW: CGFloat = 7
-        let legH: CGFloat = 12
-        let legY = bodyY + bodyH
-        let leftLeg = CGRect(x: cx - legW - 1, y: legY, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 1, y: legY, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
-        context.stroke(Path(leftLeg), with: .color(.black), lineWidth: 0.5)
-        context.stroke(Path(rightLeg), with: .color(.black), lineWidth: 0.5)
-
-        // Cleats
-        drawCleats(context: context, cx: cx, legW: legW, legY: legY + legH, leftOffset: -1, rightOffset: 1)
+        // Pants block
+        let pantsRect = CGRect(x: cx - bw / 2 + 1, y: cy + 6, width: bw - 2, height: 10)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
     }
 
     // MARK: - Pose: Running (ball carrier, routes, pursuit)
 
     private func drawRunning(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        drawShadow(context: context, cx: cx, cy: cy + 20, width: sw + 4)
+        drawShadow(context: context, cx: cx, cy: cy + 16, width: bw + 6)
 
-        // Helmet (slightly forward lean)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 24, width: 18, height: 15)
+        // Helmet (slight forward lean)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 17, width: 14, height: 11)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 11)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads (slight lean)
-        let shoulderY = cy - 7
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        drawShoulderHighlight(context: context, cx: cx, sw: sw, y: shoulderY)
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Jersey body
-        let bodyW = sw - 4
-        let bodyH: CGFloat = 12
-        let bodyY = shoulderY + 7
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: bodyY, width: bodyW, height: bodyH)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
+        // Jersey block
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy - 5, width: bw, height: 11)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
         // Number
         let numText = Text("\(player.number)")
-            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: bodyY + bodyH / 2))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy + 1))
 
-        // Arms pumping — one forward, one back
-        let armW: CGFloat = 5
-        let armH: CGFloat = 10
-        // Left arm forward
-        let leftArm = CGRect(x: cx - sw / 2 - armW, y: shoulderY - 2, width: armW, height: armH)
-        context.fill(Path(leftArm), with: .color(jerseyColor))
-        context.fill(Path(CGRect(x: cx - sw / 2 - armW, y: shoulderY + armH - 2, width: armW, height: 3)), with: .color(skinColor))
-        // Right arm back
-        let rightArm = CGRect(x: cx + sw / 2, y: shoulderY + 4, width: armW, height: armH)
-        context.fill(Path(rightArm), with: .color(jerseyColor))
-        context.fill(Path(CGRect(x: cx + sw / 2, y: shoulderY + armH + 4, width: armW, height: 3)), with: .color(skinColor))
-
-        // Legs in stride (split wide)
-        let legW: CGFloat = 7
-        let legH: CGFloat = 12
-        let legY = bodyY + bodyH
-        // Left leg forward
-        let leftLeg = CGRect(x: cx - legW - 3, y: legY - 4, width: legW, height: legH)
-        // Right leg back
-        let rightLeg = CGRect(x: cx + 3, y: legY + 4, width: legW, height: legH)
+        // Legs in stride — two blocks with gap
+        let legW: CGFloat = 6
+        let legH: CGFloat = 9
+        let leftLeg = CGRect(x: cx - legW - 2, y: cy + 6, width: legW, height: legH)
+        let rightLeg = CGRect(x: cx + 2, y: cy + 9, width: legW, height: legH)
         context.fill(Path(leftLeg), with: .color(pantsColor))
         context.fill(Path(rightLeg), with: .color(pantsColor))
-        context.stroke(Path(leftLeg), with: .color(.black), lineWidth: 0.5)
-        context.stroke(Path(rightLeg), with: .color(.black), lineWidth: 0.5)
-
-        // Cleats
-        context.fill(Path(CGRect(x: cx - legW - 4, y: legY + legH - 4, width: legW + 2, height: 4)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx + 2, y: legY + legH + 4, width: legW + 2, height: 4)), with: .color(.black))
     }
 
     // MARK: - Pose: Blocking (OL engaging, leaned forward)
 
     private func drawBlocking(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth + 2 // Slightly wider when blocking
+        let bw = bodyWidth + 2
 
-        drawShadow(context: context, cx: cx, cy: cy + 14, width: sw + 6)
+        drawShadow(context: context, cx: cx, cy: cy + 12, width: bw + 8)
 
         // Helmet (down, forward)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 14, width: 18, height: 14)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 9, width: 14, height: 10)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 2)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads (low, wide)
-        let shoulderY = cy
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 8)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Arms extended forward (blocking hands)
-        let armW: CGFloat = 6
-        let armH: CGFloat = 12
-        let leftArm = CGRect(x: cx - sw / 2 - armW, y: shoulderY - 2, width: armW, height: armH)
-        let rightArm = CGRect(x: cx + sw / 2, y: shoulderY - 2, width: armW, height: armH)
-        context.fill(Path(leftArm), with: .color(jerseyColor))
-        context.fill(Path(rightArm), with: .color(jerseyColor))
-        // Hands pushing
-        context.fill(Path(CGRect(x: cx - sw / 2 - armW - 2, y: shoulderY + 1, width: 5, height: 6)), with: .color(skinColor))
-        context.fill(Path(CGRect(x: cx + sw / 2 + armW - 3, y: shoulderY + 1, width: 5, height: 6)), with: .color(skinColor))
-
-        // Short body (crouched)
-        let bodyW = sw - 4
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: shoulderY + 8, width: bodyW, height: 8)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
+        // Jersey block (wide, low — engaging)
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy + 1, width: bw, height: 10)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
         // Number
         let numText = Text("\(player.number)")
-            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: shoulderY + 12))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy + 6))
 
-        // Wide base legs
-        let legW: CGFloat = 8
-        let legH: CGFloat = 10
-        let legY = shoulderY + 16
-        let leftLeg = CGRect(x: cx - legW - 5, y: legY, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 5, y: legY, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
-
-        // Cleats
-        context.fill(Path(CGRect(x: cx - legW - 6, y: legY + legH, width: legW + 2, height: 3)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx + 4, y: legY + legH, width: legW + 2, height: 3)), with: .color(.black))
+        // Pants block (wide base)
+        let pantsRect = CGRect(x: cx - bw / 2 - 1, y: cy + 11, width: bw + 2, height: 7)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
     }
 
     // MARK: - Pose: Catching (arms up, reaching for ball)
 
     private func drawCatching(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        drawShadow(context: context, cx: cx, cy: cy + 20, width: sw + 4)
+        drawShadow(context: context, cx: cx, cy: cy + 16, width: bw + 6)
 
         // Helmet (looking up)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 28, width: 18, height: 16)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 19, width: 14, height: 11)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 14)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads
-        let shoulderY = cy - 10
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Arms reaching UP
-        let armW: CGFloat = 5
-        let leftArmUp = CGRect(x: cx - 10, y: cy - 38, width: armW, height: 14)
-        let rightArmUp = CGRect(x: cx + 5, y: cy - 38, width: armW, height: 14)
-        context.fill(Path(leftArmUp), with: .color(jerseyColor))
-        context.fill(Path(rightArmUp), with: .color(jerseyColor))
-        // Hands (open, reaching)
-        context.fill(Path(CGRect(x: cx - 11, y: cy - 42, width: 6, height: 5)), with: .color(skinColor))
-        context.fill(Path(CGRect(x: cx + 5, y: cy - 42, width: 6, height: 5)), with: .color(skinColor))
-
-        // Jersey body
-        let bodyW = sw - 4
-        let bodyH: CGFloat = 13
-        let bodyY = shoulderY + 7
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: bodyY, width: bodyW, height: bodyH)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
-
-        // Number
-        let numText = Text("\(player.number)")
-            .font(.system(size: 10, weight: .bold, design: .monospaced))
-            .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: bodyY + bodyH / 2))
-
-        // Legs (slightly apart, braking)
-        let legW: CGFloat = 7
-        let legH: CGFloat = 12
-        let legY = bodyY + bodyH
-        let leftLeg = CGRect(x: cx - legW - 2, y: legY, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 2, y: legY, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
-
-        drawCleats(context: context, cx: cx, legW: legW, legY: legY + legH, leftOffset: -2, rightOffset: 2)
-    }
-
-    // MARK: - Pose: Throwing (QB arm cocked back)
-
-    private func drawThrowing(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw: CGFloat = 20 // QBs are slimmer
-
-        drawShadow(context: context, cx: cx, cy: cy + 20, width: sw + 4)
-
-        // Helmet
-        let helmetRect = CGRect(x: cx - 9, y: cy - 26, width: 18, height: 16)
-        context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 12)
-
-        // Shoulder pads
-        let shoulderY = cy - 8
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Left arm forward (guiding hand)
-        let leftArm = CGRect(x: cx - sw / 2 - 5, y: shoulderY - 2, width: 5, height: 10)
-        context.fill(Path(leftArm), with: .color(jerseyColor))
-        context.fill(Path(CGRect(x: cx - sw / 2 - 6, y: shoulderY + 8, width: 5, height: 3)), with: .color(skinColor))
-
-        // Right arm cocked back (throwing arm) — raised up and back
-        let throwArmX = cx + sw / 2
-        let throwArm = CGRect(x: throwArmX, y: shoulderY - 12, width: 5, height: 12)
-        context.fill(Path(throwArm), with: .color(jerseyColor))
-        // Hand with ball
-        context.fill(Path(CGRect(x: throwArmX - 1, y: shoulderY - 16, width: 7, height: 5)), with: .color(skinColor))
-
-        // Jersey body
-        let bodyW = sw - 4
-        let bodyH: CGFloat = 14
-        let bodyY = shoulderY + 7
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: bodyY, width: bodyW, height: bodyH)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
-
-        // Number
-        let numText = Text("\(player.number)")
-            .font(.system(size: 11, weight: .bold, design: .monospaced))
-            .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: bodyY + bodyH / 2))
-
-        // Legs (slightly stepped)
-        let legW: CGFloat = 7
-        let legH: CGFloat = 12
-        let legY = bodyY + bodyH
-        let leftLeg = CGRect(x: cx - legW - 1, y: legY + 2, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 1, y: legY - 2, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
-
-        drawCleats(context: context, cx: cx, legW: legW, legY: legY + legH, leftOffset: -1, rightOffset: 1)
-    }
-
-    // MARK: - Pose: Tackling (diving/reaching toward ball carrier)
-
-    private func drawTackling(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
-
-        drawShadow(context: context, cx: cx, cy: cy + 16, width: sw + 6)
-
-        // Helmet (low, forward)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 16, width: 18, height: 14)
-        context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 4)
-
-        // Shoulder pads (leaning forward heavily)
-        let shoulderY = cy - 2
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Arms reaching forward to tackle
-        let armW: CGFloat = 5
-        let armH: CGFloat = 14
-        let leftArm = CGRect(x: cx - sw / 2 - armW - 2, y: shoulderY - 6, width: armW, height: armH)
-        let rightArm = CGRect(x: cx + sw / 2 + 2, y: shoulderY - 6, width: armW, height: armH)
+        // Arms up — two small blocks above shoulders
+        let armW: CGFloat = 4
+        let armH: CGFloat = 10
+        let leftArm = CGRect(x: cx - 8, y: cy - 24, width: armW, height: armH)
+        let rightArm = CGRect(x: cx + 4, y: cy - 24, width: armW, height: armH)
         context.fill(Path(leftArm), with: .color(jerseyColor))
         context.fill(Path(rightArm), with: .color(jerseyColor))
-        // Reaching hands
-        context.fill(Path(CGRect(x: cx - sw / 2 - armW - 3, y: shoulderY - 9, width: 6, height: 4)), with: .color(skinColor))
-        context.fill(Path(CGRect(x: cx + sw / 2 + 2, y: shoulderY - 9, width: 6, height: 4)), with: .color(skinColor))
 
-        // Short body
-        let bodyW = sw - 4
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: shoulderY + 7, width: bodyW, height: 8)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
+        // Jersey block
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy - 7, width: bw, height: 12)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
         // Number
         let numText = Text("\(player.number)")
             .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: shoulderY + 11))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy - 1))
 
-        // Legs trailing behind (stretched out)
-        let legW: CGFloat = 7
-        let legH: CGFloat = 14
-        let legY = shoulderY + 15
-        let leftLeg = CGRect(x: cx - legW - 3, y: legY + 3, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx + 3, y: legY, width: legW, height: legH)
-        context.fill(Path(leftLeg), with: .color(pantsColor))
-        context.fill(Path(rightLeg), with: .color(pantsColor))
+        // Pants block
+        let pantsRect = CGRect(x: cx - bw / 2 + 1, y: cy + 5, width: bw - 2, height: 10)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
+    }
 
-        context.fill(Path(CGRect(x: cx - legW - 4, y: legY + legH + 3, width: legW + 2, height: 3)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx + 2, y: legY + legH, width: legW + 2, height: 3)), with: .color(.black))
+    // MARK: - Pose: Throwing (QB arm cocked back)
+
+    private func drawThrowing(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
+        let bw: CGFloat = 16
+
+        drawShadow(context: context, cx: cx, cy: cy + 16, width: bw + 6)
+
+        // Helmet
+        let helmetRect = CGRect(x: cx - 7, y: cy - 18, width: 14, height: 11)
+        context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
+
+        // Throwing arm (raised block behind)
+        let throwArm = CGRect(x: cx + bw / 2, y: cy - 14, width: 4, height: 10)
+        context.fill(Path(throwArm), with: .color(jerseyColor))
+
+        // Jersey block
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy - 6, width: bw, height: 12)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
+
+        // Number
+        let numText = Text("\(player.number)")
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundColor(numberColor)
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy))
+
+        // Pants block
+        let pantsRect = CGRect(x: cx - bw / 2 + 1, y: cy + 6, width: bw - 2, height: 10)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
+    }
+
+    // MARK: - Pose: Tackling (diving/reaching toward ball carrier)
+
+    private func drawTackling(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
+        let bw = bodyWidth
+
+        drawShadow(context: context, cx: cx, cy: cy + 12, width: bw + 8)
+
+        // Helmet (low, forward)
+        let helmetRect = CGRect(x: cx - 7, y: cy - 10, width: 14, height: 10)
+        context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
+
+        // Jersey block (leaning forward)
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy, width: bw, height: 10)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
+
+        // Number
+        let numText = Text("\(player.number)")
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .foregroundColor(numberColor)
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy + 5))
+
+        // Legs trailing
+        let pantsRect = CGRect(x: cx - bw / 2 + 2, y: cy + 10, width: bw - 4, height: 8)
+        context.fill(Path(pantsRect), with: .color(pantsColor))
     }
 
     // MARK: - Pose: Down (on the ground after tackle)
 
     private func drawDown(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        // Horizontal shadow (wider for lying player)
-        let shadowRect = CGRect(x: cx - sw, y: cy + 6, width: sw * 2, height: 6)
-        context.fill(Ellipse().path(in: shadowRect), with: .color(.black.opacity(0.35)))
+        // Horizontal shadow
+        drawShadow(context: context, cx: cx, cy: cy + 5, width: bw + 12)
 
-        // Draw player lying on side — horizontal layout
-        // Helmet
-        let helmetRect = CGRect(x: cx - 22, y: cy - 6, width: 14, height: 12)
+        // Helmet (side)
+        let helmetRect = CGRect(x: cx - 16, y: cy - 5, width: 11, height: 9)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
         context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Body (horizontal)
-        let bodyRect = CGRect(x: cx - 10, y: cy - 5, width: 20, height: 10)
+        // Body (horizontal jersey block)
+        let bodyRect = CGRect(x: cx - 7, y: cy - 4, width: 14, height: 8)
         context.fill(Path(bodyRect), with: .color(jerseyColor))
-        context.stroke(Path(bodyRect), with: .color(.black), lineWidth: 0.5)
 
-        // Number on torso
-        let numText = Text("\(player.number)")
-            .font(.system(size: 8, weight: .bold, design: .monospaced))
-            .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy))
-
-        // Legs (stretched out)
-        let legsRect = CGRect(x: cx + 10, y: cy - 3, width: 16, height: 7)
+        // Legs (horizontal pants block)
+        let legsRect = CGRect(x: cx + 7, y: cy - 3, width: 12, height: 6)
         context.fill(Path(legsRect), with: .color(pantsColor))
-
-        // Cleats at end
-        context.fill(Path(CGRect(x: cx + 26, y: cy - 3, width: 4, height: 7)), with: .color(.black))
     }
 
     // MARK: - Pose: Backpedaling (DBs dropping into coverage)
 
     private func drawBackpedaling(context: GraphicsContext, cx: CGFloat, cy: CGFloat) {
-        let sw = shoulderWidth
+        let bw = bodyWidth
 
-        drawShadow(context: context, cx: cx, cy: cy + 20, width: sw + 4)
+        drawShadow(context: context, cx: cx, cy: cy + 16, width: bw + 6)
 
-        // Helmet (looking forward while moving back)
-        let helmetRect = CGRect(x: cx - 9, y: cy - 24, width: 18, height: 15)
+        // Helmet
+        let helmetRect = CGRect(x: cx - 7, y: cy - 17, width: 14, height: 11)
         context.fill(Ellipse().path(in: helmetRect), with: .color(helmetColor))
-        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1.5)
-        drawFacemask(context: context, cx: cx, maskY: cy - 11)
+        context.stroke(Ellipse().path(in: helmetRect), with: .color(.black), lineWidth: 1)
 
-        // Shoulder pads (slightly back)
-        let shoulderY = cy - 6
-        let shoulderRect = CGRect(x: cx - sw / 2, y: shoulderY, width: sw, height: 7)
-        context.fill(Path(shoulderRect), with: .color(jerseyColor))
-        context.stroke(Path(shoulderRect), with: .color(.black), lineWidth: 1)
-
-        // Arms out wide for balance
-        let armW: CGFloat = 5
-        let armH: CGFloat = 9
-        let leftArm = CGRect(x: cx - sw / 2 - armW - 1, y: shoulderY + 1, width: armW, height: armH)
-        let rightArm = CGRect(x: cx + sw / 2 + 1, y: shoulderY + 1, width: armW, height: armH)
-        context.fill(Path(leftArm), with: .color(jerseyColor))
-        context.fill(Path(rightArm), with: .color(jerseyColor))
-        // Hands
-        context.fill(Path(CGRect(x: cx - sw / 2 - armW - 1, y: shoulderY + armH + 1, width: armW, height: 3)), with: .color(skinColor))
-        context.fill(Path(CGRect(x: cx + sw / 2 + 1, y: shoulderY + armH + 1, width: armW, height: 3)), with: .color(skinColor))
-
-        // Jersey body
-        let bodyW = sw - 4
-        let bodyH: CGFloat = 12
-        let bodyY = shoulderY + 7
-        let bodyRect = CGRect(x: cx - bodyW / 2, y: bodyY, width: bodyW, height: bodyH)
-        context.fill(Path(bodyRect), with: .color(jerseyColor))
+        // Jersey block
+        let jerseyRect = CGRect(x: cx - bw / 2, y: cy - 5, width: bw, height: 11)
+        context.fill(Path(jerseyRect), with: .color(jerseyColor))
+        context.stroke(Path(jerseyRect), with: .color(.black), lineWidth: 1)
 
         // Number
         let numText = Text("\(player.number)")
-            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
             .foregroundColor(numberColor)
-        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: bodyY + bodyH / 2))
+        context.draw(context.resolve(numText), at: CGPoint(x: cx, y: cy + 1))
 
-        // Legs crossing (backpedal step)
-        let legW: CGFloat = 7
-        let legH: CGFloat = 12
-        let legY = bodyY + bodyH
-        let leftLeg = CGRect(x: cx - legW, y: legY + 3, width: legW, height: legH)
-        let rightLeg = CGRect(x: cx, y: legY - 2, width: legW, height: legH)
+        // Legs crossing (backpedal)
+        let legW: CGFloat = 6
+        let legH: CGFloat = 9
+        let leftLeg = CGRect(x: cx - legW, y: cy + 8, width: legW, height: legH)
+        let rightLeg = CGRect(x: cx, y: cy + 6, width: legW, height: legH)
         context.fill(Path(leftLeg), with: .color(pantsColor))
         context.fill(Path(rightLeg), with: .color(pantsColor))
-
-        context.fill(Path(CGRect(x: cx - legW - 1, y: legY + legH + 3, width: legW + 2, height: 3)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx - 1, y: legY + legH - 2, width: legW + 2, height: 3)), with: .color(.black))
     }
 
-    // MARK: - Shared Drawing Helpers
+    // MARK: - Shadow Helper (disabled — original FPS '93 has no sprite shadows)
 
     private func drawShadow(context: GraphicsContext, cx: CGFloat, cy: CGFloat, width: CGFloat) {
-        let shadowRect = CGRect(x: cx - width / 2, y: cy, width: width, height: 8)
-        context.fill(Ellipse().path(in: shadowRect), with: .color(.black.opacity(0.4)))
-    }
-
-    private func drawFacemask(context: GraphicsContext, cx: CGFloat, maskY: CGFloat) {
-        let maskPath = Path { p in
-            p.move(to: CGPoint(x: cx - 5, y: maskY))
-            p.addLine(to: CGPoint(x: cx + 5, y: maskY))
-        }
-        context.stroke(maskPath, with: .color(Color(red: 0.55, green: 0.55, blue: 0.55)), lineWidth: 2.0)
-        let maskPath2 = Path { p in
-            p.move(to: CGPoint(x: cx - 4, y: maskY + 2))
-            p.addLine(to: CGPoint(x: cx + 4, y: maskY + 2))
-        }
-        context.stroke(maskPath2, with: .color(Color(red: 0.5, green: 0.5, blue: 0.5)), lineWidth: 1.0)
-    }
-
-    private func drawShoulderHighlight(context: GraphicsContext, cx: CGFloat, sw: CGFloat, y: CGFloat) {
-        let highlight = Path { p in
-            p.move(to: CGPoint(x: cx - sw / 2, y: y))
-            p.addLine(to: CGPoint(x: cx + sw / 2, y: y))
-        }
-        context.stroke(highlight, with: .color(.white.opacity(0.3)), lineWidth: 1)
-    }
-
-    private func drawArmsAtSides(context: GraphicsContext, cx: CGFloat, sw: CGFloat, armY: CGFloat) {
-        let armW: CGFloat = 5
-        let armH: CGFloat = 10
-        let leftArm = CGRect(x: cx - sw / 2 - armW + 1, y: armY, width: armW, height: armH)
-        let rightArm = CGRect(x: cx + sw / 2 - 1, y: armY, width: armW, height: armH)
-        context.fill(Path(leftArm), with: .color(jerseyColor))
-        context.fill(Path(rightArm), with: .color(jerseyColor))
-        // Hands
-        let handH: CGFloat = 3
-        context.fill(Path(CGRect(x: cx - sw / 2 - armW + 1, y: armY + armH, width: armW, height: handH)), with: .color(skinColor))
-        context.fill(Path(CGRect(x: cx + sw / 2 - 1, y: armY + armH, width: armW, height: handH)), with: .color(skinColor))
-    }
-
-    private func drawCleats(context: GraphicsContext, cx: CGFloat, legW: CGFloat, legY: CGFloat, leftOffset: CGFloat, rightOffset: CGFloat) {
-        let cleatH: CGFloat = 4
-        context.fill(Path(CGRect(x: cx - legW + leftOffset - 1, y: legY, width: legW + 2, height: cleatH)), with: .color(.black))
-        context.fill(Path(CGRect(x: cx + rightOffset - 1, y: legY, width: legW + 2, height: cleatH)), with: .color(.black))
+        // No-op: original FPS '93 does not render player shadows
     }
 }
 

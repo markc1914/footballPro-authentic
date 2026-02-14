@@ -125,19 +125,19 @@ struct PlayBlueprintGenerator {
     private static func playDuration(for result: PlayResult) -> Double {
         switch result.playType {
         case .deepPass:
-            return 4.0
+            return 6.0
         case .mediumPass, .playAction:
-            return 3.5
+            return 5.0
         case .shortPass, .screen:
-            return 3.0
+            return 4.5
         case .insideRun, .draw:
-            return 3.0
+            return 4.5
         case .outsideRun, .sweep, .counter:
-            return 3.2
+            return 5.0
         case .kickoff, .punt:
-            return 3.5
+            return 5.5
         default:
-            return 3.0
+            return 4.5
         }
     }
 

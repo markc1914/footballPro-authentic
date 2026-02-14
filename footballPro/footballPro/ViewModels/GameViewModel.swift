@@ -795,6 +795,39 @@ public class GameViewModel: ObservableObject { // Made public
         } else if game?.gameStatus == .halftime {
             currentPhase = .halftime
         } else {
+            // Check if AI has the ball on 4th down — auto-execute punt/FG
+            if !isUserPossession, let game = game, game.downAndDistance.down == 4,
+               game.gameStatus == .inProgress, !game.isKickoff, !game.isExtraPoint {
+                Task { await handleAIFourthDown() }
+            } else {
+                currentPhase = .playCalling
+            }
+        }
+    }
+
+    /// AI 4th-down decision during interactive play: punt, FG, or go for it
+    private func handleAIFourthDown() async {
+        guard let game = game else {
+            currentPhase = .playCalling
+            return
+        }
+
+        let offTeam = game.isHomeTeamPossession ? homeTeam : awayTeam
+        let kicker = offTeam?.starter(at: .kicker)
+        let situation = currentSituation()
+        let decision = aiCoach.fourthDownDecision(situation: situation, kicker: kicker)
+
+        switch decision {
+        case .punt:
+            currentPhase = .refereeCall("4th down — \(offTeam?.name ?? "Offense") will punt")
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await punt()
+        case .fieldGoal:
+            currentPhase = .refereeCall("4th down — \(offTeam?.name ?? "Offense") will attempt a field goal")
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await attemptFieldGoal()
+        case .goForIt:
+            // AI goes for it — show play calling as normal
             currentPhase = .playCalling
         }
     }
