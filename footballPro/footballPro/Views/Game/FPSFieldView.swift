@@ -807,114 +807,44 @@ struct FPSFieldView: View {
     // MARK: - Formation Setup
 
     private func createOffensiveFormation(los: CGFloat, isHome: Bool, facingRight: Bool = true) -> [FPSPlayer] {
-        var players: [FPSPlayer] = []
         let centerY = flatPlayCenter
-        let dir: CGFloat = facingRight ? 1.0 : -1.0
+        let formation = viewModel.currentOffensiveFormation ?? .shotgun
+        let positions = FormationPositions.offensivePositions(for: formation, losX: los, centerY: centerY)
+        let roles = FormationPositions.offensiveRoles(for: formation)
 
-        // Offensive line (5)
-        for i in 0..<5 {
-            let yOffset = CGFloat(i - 2) * 22
+        let defaultNumbers = [50, 51, 52, 53, 54, 12, 24, 80, 88, 85, 81]
+
+        var players: [FPSPlayer] = []
+        for i in 0..<11 {
             players.append(FPSPlayer(
                 id: UUID(),
-                position: CGPoint(x: los, y: centerY + yOffset),
-                number: 50 + i, isHome: isHome, role: .lineman
+                position: positions[i],
+                number: defaultNumbers[i],
+                isHome: isHome,
+                role: roles[i]
             ))
         }
-
-        // QB
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los - 28 * dir, y: centerY),
-            number: 12, isHome: isHome, role: .quarterback
-        ))
-
-        // RB
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los - 35 * dir, y: centerY + 15),
-            number: 24, isHome: isHome, role: .runningback
-        ))
-
-        // WR (wide left)
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 2 * dir, y: centerY - 105),
-            number: 80, isHome: isHome, role: .receiver
-        ))
-
-        // WR (wide right)
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 2 * dir, y: centerY + 105),
-            number: 88, isHome: isHome, role: .receiver
-        ))
-
-        // TE
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los, y: centerY + 52),
-            number: 85, isHome: isHome, role: .tightend
-        ))
-
-        // Slot
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 5 * dir, y: centerY - 65),
-            number: 81, isHome: isHome, role: .receiver
-        ))
-
         return players
     }
 
     private func createDefensiveFormation(los: CGFloat, isHome: Bool, facingRight: Bool = false) -> [FPSPlayer] {
-        var players: [FPSPlayer] = []
         let centerY = flatPlayCenter
-        let dir: CGFloat = facingRight ? -1.0 : 1.0
+        let formation = viewModel.currentDefensiveFormation ?? .base43
+        let positions = FormationPositions.defensivePositions(for: formation, losX: los, centerY: centerY)
+        let roles = FormationPositions.defensiveRoles(for: formation)
 
-        // DL (4)
-        for i in 0..<4 {
-            let yOffset = (CGFloat(i) - 1.5) * 26
+        let defaultNumbers = [90, 91, 92, 93, 50, 51, 52, 21, 29, 31, 39]
+
+        var players: [FPSPlayer] = []
+        for i in 0..<11 {
             players.append(FPSPlayer(
                 id: UUID(),
-                position: CGPoint(x: los + 12 * dir, y: centerY + yOffset),
-                number: 90 + i, isHome: isHome, role: .defensiveLine
+                position: positions[i],
+                number: defaultNumbers[i],
+                isHome: isHome,
+                role: roles[i]
             ))
         }
-
-        // LB (3)
-        for i in 0..<3 {
-            let yOffset = CGFloat(i - 1) * 42
-            players.append(FPSPlayer(
-                id: UUID(),
-                position: CGPoint(x: los + 38 * dir, y: centerY + yOffset),
-                number: 50 + i, isHome: isHome, role: .linebacker
-            ))
-        }
-
-        // CB (2)
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 55 * dir, y: centerY - 95),
-            number: 21, isHome: isHome, role: .defensiveBack
-        ))
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 55 * dir, y: centerY + 95),
-            number: 29, isHome: isHome, role: .defensiveBack
-        ))
-
-        // S (2)
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 80 * dir, y: centerY - 40),
-            number: 31, isHome: isHome, role: .defensiveBack
-        ))
-        players.append(FPSPlayer(
-            id: UUID(),
-            position: CGPoint(x: los + 80 * dir, y: centerY + 40),
-            number: 39, isHome: isHome, role: .defensiveBack
-        ))
-
         return players
     }
 }

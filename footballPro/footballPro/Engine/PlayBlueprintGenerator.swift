@@ -832,49 +832,16 @@ struct PlayBlueprintGenerator {
 
     // MARK: - Starting Positions
 
-    /// Must match FPSFieldView.createOffensiveFormation exactly
+    /// Formation-aware offensive start positions using FormationPositions lookup.
+    /// Must match FPSFieldView.createOffensiveFormation exactly.
     private static func offensiveStartPositions(formation: OffensiveFormation, losX: CGFloat, centerY: CGFloat) -> [CGPoint] {
-        return [
-            // OL (0-4)
-            CGPoint(x: losX, y: centerY - 44),   // LT
-            CGPoint(x: losX, y: centerY - 22),   // LG
-            CGPoint(x: losX, y: centerY),         // C
-            CGPoint(x: losX, y: centerY + 22),    // RG
-            CGPoint(x: losX, y: centerY + 44),    // RT
-            // QB (5)
-            CGPoint(x: losX - 28, y: centerY),
-            // RB (6)
-            CGPoint(x: losX - 35, y: centerY + 15),
-            // WR1 (7)
-            CGPoint(x: losX + 2, y: centerY - 105),
-            // WR2 (8)
-            CGPoint(x: losX + 2, y: centerY + 105),
-            // TE (9)
-            CGPoint(x: losX, y: centerY + 52),
-            // Slot (10)
-            CGPoint(x: losX + 5, y: centerY - 65)
-        ]
+        return FormationPositions.offensivePositions(for: formation, losX: losX, centerY: centerY)
     }
 
-    /// Must match FPSFieldView.createDefensiveFormation exactly
+    /// Formation-aware defensive start positions using FormationPositions lookup.
+    /// Must match FPSFieldView.createDefensiveFormation exactly.
     private static func defensiveStartPositions(formation: DefensiveFormation, losX: CGFloat, centerY: CGFloat) -> [CGPoint] {
-        return [
-            // DL (0-3)
-            CGPoint(x: losX + 12, y: centerY - 39),
-            CGPoint(x: losX + 12, y: centerY - 13),
-            CGPoint(x: losX + 12, y: centerY + 13),
-            CGPoint(x: losX + 12, y: centerY + 39),
-            // LB (4-6)
-            CGPoint(x: losX + 38, y: centerY - 42),
-            CGPoint(x: losX + 38, y: centerY),
-            CGPoint(x: losX + 38, y: centerY + 42),
-            // CB (7-8)
-            CGPoint(x: losX + 55, y: centerY - 95),
-            CGPoint(x: losX + 55, y: centerY + 95),
-            // S (9-10)
-            CGPoint(x: losX + 80, y: centerY - 40),
-            CGPoint(x: losX + 80, y: centerY + 40)
-        ]
+        return FormationPositions.defensivePositions(for: formation, losX: losX, centerY: centerY)
     }
 
     // MARK: - Helpers

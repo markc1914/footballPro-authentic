@@ -91,9 +91,9 @@ class PlayResolver {
         // Formation matchup - defense gets more credit for run-stopping formations
         let formationModifier: Double
         switch defensiveFormation {
-        case .goalLine: formationModifier = 0.4  // Very hard to run against goal line
-        case .base43, .base34: formationModifier = 0.85
-        case .nickel: formationModifier = 1.0
+        case .goalLine, .goalLineDef: formationModifier = 0.4  // Very hard to run against goal line
+        case .base43, .base34, .base46, .base44, .flex: formationModifier = 0.85
+        case .nickel, .base33: formationModifier = 1.0
         case .dime, .prevent: formationModifier = 1.3
         }
 

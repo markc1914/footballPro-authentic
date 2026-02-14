@@ -223,6 +223,10 @@ public class DefensivePlayArtDatabase { // Public
             return nickelPlays  // Reuse for now
         case .goalLine, .prevent:
             return fourThreePlays  // Reuse for now
+        case .base46, .base44, .goalLineDef:
+            return fourThreePlays  // Reuse 4-3 assignments for now
+        case .base33, .flex:
+            return nickelPlays  // Reuse nickel assignments for now
         }
     }
 

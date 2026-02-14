@@ -84,6 +84,15 @@ public class GameViewModel: ObservableObject { // Made public
     @Published public var currentPlaybookPage: Int = 0
     public let playsPerPage: Int = 16
 
+    /// Current offensive formation from selected play (for pre-snap display)
+    public var currentOffensiveFormation: OffensiveFormation? {
+        selectedOffensivePlay?.formation
+    }
+
+    /// Current defensive formation from selected play (for pre-snap display)
+    public var currentDefensiveFormation: DefensiveFormation? {
+        selectedDefensivePlay?.formation
+    }
 
     // MARK: - Game Setup
 

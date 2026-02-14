@@ -128,6 +128,13 @@ public enum OffensiveFormation: String, Codable, CaseIterable { // Public
     case emptySet = "Empty Set"
     case goalLine = "Goal Line"
     case jumbo = "Jumbo"
+    case proSet = "Pro Set"
+    case spread = "Spread"
+    case trips = "Trips"
+    case nearFormation = "Near"
+    case doubleWing = "Double Wing"
+    case iSlot = "I-Slot"
+    case loneBack = "Lone Back"
 
     public var description: String {
         switch self {
@@ -138,6 +145,13 @@ public enum OffensiveFormation: String, Codable, CaseIterable { // Public
         case .emptySet: return "No backs, 5 receivers"
         case .goalLine: return "Heavy formation for short yardage"
         case .jumbo: return "Extra linemen, power running"
+        case .proSet: return "QB under center, FB and RB offset, balanced"
+        case .spread: return "4 WR spread wide, 1 RB, shotgun"
+        case .trips: return "3 WR on one side, stretches defense"
+        case .nearFormation: return "Strong-side overload, power running"
+        case .doubleWing: return "Two wingbacks flanking TE, misdirection"
+        case .iSlot: return "I-Formation with slot receiver"
+        case .loneBack: return "Single back 7 yards deep, 3 WR"
         }
     }
 
@@ -157,6 +171,20 @@ public enum OffensiveFormation: String, Codable, CaseIterable { // Public
             return [.qbSneak, .insideRun, .playAction]
         case .jumbo:
             return [.insideRun, .qbSneak]
+        case .proSet:
+            return [.insideRun, .outsideRun, .playAction, .shortPass]
+        case .spread:
+            return [.shortPass, .mediumPass, .deepPass, .screen, .draw]
+        case .trips:
+            return [.shortPass, .mediumPass, .deepPass, .screen]
+        case .nearFormation:
+            return [.insideRun, .counter, .sweep, .playAction]
+        case .doubleWing:
+            return [.insideRun, .counter, .sweep, .playAction]
+        case .iSlot:
+            return [.insideRun, .counter, .playAction, .mediumPass]
+        case .loneBack:
+            return [.insideRun, .outsideRun, .playAction, .mediumPass]
         }
     }
 }
@@ -184,6 +212,11 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
     case dime = "Dime"
     case goalLine = "Goal Line"
     case prevent = "Prevent"
+    case base46 = "4-6"
+    case base33 = "3-3"
+    case base44 = "4-4"
+    case flex = "Flex"
+    case goalLineDef = "Goal Line D"
 
     public var description: String {
         switch self {
@@ -193,6 +226,11 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
         case .dime: return "6 DBs - heavy pass defense"
         case .goalLine: return "Heavy personnel to stop short runs"
         case .prevent: return "Deep coverage to prevent big plays"
+        case .base46: return "Aggressive 46 defense, 8 in the box"
+        case .base33: return "3-3 stack, balanced pass/run"
+        case .base44: return "4-4 stack, strong run defense"
+        case .flex: return "Staggered DL depths, disguised coverage"
+        case .goalLineDef: return "Heavy goal line defense, everyone up close"
         }
     }
 
@@ -210,6 +248,16 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
             return [.manCoverage, .blitz]
         case .prevent:
             return [.coverFour, .coverThree]
+        case .base46:
+            return [.manCoverage, .blitz, .coverTwo]
+        case .base33:
+            return [.coverThree, .coverTwo, .manCoverage]
+        case .base44:
+            return [.coverTwo, .manCoverage, .blitz]
+        case .flex:
+            return [.coverTwo, .coverThree, .zoneBlitz]
+        case .goalLineDef:
+            return [.manCoverage, .blitz]
         }
     }
 
@@ -221,6 +269,11 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
         case .dime: return 45
         case .goalLine: return 95
         case .prevent: return 40
+        case .base46: return 90
+        case .base33: return 65
+        case .base44: return 85
+        case .flex: return 75
+        case .goalLineDef: return 95
         }
     }
 
@@ -232,6 +285,11 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
         case .dime: return 90
         case .goalLine: return 50
         case .prevent: return 95
+        case .base46: return 55
+        case .base33: return 75
+        case .base44: return 55
+        case .flex: return 72
+        case .goalLineDef: return 45
         }
     }
 }
