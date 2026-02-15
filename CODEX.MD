@@ -376,8 +376,7 @@ are unavailable or SpriteCache hasn't loaded.
 - Contracts: veteran contracts now use rating-based 3/4/5-year terms to keep higher ratings yielding larger total values.
 - Season advance: player ages are clamped to +1 per season to prevent double increments; initial contract years padded to ≥4 for synthetic league generation.
 - Penalties: penalty outcomes now consume 5–10 seconds of clock to keep run-play timeouts realistic.
-- Test status: `swift test` passing on branch `phase-e-animation` (2026-02-15).
-- Phase G kickoff: Added SAMPLE.DAT decoder (`SampleDecoder.swift`), SAMPLE audio playback service (`SampleAudioService.swift`) with WAV wrapping, SoundManager now prefers authentic samples before synthetic tones, and new audio decoder tests (`AudioDecoderTests.swift`).
+- Phase G audio: SAMPLE.DAT decoder (`SampleDecoder.swift`), playback service (`SampleAudioService.swift`) with WAV wrapping, SoundManager preferring authentic samples, and `AudioDecoderTests.swift` added. `swift test` passing (post-merge).
 
 ## Testing Plan (Phase T) — COMPLETE
 
