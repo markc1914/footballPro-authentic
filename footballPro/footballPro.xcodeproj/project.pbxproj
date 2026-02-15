@@ -67,6 +67,7 @@
 		SVC020 /* PYFDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC055; };
 		SVC021 /* LGCDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC056; };
 		SVC022 /* LGTDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC057; };
+		SVC023 /* AnimDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC058; };
 		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
 
 		/* Additional Views */
@@ -179,6 +180,7 @@
 		SRC055 /* PYFDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PYFDecoder.swift; sourceTree = "<group>"; };
 		SRC056 /* LGCDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGCDecoder.swift; sourceTree = "<group>"; };
 		SRC057 /* LGTDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGTDecoder.swift; sourceTree = "<group>"; };
+		SRC058 /* AnimDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimDecoder.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 				SRC055 /* PYFDecoder.swift */,
 				SRC056 /* LGCDecoder.swift */,
 				SRC057 /* LGTDecoder.swift */,
+				SRC058 /* AnimDecoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -532,6 +535,7 @@
 				SVC020 /* PYFDecoder.swift in Sources */,
 				SVC021 /* LGCDecoder.swift in Sources */,
 				SVC022 /* LGTDecoder.swift in Sources */,
+				SVC023 /* AnimDecoder.swift in Sources */,
 				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
