@@ -198,6 +198,11 @@ struct FPSFieldView: View {
     /// Whether authentic sprites are loaded and ready for rendering
     @State private var spritesLoaded = false
 
+    /// Per-player animation state machines (11 offense + 11 defense)
+    @State private var offAnimStates: [PlayerAnimationState] = []
+    @State private var defAnimStates: [PlayerAnimationState] = []
+    @State private var lastTickTime: Date?
+
     // Internal flat field dimensions (blueprint coordinate space)
     private let flatFieldWidth: CGFloat = 640
     private let flatFieldHeight: CGFloat = 360
@@ -216,7 +221,8 @@ struct FPSFieldView: View {
                     // === ANIMATED RENDERING ===
                     // Projection is computed per-frame inside TimelineView so camera can track the ball.
                     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                        let elapsed = timeline.date.timeIntervalSince(startTime)
+                        let now = timeline.date
+                        let elapsed = now.timeIntervalSince(startTime)
                         let progress = min(elapsed / blueprint.totalDuration, 1.0)
 
                         // Determine ball position in flat space for camera tracking
@@ -287,14 +293,54 @@ struct FPSFieldView: View {
                                     hasBall: playerHasBall,
                                     pose: pose
                                 )
-                                let sprFrame = authenticSpriteFrame(
-                                    pose: pose,
-                                    role: role,
-                                    isDefense: isDefense,
-                                    hasBall: playerHasBall,
-                                    facing: facing,
-                                    animProgress: progress
-                                )
+                                // Use per-player animation state for frame selection
+                                let sprFrame: SpriteFrame? = {
+                                    guard spritesLoaded else { return nil }
+                                    let animState = poseToAnimState(pose)
+                                    let posCode = roleToPositionCode(role, isDefense: isDefense)
+                                    let animName = SpriteCache.animationName(for: animState, position: posCode, hasBall: playerHasBall)
+                                    guard let info = SpriteCache.shared.animationInfo(named: animName) else { return nil }
+
+                                    // Update animation state for this player
+                                    let stateArray = isDefense ? defAnimStates : offAnimStates
+                                    var playerAnimState: PlayerAnimationState
+                                    if i < stateArray.count {
+                                        playerAnimState = stateArray[i]
+                                    } else {
+                                        playerAnimState = PlayerAnimationState()
+                                    }
+
+                                    // Transition if animation changed
+                                    if playerAnimState.animationName != animName {
+                                        playerAnimState.transition(
+                                            to: animName,
+                                            frames: info.frames,
+                                            views: info.views,
+                                            loops: PlayerAnimationState.isLoopingAnimation(animName)
+                                        )
+                                    }
+
+                                    // Tick at 15fps (freeze during preSnap)
+                                    let phaseName = currentPhase?.name ?? .preSnap
+                                    if phaseName != .preSnap {
+                                        let dt = lastTickTime.map { now.timeIntervalSince($0) } ?? 0
+                                        let clampedDt = min(dt, 0.1) // Cap to prevent jumps
+                                        playerAnimState.tick(deltaTime: clampedDt)
+                                    }
+
+                                    // Write back
+                                    if i < stateArray.count {
+                                        if isDefense {
+                                            defAnimStates[i] = playerAnimState
+                                        } else {
+                                            offAnimStates[i] = playerAnimState
+                                        }
+                                    }
+
+                                    let angle = facingToAngle(facing, isFlipped: isFieldFlipped)
+                                    let viewIdx = SpriteCache.viewIndex(fromAngle: angle, viewCount: info.views)
+                                    return SpriteCache.shared.sprite(animation: animName, frame: playerAnimState.currentFrame, view: viewIdx)
+                                }()
                                 AuthenticPlayerSprite(
                                     player: animatedPlayer,
                                     isDefense: isDefense,

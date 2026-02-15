@@ -3,7 +3,7 @@
 //  footballPro
 //
 //  Orchestrator that sets up mock game state for each screen and captures it.
-//  Produces ~20 screenshots matching original FPS '93 reference frames at /tmp/fps_screenshots/.
+//  Produces 32 screenshots matching original FPS '93 reference frames at /tmp/fps_screenshots/.
 //
 
 import SwiftUI
@@ -173,14 +173,14 @@ struct ScreenshotHarness {
 
     // MARK: - Capture All Screenshots
 
-    /// Capture all ~20 screenshots matching reference frames.
+    /// Capture all 32 screenshots matching reference frames.
     /// Returns the number of screenshots successfully captured.
     static func captureAll(progress: ProgressCallback? = nil) async -> Int {
         let teams = mockTeams()
         let home = teams.home
         let away = teams.away
         var captured = 0
-        let totalScreenshots = 20
+        let totalScreenshots = 32
 
         // Helper to report progress
         func report(_ index: Int, _ filename: String) {
@@ -432,10 +432,330 @@ struct ScreenshotHarness {
             captured += 1
         } catch { print("[Harness] 20_playcalling_defense2 failed: \(error)") }
 
+        // --- 21: Main Menu Title Screen (standalone recreation) ---
+        do {
+            report(21, "21_main_menu.png")
+            let view = mainMenuMockView()
+            try ScreenshotService.captureView(view, filename: "21_main_menu.png")
+            captured += 1
+        } catch { print("[Harness] 21_main_menu failed: \(error)") }
+
+        // --- 22: New Game Team Selection (standalone recreation) ---
+        do {
+            report(22, "22_team_selection.png")
+            let view = teamSelectionMockView()
+            try ScreenshotService.captureView(view, filename: "22_team_selection.png")
+            captured += 1
+        } catch { print("[Harness] 22_team_selection failed: \(error)") }
+
+        // --- 23: Team Roster (standalone recreation using PlayerCardGrid) ---
+        do {
+            report(23, "23_roster_view.png")
+            let view = rosterMockView()
+            try ScreenshotService.captureView(view, filename: "23_roster_view.png")
+            captured += 1
+        } catch { print("[Harness] 23_roster_view failed: \(error)") }
+
+        // --- 24: Player Card ---
+        do {
+            report(24, "24_player_card.png")
+            let player = PlayerGenerator.generate(position: .quarterback, tier: .starter)
+            let view = ZStack {
+                Color.black.ignoresSafeArea()
+                PlayerCard(player: player)
+                    .frame(width: 400, height: 300)
+            }
+            try ScreenshotService.captureView(view, filename: "24_player_card.png")
+            captured += 1
+        } catch { print("[Harness] 24_player_card failed: \(error)") }
+
+        // --- 25: Pre-game Narration (standalone recreation) ---
+        do {
+            report(25, "25_pregame_narration.png")
+            let view = pregameNarrationMockView(home: home, away: away)
+            try ScreenshotService.captureView(view, filename: "25_pregame_narration.png")
+            captured += 1
+        } catch { print("[Harness] 25_pregame_narration failed: \(error)") }
+
+        // --- 26: Extra Point Choice (standalone recreation) ---
+        do {
+            report(26, "26_extra_point_choice.png")
+            let view = extraPointChoiceMockView(home: home, away: away)
+            try ScreenshotService.captureView(view, filename: "26_extra_point_choice.png")
+            captured += 1
+        } catch { print("[Harness] 26_extra_point_choice failed: \(error)") }
+
+        // --- 27: Field with Authentic Sprites (Pre-snap Standing) ---
+        do {
+            report(27, "27_field_sprites_presnap.png")
+            SpriteCache.shared.load()
+            let bp = mockBlueprint(losYard: 40)
+            let vm = configureViewModel(homeTeam: home, awayTeam: away, phase: .presnap,
+                                        quarter: 1, timeRemaining: 850, down: 1, yardsToGo: 10,
+                                        yardLine: 40, blueprint: bp)
+            let view = FPSFieldView(viewModel: vm)
+            try ScreenshotService.captureView(view, filename: "27_field_sprites_presnap.png")
+            captured += 1
+        } catch { print("[Harness] 27_field_sprites_presnap failed: \(error)") }
+
+        // --- 28: Field with Authentic Sprites (Mid-play Running) ---
+        do {
+            report(28, "28_field_sprites_midplay.png")
+            SpriteCache.shared.load()
+            let bp = mockBlueprint(losYard: 50)
+            let vm = configureViewModel(homeTeam: home, awayTeam: away, phase: .playAnimation,
+                                        quarter: 2, timeRemaining: 600, down: 2, yardsToGo: 7,
+                                        yardLine: 50, blueprint: bp)
+            let view = FPSFieldView(viewModel: vm)
+            try ScreenshotService.captureView(view, filename: "28_field_sprites_midplay.png")
+            captured += 1
+        } catch { print("[Harness] 28_field_sprites_midplay failed: \(error)") }
+
+        // --- 29: Play Result with Authentic Sprites ---
+        do {
+            report(29, "29_play_result_sprites.png")
+            let bp = mockBlueprint(losYard: 55)
+            let vm = configureViewModel(homeTeam: home, awayTeam: away, phase: .playResult,
+                                        quarter: 2, timeRemaining: 590, down: 1, yardsToGo: 10,
+                                        yardLine: 55,
+                                        lastPlayDescription: "T. Thomas run off left tackle for 5 yards. First down!",
+                                        lastPlayYards: 5, lastPlayIsFirstDown: true,
+                                        blueprint: bp)
+            let view = ZStack {
+                FPSFieldView(viewModel: vm)
+                FPSPlayResultOverlay(viewModel: vm)
+            }
+            try ScreenshotService.captureView(view, filename: "29_play_result_sprites.png")
+            captured += 1
+        } catch { print("[Harness] 29_play_result_sprites failed: \(error)") }
+
+        // --- 30: Halftime Score Summary ---
+        do {
+            report(30, "30_halftime.png")
+            let view = halftimeMockView(home: home, away: away)
+            try ScreenshotService.captureView(view, filename: "30_halftime.png")
+            captured += 1
+        } catch { print("[Harness] 30_halftime failed: \(error)") }
+
+        // --- 31: Game Over Final Score ---
+        do {
+            report(31, "31_game_over.png")
+            var game = Game(homeTeamId: home.id, awayTeamId: away.id, week: 1, seasonYear: 1993)
+            game.score = GameScore(homeScore: 24, awayScore: 17)
+            game.gameStatus = .final
+            let view = GameOverView(homeTeam: home, awayTeam: away, game: game, onContinue: {})
+            try ScreenshotService.captureView(view, filename: "31_game_over.png")
+            captured += 1
+        } catch { print("[Harness] 31_game_over failed: \(error)") }
+
+        // --- 32: Pause Menu Overlay ---
+        do {
+            report(32, "32_pause_menu.png")
+            let view = pauseMenuMockView()
+            try ScreenshotService.captureView(view, filename: "32_pause_menu.png")
+            captured += 1
+        } catch { print("[Harness] 32_pause_menu failed: \(error)") }
+
         return captured
     }
 
     // MARK: - Standalone View Builders
+
+    // MARK: - New Screenshot Mock Views (21-32)
+
+    /// Mock main menu (standalone, no EnvironmentObject needed)
+    private static func mainMenuMockView() -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Spacer()
+                Text("FRONT PAGE SPORTS")
+                    .font(RetroFont.huge())
+                    .foregroundColor(VGA.digitalAmber)
+                Text("FOOTBALL PRO")
+                    .font(RetroFont.large())
+                    .foregroundColor(VGA.white)
+                Spacer().frame(height: 40)
+                VStack(spacing: 12) {
+                    FPSButton("NEW GAME", width: 200) {}
+                    FPSButton("LOAD GAME", width: 200) {}
+                    FPSButton("SETTINGS", width: 200) {}
+                    FPSButton("QUIT", width: 200) {}
+                }
+                Spacer()
+            }
+        }
+    }
+
+    /// Mock team selection grid (standalone)
+    private static func teamSelectionMockView() -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            FPSDialog("SELECT YOUR TEAM") {
+                VStack(spacing: 12) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(80)), count: 7), spacing: 8) {
+                        ForEach(0..<28, id: \.self) { i in
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(i == 4 ? Color(VGA.playSlotGreen) : Color(VGA.panelBg))
+                                    .frame(width: 78, height: 40)
+                                Text("TM\(i + 1)")
+                                    .font(RetroFont.tiny())
+                                    .foregroundColor(VGA.white)
+                            }
+                        }
+                    }
+                    .padding(8)
+                    FPSButton("SELECT") {}
+                }
+                .padding()
+            }
+        }
+    }
+
+    /// Mock roster view (standalone)
+    private static func rosterMockView() -> some View {
+        let team = TeamGenerator.generateTeam(index: 0, divisionId: UUID())
+        return ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack {
+                    Text(team.fullName.uppercased())
+                        .font(RetroFont.header())
+                        .foregroundColor(VGA.white)
+                    Spacer()
+                    Text("RECORD: 0-0")
+                        .font(RetroFont.small())
+                        .foregroundColor(VGA.lightGray)
+                }
+                .padding(8)
+                .background(Color(VGA.panelBg))
+
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(team.roster.prefix(15), id: \.id) { player in
+                            HStack {
+                                Text("#\(player.jerseyNumber)")
+                                    .font(RetroFont.small())
+                                    .foregroundColor(VGA.digitalAmber)
+                                    .frame(width: 30, alignment: .trailing)
+                                Text(player.fullName)
+                                    .font(RetroFont.small())
+                                    .foregroundColor(VGA.white)
+                                Spacer()
+                                Text(player.position.displayName)
+                                    .font(RetroFont.tiny())
+                                    .foregroundColor(VGA.lightGray)
+                                Text("\(player.overall)")
+                                    .font(RetroFont.small())
+                                    .foregroundColor(VGA.green)
+                                    .frame(width: 30)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Mock pre-game narration (standalone)
+    private static func pregameNarrationMockView(home: Team, away: Team) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 24) {
+                Spacer()
+                Text("PRE-GAME")
+                    .font(RetroFont.title())
+                    .foregroundColor(VGA.digitalAmber)
+                Text("\(home.fullName) vs \(away.fullName)")
+                    .font(RetroFont.header())
+                    .foregroundColor(VGA.white)
+                Text("The \(home.fullName) enter \(home.stadiumName) today to face the \(away.fullName) in what promises to be an exciting matchup. Coach \(home.coachName) leads his team onto the field...")
+                    .font(RetroFont.body())
+                    .foregroundColor(VGA.lightGray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                Spacer()
+                FPSButton("START GAME") {}
+                Spacer().frame(height: 40)
+            }
+        }
+    }
+
+    /// Mock extra point choice (standalone)
+    private static func extraPointChoiceMockView(home: Team, away: Team) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            FPSDialog("TOUCHDOWN!") {
+                VStack(spacing: 16) {
+                    Text("\(home.fullName) 6 — \(away.fullName) 3")
+                        .font(RetroFont.header())
+                        .foregroundColor(VGA.white)
+                    Spacer().frame(height: 8)
+                    HStack(spacing: 20) {
+                        FPSButton("KICK PAT", width: 120) {}
+                        FPSButton("GO FOR 2", width: 120) {}
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+
+    /// Mock halftime score summary (standalone)
+    private static func halftimeMockView(home: Team, away: Team) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            FPSDialog("HALFTIME") {
+                VStack(spacing: 16) {
+                    HStack(spacing: 24) {
+                        VStack(spacing: 4) {
+                            Text(away.abbreviation)
+                                .font(RetroFont.header())
+                                .foregroundColor(VGA.lightGray)
+                            Text("10")
+                                .font(RetroFont.score())
+                                .foregroundColor(VGA.white)
+                        }
+                        Text("-")
+                            .font(RetroFont.huge())
+                            .foregroundColor(VGA.darkGray)
+                        VStack(spacing: 4) {
+                            Text(home.abbreviation)
+                                .font(RetroFont.header())
+                                .foregroundColor(VGA.lightGray)
+                            Text("14")
+                                .font(RetroFont.score())
+                                .foregroundColor(VGA.green)
+                        }
+                    }
+                    FPSButton("CONTINUE") {}
+                }
+                .padding(24)
+            }
+        }
+    }
+
+    /// Mock pause menu (standalone)
+    private static func pauseMenuMockView() -> some View {
+        ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea()
+            FPSDialog("GAME PAUSED") {
+                VStack(spacing: 12) {
+                    Spacer().frame(height: 8)
+                    FPSButton("RESUME", width: 200) {}
+                    FPSButton("SAVE GAME", width: 200) {}
+                    FPSButton("QUIT TO MENU", width: 200) {}
+                    Spacer().frame(height: 8)
+                }
+                .padding()
+            }
+        }
+    }
+
+    // MARK: - Original Standalone View Builders
 
     /// "Game in progress" dialog matching reference frame 007
     private static func gameDialogView() -> some View {
