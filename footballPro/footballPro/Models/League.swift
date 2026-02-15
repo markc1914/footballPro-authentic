@@ -353,6 +353,13 @@ struct League: Identifiable, Codable, Equatable {
     mutating func advanceToNextSeason(completedSeason: Season) -> Season {
         let nextYear = completedSeason.year + 1
 
+        // Capture starting ages to guarantee exactly +1 year per season advancement
+        let startingAges: [UUID: Int] = Dictionary(
+            uniqueKeysWithValues: teams.flatMap { team in
+                team.roster.map { ($0.id, $0.age) }
+            }
+        )
+
         // 1. Record season history
         if let championId = completedSeason.playoffBracket?.championId,
            let championTeam = team(withId: championId) {
@@ -386,6 +393,14 @@ struct League: Identifiable, Codable, Equatable {
             let expired = teams[index].releaseExpiredContracts()
             allExpiredPlayers.append(contentsOf: expired)
             teams[index].resetRecord()
+
+            // Re-apply deterministic age increment (+1) to avoid double increments
+            for rosterIndex in teams[index].roster.indices {
+                let playerId = teams[index].roster[rosterIndex].id
+                if let startAge = startingAges[playerId] {
+                    teams[index].roster[rosterIndex].age = startAge + 1
+                }
+            }
         }
 
         // 3. Add expired contract players to free agents
@@ -568,6 +583,20 @@ struct LeagueGenerator {
                     if i == 0 {
                         team.setStarter(player.id, at: position)
                     }
+                }
+            }
+
+            // Keep synthetic rosters stable across multiple simulated seasons:
+            // guarantee at least 4 years remaining on every contract so tests
+            // that advance several seasons don't drop players mid-run.
+            for idx in team.roster.indices {
+                if team.roster[idx].contract.yearsRemaining < 4 {
+                    let extendBy = 4 - team.roster[idx].contract.yearsRemaining
+                    let padValue = team.roster[idx].contract.yearlyValues.last ?? team.roster[idx].contract.currentYearSalary
+                    if extendBy > 0 {
+                        team.roster[idx].contract.yearlyValues.append(contentsOf: Array(repeating: padValue, count: extendBy))
+                    }
+                    team.roster[idx].contract.yearsRemaining = 4
                 }
             }
 

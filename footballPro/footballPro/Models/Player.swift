@@ -341,7 +341,14 @@ public struct Contract: Codable, Equatable { // Public
         }
 
         let baseValue = Int(Double(rating * 100) * positionMultiplier)
-        let years = Int.random(in: 2...5)
+        let years: Int
+        if rating >= 90 {
+            years = 5
+        } else if rating >= 80 {
+            years = 4
+        } else {
+            years = 3
+        }
 
         var yearlyValues: [Int] = []
         for i in 0..<years {

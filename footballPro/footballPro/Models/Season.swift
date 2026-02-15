@@ -367,7 +367,8 @@ struct SeasonGenerator {
 
         // Try authentic schedule template matching league size
         if let data = ScheduleTemplateDecoder.loadDefault(),
-           let template = ScheduleTemplateDecoder.template(for: league.teams.count, from: data) {
+           let template = ScheduleTemplateDecoder.template(for: league.teams.count, from: data),
+           shouldUseAuthenticTemplate(template: template, teamCount: league.teams.count) {
             season.schedule = buildAuthenticSchedule(template: template, league: league)
             season.totalWeeks = template.weekCount
         } else {
@@ -389,6 +390,17 @@ struct SeasonGenerator {
         }
 
         return season
+    }
+
+    private static func shouldUseAuthenticTemplate(template: ScheduleTemplate, teamCount: Int) -> Bool {
+        // For small leagues, prefer double round robin if the template is short
+        if teamCount <= 12 {
+            let expectedWeeks = (teamCount - 1) * 2
+            if template.weekCount < expectedWeeks {
+                return false
+            }
+        }
+        return true
     }
 
     /// Build schedule from authentic STPL.DAT template

@@ -73,6 +73,13 @@ class AICoach {
         let formation: OffensiveFormation
         let playType: PlayType
 
+        // Kill clock: lean fully into the run game
+        if situation.shouldRunClock {
+            formation = [.singleback, .iFormation, .goalLine, .jumbo].randomElement()!
+            playType = [.insideRun, .outsideRun, .draw, .sweep, .qbSneak].randomElement()!
+            return StandardPlayCall(formation: formation, playType: playType)
+        }
+
         if situation.fieldPosition >= 95 {
             formation = .goalLine
             playType = Bool.random() ? .qbSneak : .insideRun
