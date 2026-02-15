@@ -486,7 +486,7 @@ class PlayResolver {
 
         return PlayOutcome(
             yardsGained: yardEffect,
-            timeElapsed: 0,
+            timeElapsed: Int.random(in: 5...10),
             isComplete: false,
             isTouchdown: false,
             isTurnover: false,

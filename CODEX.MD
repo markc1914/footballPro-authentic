@@ -369,6 +369,16 @@ are unavailable or SpriteCache hasn't loaded.
 
 ---
 
+## Recent Fixes (2026-02-15)
+
+- AI clock-kill: fallback offensive playcalling now forces run-heavy calls when leading late (SimulationEngineTests).
+- Scheduling: for ≤12 teams, SeasonGenerator falls back to round-robin if an authentic template underfills weeks (8 teams → 14 weeks/games).
+- Contracts: veteran contracts now use rating-based 3/4/5-year terms to keep higher ratings yielding larger total values.
+- Season advance: player ages are clamped to +1 per season to prevent double increments; initial contract years padded to ≥4 for synthetic league generation.
+- Penalties: penalty outcomes now consume 5–10 seconds of clock to keep run-play timeouts realistic.
+- Test status: `swift test` passing on branch `phase-e-animation` (2026-02-15).
+- Phase G kickoff: Added SAMPLE.DAT decoder (`SampleDecoder.swift`), SAMPLE audio playback service (`SampleAudioService.swift`) with WAV wrapping, SoundManager now prefers authentic samples before synthetic tones, and new audio decoder tests (`AudioDecoderTests.swift`).
+
 ## Testing Plan (Phase T) — COMPLETE
 
 ### Infrastructure

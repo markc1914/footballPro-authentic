@@ -68,5 +68,5 @@ The immediate and primary tasks involve finalizing the integration of decoded pl
 ## 5. Next Major Reverse Engineering Targets
 
 -   Screen graphics (`*.SCR`, `*.DDA` for cutscenes)
--   Audio (`SAMPLE.DAT`)
+-   Audio (`SAMPLE.DAT` - **Currently blocked: `SAMPLE.DAT` file not found in project directory.**)
 -   Other game data files (rosters, graphics, UI elements)

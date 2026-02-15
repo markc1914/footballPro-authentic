@@ -128,6 +128,11 @@ class SoundManager: ObservableObject {
     func play(_ effect: SoundEffect) {
         guard isSoundEnabled else { return }
 
+        // Prefer authentic SAMPLE.DAT if available; fall back to generated tone
+        if SampleAudioService.shared.play(effect: effect, volume: volume) {
+            return
+        }
+
         Task {
             await generateAndPlayTone(
                 frequency: effect.frequency,
