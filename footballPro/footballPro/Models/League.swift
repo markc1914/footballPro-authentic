@@ -480,6 +480,22 @@ struct LeagueGenerator {
 
         guard !lgeData.teams.isEmpty else { return nil }
 
+        // PYF cross-check: validate roster indices against PYF player index file
+        if let pyf = PYFDecoder.loadDefault() {
+            let pyfSet = Set(pyf.playerIndices.map { Int($0) })
+            var mismatches = 0
+            for team in lgeData.teams {
+                for idx in team.rosterPlayerIndices {
+                    if !pyfSet.contains(idx) { mismatches += 1 }
+                }
+            }
+            if mismatches > 0 {
+                print("[LeagueGenerator] PYF cross-check: \(mismatches) roster indices not found in PYF")
+            } else {
+                print("[LeagueGenerator] PYF cross-check: all roster indices validated")
+            }
+        }
+
         // Load cities for weather zone data
         let cities = CitiesDecoder.loadDefault()
         var cityWeatherMap: [String: Int] = [:]

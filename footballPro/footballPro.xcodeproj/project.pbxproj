@@ -63,6 +63,10 @@
 		SVC016 /* MagazineDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC050; };
 		SVC017 /* ScreenshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC051; };
 		SVC018 /* ScreenshotHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC052; };
+		SVC019 /* MsgDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC054; };
+		SVC020 /* PYFDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC055; };
+		SVC021 /* LGCDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC056; };
+		SVC022 /* LGTDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC057; };
 		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
 
 		/* Additional Views */
@@ -171,6 +175,10 @@
 		SRC051 /* ScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotService.swift; sourceTree = "<group>"; };
 		SRC052 /* ScreenshotHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHarness.swift; sourceTree = "<group>"; };
 		SRC053 /* ScreenshotCaptureWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureWindow.swift; sourceTree = "<group>"; };
+		SRC054 /* MsgDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MsgDecoder.swift; sourceTree = "<group>"; };
+		SRC055 /* PYFDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PYFDecoder.swift; sourceTree = "<group>"; };
+		SRC056 /* LGCDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGCDecoder.swift; sourceTree = "<group>"; };
+		SRC057 /* LGTDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGTDecoder.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -319,6 +327,10 @@
 				SRC050 /* MagazineDecoder.swift */,
 				SRC051 /* ScreenshotService.swift */,
 				SRC052 /* ScreenshotHarness.swift */,
+				SRC054 /* MsgDecoder.swift */,
+				SRC055 /* PYFDecoder.swift */,
+				SRC056 /* LGCDecoder.swift */,
+				SRC057 /* LGTDecoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -516,6 +528,10 @@
 				NEW005BF /* FPSReplayControls.swift in Sources */,
 				SVC017 /* ScreenshotService.swift in Sources */,
 				SVC018 /* ScreenshotHarness.swift in Sources */,
+				SVC019 /* MsgDecoder.swift in Sources */,
+				SVC020 /* PYFDecoder.swift in Sources */,
+				SVC021 /* LGCDecoder.swift in Sources */,
+				SVC022 /* LGTDecoder.swift in Sources */,
 				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
