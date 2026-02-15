@@ -83,6 +83,9 @@ class AICoach {
         if situation.fieldPosition >= 95 {
             formation = .goalLine
             playType = Bool.random() ? .qbSneak : .insideRun
+        } else if situation.yardsToGo <= 2 && situation.down >= 3 {
+            formation = [.goalLine, .iFormation, .singleback].randomElement()!
+            playType = [.qbSneak, .insideRun, .draw, .shortPass, .screen].randomElement()!
         } else if situation.isTwoMinuteWarning && situation.scoreDifferential < 0 {
             formation = .shotgun
             playType = [.shortPass, .mediumPass, .screen].randomElement()!

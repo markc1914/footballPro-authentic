@@ -80,6 +80,7 @@
 		/* Physics Engine */
 		ENG006 /* PhysicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC035; };
 		ENG007 /* RouteScriptDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC039; };
+		ENG008 /* PlayerAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC060; };
 
 		/* Resources */
 		RES001 /* PlaybookData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC028; };
@@ -183,6 +184,7 @@
 		SRC057 /* LGTDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LGTDecoder.swift; sourceTree = "<group>"; };
 		SRC058 /* AnimDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimDecoder.swift; sourceTree = "<group>"; };
 		SRC059 /* SpriteCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteCache.swift; sourceTree = "<group>"; };
+		SRC060 /* PlayerAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerAnimationState.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -274,6 +276,7 @@
 				SRC035 /* PhysicsEngine.swift */,
 				FEB89F5B73F019E858B139B4 /* PlayBlueprintGenerator.swift */,
 				SRC039 /* RouteScriptDecoder.swift */,
+				SRC060 /* PlayerAnimationState.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -524,6 +527,7 @@
 				VIW009 /* FieldView3D.swift in Sources */,
 				ENG006 /* PhysicsEngine.swift in Sources */,
 				ENG007 /* RouteScriptDecoder.swift in Sources */,
+				ENG008 /* PlayerAnimationState.swift in Sources */,
 				VIW010 /* InteractiveFieldView.swift in Sources */,
 				C206A443E87EA7FEFBA62E7A /* PlayAnimationBlueprint.swift in Sources */,
 				3937F22D72A5371AA6B9A9E8 /* PlayBlueprintGenerator.swift in Sources */,

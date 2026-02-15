@@ -22,6 +22,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | `Views/FPSReplayControls.swift` | VCR-style replay transport buttons |
 | `Engine/PlayBlueprintGenerator.swift` | Generates animation paths for all 22 players in 640x360 flat space |
 | `Engine/SimulationEngine.swift` | Core play-by-play simulation |
+| `Engine/PlayerAnimationState.swift` | Per-player animation state machine (~15fps sprite cycling) |
 | `Styles/RetroStyle.swift` | VGA color palette (`VGA` struct) and `RetroFont` presets |
 | `ViewModels/GameViewModel.swift` | Game state MVVM binding |
 
@@ -80,6 +81,9 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | PYFDecoder.swift | *.PYF | Player index files (PPD: marker + uint16 indices). |
 | LGCDecoder.swift | *.LGC | City pair records (historical matchups). |
 | LGTDecoder.swift | *.LGT | League structure templates (C00:/D00:/TMT: sections). |
+| SCRDecoder.swift | *.SCR | DGDS LZW/RLE, nibble merge, CGImage via PAL. 320x200/640x350. |
+| SampleDecoder.swift | SAMPLE.DAT | Offset table + 8-bit unsigned PCM. ~115 samples. |
+| SampleAudioService.swift | (runtime) | WAV wrapping + AVAudioPlayer playback for decoded samples. |
 
 ### Remaining Undecoded Files
 
@@ -296,19 +300,25 @@ Tackle            → SLTKSDL/R      → target direction
 Block engagement  → L2LOCK/L2BFSDL → opponent direction
 ```
 
-### Phase E: Animation State Machine
+### Phase E: Animation State Machine (COMPLETE)
 **Goal:** Frame-by-frame animation during play execution.
-**Depends on:** Phase D
-**Approach:**
-1. `AnimationState` per player: currentAnimation, currentFrame, currentView
-2. Animation tick system (~15 fps to match original game feel)
-3. Instant animation switches on events (matching original — no interpolation)
-4. Two-player animations (L2*): sync paired players to same clock
-5. Ball carrier highlight: green number box overlay (already implemented)
+**Status:** COMPLETE. Per-player animation states at ~15fps, independent of play progress.
+**Files:**
+- `Engine/PlayerAnimationState.swift`: Per-player state (animationName, elapsedTime, looping/one-shot)
+- `Views/Game/FPSFieldView.swift`: `animatedSpriteFrame()` replaces progress-based frame cycling
+**Key design:**
+- Each player tracks when their current animation started (as play elapsed time)
+- Frame = `(elapsed - animStartTime) * 15fps`, looping or clamped for one-shot
+- Pre-snap phase freezes all animations at frame 0
+- Instant animation switches on pose transitions (no interpolation, matches original)
+- L2* two-player sync deferred to future enhancement
 
-### Phase F: Screen Graphics (SCR/DDA)
+### Phase F: Screen Graphics (SCR/DDA) — IN PROGRESS
 **Goal:** Use original title screens, intro, and championship graphics.
-**Status:** SCR format FULLY DECODED. Python decoder at `tools/scr_decoder.py`.
+**Status:** SCRDecoder.swift implemented + SCRDecoderTests passing. UI wiring remaining.
+**Files:**
+- `Services/SCRDecoder.swift`: DGDS LZW/RLE decoder, nibble merge, CGImage via PAL
+- `Tests/SCRDecoderTests.swift`: Decodes GAMINTRO.SCR and CHAMP.SCR
 
 **SCR Format (decoded):**
 - Container: `SCR:` (8B) + child sections
@@ -326,19 +336,21 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - CREDIT.SCR (640x350): "Front Page Sports" title/credits
 
 **Remaining:**
-1. Build SCRDecoder.swift for runtime loading in the app
-2. Replace SwiftUI title/intro screens with original VGA art
-3. Decode VQT: format for BALL.SCR and KICK.SCR
-4. Decode DDA for animated intro sequences (INTROPT1.DDA = 429KB, INTROPT2.DDA = 135KB)
+1. Replace SwiftUI title/intro screens with original VGA art
+2. Decode VQT: format for BALL.SCR and KICK.SCR
+3. Decode DDA for animated intro sequences (INTROPT1.DDA = 429KB, INTROPT2.DDA = 135KB)
 
-### Phase G: Audio (SAMPLE.DAT)
+### Phase G: Audio (SAMPLE.DAT) — IN PROGRESS
 **Goal:** Add original game sound effects.
-**Depends on:** Nothing (independent track)
-**Approach:**
-1. Decode SAMPLE.DAT offset table (1B count + N×4B LE offsets + 8-bit unsigned PCM)
-2. Extract samples, identify by listening: crowd, whistle, hits
-3. Wire into game events via AVAudioPlayer
-4. ~115 samples, 855KB total, likely 11025 Hz mono 8-bit
+**Status:** Decoder + playback service implemented. SoundManager prefers authentic samples.
+**Files:**
+- `Services/SampleDecoder.swift`: SAMPLE.DAT decoder (offset table + 8-bit unsigned PCM)
+- `Services/SampleAudioService.swift`: WAV wrapping + AVAudioPlayer playback
+- `Services/SoundManager.swift`: Prefers authentic samples, falls back to synthetic tones
+- `Tests/AudioDecoderTests.swift`: Decoder + playback tests passing
+**Remaining:**
+- Identify and map all ~115 samples to game events by listening
+- Fine-tune audio mixing and timing
 
 ---
 
@@ -349,9 +361,9 @@ Phase A (crack compression) ──────────────→ COMPLE
 Phase B (index parser + LZ77) ────────────→ COMPLETE (AnimDecoder.swift, commit a35a806)
 Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift, commit 603b838)
 Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired, commit 603b838)
-Phase E (animation state machine) ────────→ NOT STARTED — frame-by-frame ~15fps tick
-Phase F (screen graphics) ────────────────→ NOT STARTED — SCR decoded, needs Swift decoder
-Phase G (audio) ──────────────────────────→ NOT STARTED — independent track
+Phase E (animation state machine) ────────→ COMPLETE (PlayerAnimationState.swift + FPSFieldView per-player 15fps)
+Phase F (screen graphics) ────────────────→ IN PROGRESS — SCRDecoder.swift + tests; need UI wiring + VQT/DDA
+Phase G (audio) ──────────────────────────→ IN PROGRESS — SampleDecoder + SampleAudioService + SoundManager wired
 Phase T (test automation) ────────────────→ COMPLETE — 5 new test suites, 57 tests, all passing
 ```
 
@@ -388,6 +400,8 @@ are unavailable or SpriteCache hasn't loaded.
 | `Tests/VisualComparisonTests.swift` | Visual Comparison | 5 | PASSING |
 | `Tests/GameFlowTests.swift` | Game Flow E2E | 10 | PASSING |
 | `Tests/SpriteIntegrationTests.swift` | Sprite Integration | 10 | PASSING |
+| `Tests/SCRDecoderTests.swift` | SCR Decoder Tests | — | PASSING |
+| `Tests/AudioDecoderTests.swift` | Audio Decoder Tests | — | PASSING |
 
 ### Test Coverage Map
 
