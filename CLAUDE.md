@@ -85,8 +85,8 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 
 | File | Size | Status | Content |
 |------|------|--------|---------|
-| `ANIM.DAT` | 985KB | LZ77 decompression verified, rendering pipeline TBD | 71 animations, 8-direction views |
-| `*.SCR` | 3-29KB | Header known: `SCR:` + `BIN:` compressed | Full-screen VGA graphics |
+| `ANIM.DAT` | 985KB | **FULLY DECODED** — LZ77 + rendering pipeline reversed | 71 animations, ~2752 sprites, 8 directions |
+| `*.SCR` | 3-29KB | **DECODED** (tools/scr_decoder.py) | Full-screen VGA graphics (4-bit dual-plane) |
 | `*.DDA` | 34-429KB | Unexamined | Dynamix Delta Animation cutscenes |
 | `SAMPLE.DAT` | 855KB | Partially decoded: 8-bit unsigned PCM | ~115 audio samples |
 | `STOCK.DAT` | — | Unexamined | Stock team/player data |
@@ -136,7 +136,13 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
     - Table 1 = default gameplay, tables 0/2/3/4 = team color variants
   - Palette index 0 = transparent
   - Python decoder: `tools/anim_decoder.py`
-  - 2751 sprites across 71 animations, all decode successfully
+  - All 2752 sprites across 71 animations decode to exactly width*height bytes
+
+**Sprite reference flag byte (DECODED 2026-02-15):**
+- Flag 0x00 = normal rendering
+- Flag 0x02 = horizontal mirror (draw sprite flipped left-to-right)
+- Confirmed by analysis: mirrored views share sprite IDs with their normal counterparts
+  (e.g. DBREADY views 1-3 have flag=0x02, views 5-7 have flag=0x00, same sprite IDs)
 
 **71 animations catalog:**
 
@@ -168,58 +174,94 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 
 ## Implementation Phases
 
-### Phase A: Crack the Sprite Compression (Research — IN PROGRESS)
+### Phase A: Crack the Sprite Compression (COMPLETE 2026-02-15)
 **Goal:** Decode the sprite pixel compression so we can render actual bitmaps.
-**Status:** LZ77 decompression VERIFIED via EXE disassembly. Shapes recognizable, horizontal striping from rendering pipeline TBD.
+**Status:** COMPLETE. Full rendering pipeline reverse-engineered from A.EXE disassembly.
 **Python decoder:** `tools/anim_decoder.py`
+**All 2752 sprites decompress to exactly width * height bytes.**
 
-**LZ77/LZSS compression (verified from A.EXE at 0x40A5D):**
-- Sprite header: 2 bytes (width, height)
-- LZ77 stream: uint16 LE (groups_m1) + uint8 (tail_bits)
-- Per group: 1 flag byte, 8 decisions MSB first
-- Decision bit=0: LITERAL — 1 byte, remapped through 64-entry color table
-- Decision bit=1: BACK-REF — uint16 LE, high 12 = distance, low 4+3 = copy length (3-18)
-- Copy from output[current_pos - distance - 1]
-- Output bounded to width × height bytes
-- All 71 animations / ~2751 sprites decompress within data boundaries
+**Complete rendering pipeline (reverse-engineered from A.EXE):**
 
-**Color tables (5 × 64 bytes at A.EXE offset 0x4091D):**
-- CT0: outline only (maps 46→0x2E, 47→0x2F, all else→0)
+1. **draw_sprite (0x08989):** Game entry point. Loads animation data via index table lookup.
+   Maps direction angle to view index: 8-view = `(dir+16)>>5 & 7`, 16-view = `(dir+8)>>4 & 15`.
+   Computes sprite ref index = frame * viewCount + viewIndex.
+   Determines color table from animState flags (bit2=teamB, bit3=alt, with anim entry flip toggle).
+   Calls adraw.
+
+2. **adraw (0x08845):** Reads width/height from sprite 2-byte header. Reads x/y offsets from
+   sprite reference. Applies fixed-point scaling if scale < 1000: `val * scale >> 10`.
+   Adds position offset. Calls LZ77 decompressor (far call to 0x40A5D with-CT or 0x40B49 without-CT).
+   Builds render struct: {data, screenX, screenY, origW, origH, scaledW, scaledH, flagByte}.
+   Calls Mode X renderer (far call to 0x2B254).
+
+3. **LZ77 with color table (0x40A5D):** Decompresses with xlat remap through 64-entry color table.
+   Literal bytes < 64 are mapped through the table; bytes >= 64 pass through directly.
+
+4. **LZ77 without color table (0x40B49):** Same decompression but copies literal bytes directly
+   via movsb (no color table remap). Used for non-team-colored sprites.
+
+5. **Mode X VGA renderer (0x2B254):** Reads decompressed pixel buffer. Skips palette index 0
+   (transparent). Writes to VGA planes via port 0x3C4/0x3C5. Stride = 80 bytes (320 pixels / 4 planes).
+   Processes row-by-row. Flag byte 0x02 triggers horizontal mirror (right-to-left scan).
+
+**Critical bug fix (backref copy length):**
+The copy loop uses `sub dx,1; jae` (JAE = Jump if Above or Equal = JNC).
+When dx=0: sub 0,1 = 0xFFFF with CF=1, jae fails (exit loop).
+Total copies = dx_initial + 1 = **(word & 0x0F) + 2 + 1 = (word & 0x0F) + 3**.
+Previous decoders used +2, producing output that never matched width*height.
+With +3: all 2752 sprites match exactly.
+
+**Color tables (5 x 64 bytes at A.EXE offset 0x4091D):**
+- CT0: outline only (maps 46->0x2E, 47->0x2F, all else->0)
 - CT1-4: team color variants (skin, jersey A/B, equipment, highlights)
-- CT1-4 map indices 46-47 to 0 (transparent) — causes outline pixels to vanish
-- Game likely uses two-pass or no-CT rendering to preserve outlines
+- CT1-4 map indices 0-15, 20-31, 46-47 all to 0 (transparent)
+- Indices 16-19 -> skin tones (0x10-0x13)
+- Indices 32-45 -> primary jersey colors
+- Indices 48-63 -> secondary jersey colors
+- Tables 1-4 swap primary/secondary sets for team A vs team B
 
-**Remaining issue:** Horizontal striping from transparent pixels in outline rows.
-Need to examine the adraw renderer (0x08845) and Mode X VGA output (0x2B254) to understand the full rendering pipeline.
+**Horizontal striping explanation:**
+CT1-4 intentionally make indices 20-31 and 46-47 transparent. At native 320x200 VGA resolution,
+these 1-pixel outline gaps are nearly invisible against the green field. The striping only becomes
+apparent when sprites are scaled up for modern display. Solution: fill transparent pixels that are
+surrounded by non-transparent pixels, or use CT0 for outlines in a two-pass render.
+
+**Flag byte values:**
+- 0x00 = normal rendering
+- 0x02 = horizontal mirror (flip sprite left-to-right)
 
 **EXE key offsets:**
 | Offset | Content |
 |--------|---------|
-| 0x40A5D | LZ77 decompressor WITH color table |
-| 0x40B49 | LZ77 decompressor WITHOUT color table |
-| 0x4091D | 5 × 64-byte color tables |
-| 0x08845 | adraw function (sprite draw entry point) |
-| 0x2B254 | Mode X VGA renderer |
-| 0x046630 | Source filenames (anim.c, adraw.c, draw.c, shape.c, color.c) |
+| 0x40A5D | LZ77 decompressor WITH color table (xlat remap) |
+| 0x40B49 | LZ77 decompressor WITHOUT color table (movsb direct) |
+| 0x4091D | 5 x 64-byte color tables |
+| 0x08845 | adraw function (sprite draw: decompress + scale + render) |
+| 0x08989 | draw_sprite function (animation state + view selection + adraw call) |
+| 0x2B254 | Mode X VGA renderer (planar pixel output, mirror support) |
+| 0x046630 | Source filenames: aseq.c, anim.c, adraw.c, ball.c, bounce.c, kick.c, team.c, game.c, play.c, vcrtape.c, draw.c, color.c, shape2.c, shape.c |
 
-### Phase B: AnimDecoder.swift — Index Parser
-**Goal:** Swift decoder for ANIM.DAT index table + sprite metadata (not pixel data yet).
+### Phase B: AnimDecoder.swift — Index Parser + LZ77 Decompressor
+**Goal:** Swift decoder for ANIM.DAT: index table, sprite metadata, AND pixel decompression.
 **Output:** `AnimDecoder.swift` (SVC023/SRC058) with:
 - `AnimationEntry`: name, frameCount, viewCount
-- `SpriteReference`: spriteID, xOffset, yOffset
-- `SpriteHeader`: width, height, drawnRows
+- `SpriteReference`: spriteID, xOffset, yOffset, flag (0x00 normal, 0x02 mirror)
+- `SpriteHeader`: width, height (2-byte header only; no drawnRows field)
 - `AnimDatabase`: all 71 animations indexed by name
-**Depends on:** Nothing (index format is fully decoded)
+- `decompressLZ77()`: port of Python decoder with correct +3 backref length
+- Color table constants (5 x 64 entries)
+**Depends on:** Nothing (algorithm fully proven in Python)
 
-### Phase C: Sprite Bitmap Decoder
-**Goal:** Implement pixel decompression in Swift.
-**Depends on:** Phase A + Phase B
+### Phase C: Sprite Bitmap Rendering
+**Goal:** Convert decoded palette-indexed pixels to renderable images.
+**Depends on:** Phase B
 **Approach:**
-1. Port Python decompressor to Swift
-2. Decode sprite pixels into `[UInt8]` arrays (VGA palette indices)
-3. Apply PAL palette to convert to RGBA pixel buffers
+1. LZ77 decompression is part of Phase B (algorithm proven, just port to Swift)
+2. Apply gameplay palette to convert `[UInt8]` palette indices to RGBA pixel buffers
+3. Handle flag 0x02 by flipping sprite pixels horizontally
 4. Cache decoded sprites as `CGImage` instances
 5. Support transparency (palette index 0 = transparent)
+6. For scaled display: fill isolated transparent pixels to eliminate striping
 
 ### Phase D: Sprite Rendering in FPSFieldView
 **Goal:** Replace geometric player shapes with authentic sprites.
@@ -266,11 +308,27 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 
 ### Phase F: Screen Graphics (SCR/DDA)
 **Goal:** Use original title screens, intro, and championship graphics.
-**Depends on:** Partially on Phase A (BIN: compression may be shared)
-**Approach:**
-1. Decode BIN: compressed bitmaps in SCR files (320×200 VGA)
-2. Apply PAL palette for correct colors
-3. Replace SwiftUI title/intro screens with original VGA art
+**Status:** SCR format FULLY DECODED. Python decoder at `tools/scr_decoder.py`.
+
+**SCR Format (decoded):**
+- Container: `SCR:` (8B) + child sections
+- Optional `DIM:` (8B + 4B data) = uint16 LE width + uint16 LE height (default 320x200)
+- `BIN:` section: type(1B=0x02) + uncomp_size(4B LE) + Dynamix LZW data → low nibbles
+- `VGA:` section: same format → high nibbles
+- Pixels are 4-bit nibble-packed (2 per byte). Final pixel = bin_nibble | (vga_nibble << 4)
+- VQT: sections use Vector Quantization (separate codec, not yet decoded)
+- Dynamix LZW: 9-bit initial, max 12-bit, clear=0x100, no end code, LSB-first, block-aligned
+
+**Decoded screens:**
+- GAMINTRO.SCR (320x200): Pre-game helmet matchup screen
+- CHAMP.SCR (320x200): Championship trophy
+- INTDYNA.SCR (320x200): Dynamix logo splash
+- CREDIT.SCR (640x350): "Front Page Sports" title/credits
+
+**Remaining:**
+1. Build SCRDecoder.swift for runtime loading in the app
+2. Replace SwiftUI title/intro screens with original VGA art
+3. Decode VQT: format for BALL.SCR and KICK.SCR
 4. Decode DDA for animated intro sequences (INTROPT1.DDA = 429KB, INTROPT2.DDA = 135KB)
 
 ### Phase G: Audio (SAMPLE.DAT)
@@ -287,24 +345,23 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 ## Implementation Priority
 
 ```
+Phase A (crack compression) ──────────────→ COMPLETE (pipeline fully reversed)
 Phase B (index parser)  ──────────────────→ Can build immediately
-Phase A (crack compression) ──────────────→ LZ77 verified, rendering pipeline TBD
-Phase C (sprite bitmap decoder) ──────────→ Blocked on A (rendering pipeline)
-Phase D (render sprites) ─────────────────→ Blocked on C (but algorithm proven)
+Phase C (sprite bitmap decoder) ──────────→ UNBLOCKED (algorithm proven, Python working)
+Phase D (render sprites) ─────────────────→ Blocked on B + C
 Phase E (animation state machine) ────────→ Blocked on D
-Phase F (screen graphics) ────────────────→ LZ77 shared with sprites, partially unblocked
+Phase F (screen graphics) ────────────────→ SCR DECODED, DDA/VQT remaining
 Phase G (audio) ──────────────────────────→ Independent, can start anytime
 ```
 
-**Critical path:** A (finish) → C → D → E
-**Parallel:** Phase B + Phase G can start immediately
+**Critical path:** B + C → D → E (compression is no longer the gate)
+**Parallel:** Phase F (SCR Swift decoder) + Phase G can start immediately
 
 ## Fallback Strategy
 
-If sprite compression proves too difficult to crack statically:
-1. **DOSBox extraction:** Run game in DOSBox, set breakpoints on decompression routine, dump decoded sprites from memory
-2. **DOSBox screenshot capture:** Run each animation in-game, capture frames, slice into sprite sheets
-3. **Hybrid approach:** Pre-extracted PNG sprite sheets (~5MB) instead of runtime decompression (~963KB)
+Sprite compression is FULLY CRACKED -- no fallback needed. The Python decoder at `tools/anim_decoder.py`
+successfully decodes all 2752 sprites. If runtime Swift decompression proves too slow, pre-extracted
+PNG sprite sheets can be generated from the Python decoder as a build-time optimization.
 
 ## Validation
 

@@ -41,6 +41,19 @@ import os
 # Table 1 is the default for gameplay sprites.
 # ============================================================================
 
+# Color Tables extracted from A.EXE at file offset 0x4091D (5 x 64 bytes).
+# These remap compressed byte values 0-63 to VGA palette indices.
+# CT1-4 handle team color assignments; CT0 preserves outlines.
+#
+# IMPORTANT: The game has TWO decompressors in the EXE:
+#   0x40A5D — WITH color table (xlat instruction, used for team color remapping)
+#   0x40B49 — WITHOUT color table (movsb direct, raw palette indices)
+# The adraw function may use the NO-CT version for normal rendering,
+# with color table remapping applied at a different stage.
+#
+# IDENTITY_CT passes through raw values unchanged — use this as default.
+IDENTITY_CT = list(range(64))
+
 COLOR_TABLES = [
     # Table 0: minimal (mostly zeros, only indices 46-47 mapped)
     [0]*46 + [0x2E, 0x2F] + [0]*16,
@@ -136,7 +149,7 @@ def parse_index(anim_data):
 def decode_animation(anim_data, anim_entry, color_table=None):
     """Decode a single animation. Returns dict with frames, views, refs, sprites."""
     if color_table is None:
-        color_table = COLOR_TABLES[1]
+        color_table = IDENTITY_CT  # Raw palette indices (no team color remapping)
 
     data_offset = anim_entry['data_offset']
     n_frames = anim_data[data_offset]
@@ -169,8 +182,17 @@ def decode_animation(anim_data, anim_entry, color_table=None):
         abs_off = bitmap_start + sprite_offsets[sid]
         w = anim_data[abs_off]
         h = anim_data[abs_off + 1]
-        pixels = decompress_lz77(anim_data, abs_off + 2, color_table)
-        sprites[sid] = {'width': w, 'height': h, 'pixels': pixels[:w * h]}
+        col_major = decompress_lz77(anim_data, abs_off + 2, color_table)
+        # Pixel data is stored COLUMN-MAJOR: x0y0, x0y1, ..., x0yH, x1y0, ...
+        # Convert to row-major for standard image rendering
+        row_major = bytearray(w * h)
+        for x in range(w):
+            for y in range(h):
+                src = x * h + y
+                dst = y * w + x
+                if src < len(col_major):
+                    row_major[dst] = col_major[src]
+        sprites[sid] = {'width': w, 'height': h, 'pixels': row_major}
 
     return {
         'name': anim_entry['name'],
@@ -191,6 +213,162 @@ def load_palette(pal_path):
         b = data[16 + i * 3 + 2]
         rgb.append((min(r * 4, 255), min(g * 4, 255), min(b * 4, 255)))
     return rgb
+
+
+def load_gameplay_palette(game_dir):
+    """
+    Load the actual gameplay palette from FILE.DAT embedded PAL sections.
+    MU1.PAL is a menu palette with zeros at 0x10-0x3F (the sprite color range).
+    The game constructs its gameplay palette at runtime from FILE.DAT palettes
+    plus team colors from NFLPA93.LGE.
+
+    Returns a 256-entry list of (R8, G8, B8) tuples.
+    """
+    file_dat_path = os.path.join(game_dir, 'FILE.DAT')
+    if not os.path.exists(file_dat_path):
+        # Fall back to MU1.PAL with synthetic sprite colors
+        return _synthetic_gameplay_palette(game_dir)
+
+    data = open(file_dat_path, 'rb').read()
+
+    # Find PAL: sections — #0 is the default gameplay palette, #5 has full gradients
+    pal_offsets = []
+    pos = 0
+    while True:
+        idx = data.find(b'PAL:', pos)
+        if idx < 0:
+            break
+        pal_offsets.append(idx)
+        pos = idx + 1
+
+    if len(pal_offsets) < 6:
+        return _synthetic_gameplay_palette(game_dir)
+
+    # Use PAL #5 (offset ~0x5E60B) which has the fullest sprite color data:
+    # 8-shade skin tones, equipment browns, field green markers, shadow
+    pal_offset = pal_offsets[5]
+    rgb_start = pal_offset + 16  # skip PAL:(8B) + VGA:(8B)
+    palette = []
+    for i in range(256):
+        off = rgb_start + i * 3
+        r, g, b = data[off], data[off + 1], data[off + 2]
+        # VGA 6-bit to 8-bit conversion
+        palette.append((min(r * 4, 255), min(g * 4, 255), min(b * 4, 255)))
+
+    # Now overlay team colors from NFLPA93.LGE for a sample matchup
+    # The game fills 0x20-0x27 (home) and 0x30-0x37 (away) at runtime
+    lge_path = os.path.join(game_dir, 'NFLPA93.LGE')
+    if os.path.exists(lge_path):
+        _apply_team_colors(palette, lge_path)
+
+    return palette
+
+
+def _generate_4shade_gradient(base_r, base_g, base_b):
+    """Generate 4 shades from a VGA base color (brightest to darkest)."""
+    factors = [1.0, 0.79, 0.59, 0.49]
+    shades = []
+    for f in factors:
+        r = min(255, int(base_r * 4 * f))
+        g = min(255, int(base_g * 4 * f))
+        b = min(255, int(base_b * 4 * f))
+        shades.append((r, g, b))
+    return shades
+
+
+def _apply_team_colors(palette, lge_path):
+    """Apply team colors from NFLPA93.LGE to palette indices 0x20-0x27, 0x30-0x37."""
+    data = open(lge_path, 'rb').read()
+    teams = []
+    pos = 0
+    while True:
+        idx = data.find(b'T00:', pos)
+        if idx < 0:
+            break
+        size = int.from_bytes(data[idx + 4:idx + 8], 'little')
+        td = data[idx + 8:idx + 8 + size]
+        colors = []
+        for c in range(5):
+            off = 0x0A + c * 3
+            colors.append((td[off], td[off + 1], td[off + 2]))
+        teams.append(colors)
+        pos = idx + 1
+
+    if len(teams) >= 2:
+        # Default matchup: team 0 (Buffalo) vs team 1 (Indianapolis)
+        # Home team primary → 0x20-0x23, secondary → 0x24-0x27
+        home_c1 = _generate_4shade_gradient(*teams[0][0])
+        home_c2 = _generate_4shade_gradient(*teams[0][1])
+        for i, rgb in enumerate(home_c1):
+            palette[0x20 + i] = rgb
+        for i, rgb in enumerate(home_c2):
+            palette[0x24 + i] = rgb
+
+        # Away team primary → 0x30-0x33, secondary → 0x34-0x37
+        away_c1 = _generate_4shade_gradient(*teams[1][0])
+        away_c2 = _generate_4shade_gradient(*teams[1][1])
+        for i, rgb in enumerate(away_c1):
+            palette[0x30 + i] = rgb
+        for i, rgb in enumerate(away_c2):
+            palette[0x34 + i] = rgb
+
+
+def _synthetic_gameplay_palette(game_dir):
+    """Fallback: load MU1.PAL and fill sprite range with synthetic colors."""
+    pal_path = os.path.join(game_dir, 'MU1.PAL')
+    if os.path.exists(pal_path):
+        palette = load_palette(pal_path)
+    else:
+        palette = [(0, 0, 0)] * 256
+
+    # Skin tones (0x10-0x13 from CT1, or 0x14-0x1B from PAL#5)
+    palette[0x10] = (227, 227, 227)  # helmet white
+    palette[0x11] = (186, 186, 186)  # helmet gray
+    palette[0x12] = (150, 150, 150)  # helmet mid
+    palette[0x13] = (113, 113, 113)  # helmet dark
+    palette[0x14] = (184, 120, 92)   # skin lightest
+    palette[0x15] = (172, 108, 80)
+    palette[0x16] = (160, 96, 68)
+    palette[0x17] = (148, 84, 56)
+    palette[0x18] = (140, 72, 48)
+    palette[0x19] = (128, 60, 40)
+    palette[0x1A] = (116, 52, 32)
+    palette[0x1B] = (108, 44, 24)   # skin darkest
+    # Home team A (red)
+    for i in range(4):
+        v = 220 - i * 40
+        palette[0x20 + i] = (v, 20, 20)
+    # Home team B (blue)
+    for i in range(4):
+        v = 220 - i * 40
+        palette[0x24 + i] = (20, 20, v)
+    # Equipment (brown)
+    palette[0x28] = (144, 112, 64)
+    palette[0x29] = (116, 88, 48)
+    palette[0x2A] = (88, 64, 32)
+    palette[0x2B] = (72, 52, 28)
+    palette[0x2C] = (20, 20, 20)    # black
+    palette[0x2D] = (52, 52, 52)    # shadow
+    palette[0x2E] = (8, 64, 20)     # field green
+    palette[0x2F] = (12, 80, 28)    # field green
+    # Away team A (white)
+    for i in range(4):
+        v = 255 - i * 30
+        palette[0x30 + i] = (v, v, v)
+    # Away team B (gray)
+    for i in range(4):
+        v = 180 - i * 30
+        palette[0x34 + i] = (v, v, v)
+    # Away equipment
+    palette[0x38] = (144, 112, 64)
+    palette[0x39] = (116, 88, 48)
+    palette[0x3A] = (88, 64, 32)
+    palette[0x3B] = (72, 52, 28)
+    palette[0x3C] = (200, 200, 200)
+    palette[0x3D] = (220, 220, 220)
+    palette[0x3E] = (240, 240, 240)
+    palette[0x3F] = (255, 255, 255)
+    return palette
 
 
 def render_spritesheet(decoded, palette, output_path, scale=4):
@@ -232,14 +410,13 @@ def render_spritesheet(decoded, palette, output_path, scale=4):
 def main():
     game_dir = os.path.expanduser('~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO')
     anim_path = os.path.join(game_dir, 'ANIM.DAT')
-    pal_path = os.path.join(game_dir, 'MU1.PAL')
 
     if not os.path.exists(anim_path):
         print(f'Error: {anim_path} not found')
         sys.exit(1)
 
     anim_data = open(anim_path, 'rb').read() + b'\x00' * 256
-    palette = load_palette(pal_path)
+    palette = load_gameplay_palette(game_dir)
     animations = parse_index(anim_data)
 
     if '--list' in sys.argv:
@@ -255,7 +432,7 @@ def main():
         cell_w, cell_h, cols = 32, 48, 10
         rows = (len(animations) + cols - 1) // cols
         img = Image.new('RGBA', (cols * cell_w, rows * cell_h), (32, 80, 32, 255))
-        ct = COLOR_TABLES[1]
+        ct = IDENTITY_CT
         for idx, entry in enumerate(animations):
             try:
                 decoded = decode_animation(anim_data, entry, ct)
@@ -288,7 +465,7 @@ def main():
     if not targets:
         targets = [a['name'] for a in animations]
 
-    ct = COLOR_TABLES[1]
+    ct = IDENTITY_CT
     success = 0
     for target in targets:
         for entry in animations:
