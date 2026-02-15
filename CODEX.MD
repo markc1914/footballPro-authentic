@@ -350,8 +350,8 @@ Phase B (index parser + LZ77) ────────────→ COMPLETE (
 Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift, commit 603b838)
 Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired, commit 603b838)
 Phase E (animation state machine) ────────→ NOT STARTED — frame-by-frame ~15fps tick
-Phase F (screen graphics) ────────────────→ NOT STARTED — SCR decoded, needs Swift decoder
-Phase G (audio) ──────────────────────────→ NOT STARTED — independent track
+Phase F (screen graphics) ────────────────→ IN PROGRESS — SCRDecoder.swift + tests decode GAMINTRO/CHAMP; need UI wiring + VQT/DDA
+Phase G (audio) ──────────────────────────→ IN PROGRESS — SAMPLE.DAT decoder + SampleAudioService + playback wiring
 Phase T (test automation) ────────────────→ COMPLETE — 5 new test suites, 57 tests, all passing
 ```
 
@@ -371,12 +371,14 @@ are unavailable or SpriteCache hasn't loaded.
 
 ## Recent Fixes (2026-02-15)
 
+- Phase F kickoff: Added `SCRDecoder.swift` (DGDS LZW/RLE, nibble merge, CGImage via PAL) plus `SCRDecoderTests.swift` decoding GAMINTRO.SCR/CHAMP.SCR.
+- AI short yardage: fallback offensive playcalling now forces run/short-pass on 3rd/4th-and-2-or-less to satisfy SimulationEngine short-yardage expectations.
 - AI clock-kill: fallback offensive playcalling now forces run-heavy calls when leading late (SimulationEngineTests).
 - Scheduling: for ≤12 teams, SeasonGenerator falls back to round-robin if an authentic template underfills weeks (8 teams → 14 weeks/games).
 - Contracts: veteran contracts now use rating-based 3/4/5-year terms to keep higher ratings yielding larger total values.
 - Season advance: player ages are clamped to +1 per season to prevent double increments; initial contract years padded to ≥4 for synthetic league generation.
 - Penalties: penalty outcomes now consume 5–10 seconds of clock to keep run-play timeouts realistic.
-- Test status: `swift test` passing on branch `phase-e-animation` (2026-02-15).
+- Test status: `swift test` passing on branch `phase-f-screens` (2026-02-15).
 - Phase G kickoff: Added SAMPLE.DAT decoder (`SampleDecoder.swift`), SAMPLE audio playback service (`SampleAudioService.swift`) with WAV wrapping, SoundManager now prefers authentic samples before synthetic tones, and new audio decoder tests (`AudioDecoderTests.swift`).
 
 ## Testing Plan (Phase T) — COMPLETE
