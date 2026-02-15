@@ -130,6 +130,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Original FPS '93 game data (copyrighted binaries, not for distribution)
+footballPro/Resources/GameData/
+
 # IDE
 .idea/
 *.swp

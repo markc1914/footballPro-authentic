@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import CoreGraphics
 
 // MARK: - Perspective Projection Engine
 
@@ -194,6 +195,9 @@ struct FPSFieldView: View {
     @State private var animationStartTime: Date?
     @State private var cameraFocusX: CGFloat = 320  // Smoothed camera focus in flat space
 
+    /// Whether authentic sprites are loaded and ready for rendering
+    @State private var spritesLoaded = false
+
     // Internal flat field dimensions (blueprint coordinate space)
     private let flatFieldWidth: CGFloat = 640
     private let flatFieldHeight: CGFloat = 360
@@ -201,6 +205,9 @@ struct FPSFieldView: View {
 
     /// Camera smoothing factor — lower = smoother/slower follow (0.05 = very smooth, 0.2 = snappy)
     private let cameraSmoothing: CGFloat = 0.08
+
+    /// Base scale multiplier for authentic sprites (original 320x200 VGA -> 640x360 blueprint space)
+    private let spriteBaseScale: CGFloat = 2.5
 
     var body: some View {
         GeometryReader { geo in
@@ -272,18 +279,28 @@ struct FPSFieldView: View {
                                     progress: progress
                                 )
 
-                                RetroPlayerSprite(
-                                    player: makeAnimatedPlayer(
-                                        players, i,
-                                        position: screenPos,
-                                        isMoving: moving,
-                                        facing: facing,
-                                        hasBall: playerHasBall,
-                                        pose: pose
-                                    ),
-                                    isDefense: isDefense
+                                let animatedPlayer = makeAnimatedPlayer(
+                                    players, i,
+                                    position: screenPos,
+                                    isMoving: moving,
+                                    facing: facing,
+                                    hasBall: playerHasBall,
+                                    pose: pose
                                 )
-                                .scaleEffect(scale)
+                                let sprFrame = authenticSpriteFrame(
+                                    pose: pose,
+                                    role: role,
+                                    isDefense: isDefense,
+                                    hasBall: playerHasBall,
+                                    facing: facing,
+                                    animProgress: progress
+                                )
+                                AuthenticPlayerSprite(
+                                    player: animatedPlayer,
+                                    isDefense: isDefense,
+                                    spriteFrame: sprFrame,
+                                    baseScale: spriteBaseScale * scale
+                                )
                                 .zIndex(Double(depth) * 1000)
                             }
 
@@ -343,16 +360,26 @@ struct FPSFieldView: View {
                             }
                         }()
 
-                        RetroPlayerSprite(
-                            player: makeAnimatedPlayer(
-                                entry.isDefense ? defensePlayers : offensePlayers,
-                                entry.arrayIndex,
-                                position: screenPos, isMoving: false, facing: 0,
-                                hasBall: false, pose: preSnapPose
-                            ),
-                            isDefense: entry.isDefense
+                        let staticPlayer = makeAnimatedPlayer(
+                            entry.isDefense ? defensePlayers : offensePlayers,
+                            entry.arrayIndex,
+                            position: screenPos, isMoving: false, facing: 0,
+                            hasBall: false, pose: preSnapPose
                         )
-                        .scaleEffect(scale)
+                        let staticSprFrame = authenticSpriteFrame(
+                            pose: preSnapPose,
+                            role: entry.player.role,
+                            isDefense: entry.isDefense,
+                            hasBall: false,
+                            facing: 0,
+                            animProgress: 0
+                        )
+                        AuthenticPlayerSprite(
+                            player: staticPlayer,
+                            isDefense: entry.isDefense,
+                            spriteFrame: staticSprFrame,
+                            baseScale: spriteBaseScale * scale
+                        )
                         .zIndex(Double(depth) * 1000)
                     }
 
@@ -375,6 +402,13 @@ struct FPSFieldView: View {
             setupFieldPositions()
             if let blueprint = viewModel.currentAnimationBlueprint, !isAnimatingPlay {
                 startAnimation(blueprint: blueprint)
+            }
+            // Load authentic sprites from ANIM.DAT
+            if !spritesLoaded {
+                if SpriteCache.shared.animationInfo(named: "SKRUN") == nil {
+                    SpriteCache.shared.load()
+                }
+                spritesLoaded = SpriteCache.shared.isAvailable
             }
         }
         .onChange(of: viewModel.game) { _, _ in
@@ -809,6 +843,87 @@ struct FPSFieldView: View {
         return (offense, defense)
     }
 
+    // MARK: - Sprite Rendering Helpers
+
+    /// Map PlayerPose to PlayerAnimState for SpriteCache lookup
+    private func poseToAnimState(_ pose: PlayerPose) -> PlayerAnimState {
+        switch pose {
+        case .threePointStance: return .standing
+        case .standing: return .standing
+        case .running: return .running
+        case .blocking: return .blocking
+        case .catching: return .catching
+        case .throwing: return .passing
+        case .tackling: return .tackling
+        case .down: return .diving
+        case .backpedaling: return .running
+        }
+    }
+
+    /// Map PlayerRole to position code string for SpriteCache animation lookup
+    private func roleToPositionCode(_ role: PlayerRole, isDefense: Bool) -> String {
+        switch role {
+        case .lineman: return "OG"
+        case .quarterback: return "QB"
+        case .runningback, .runningBack: return "RB"
+        case .receiver: return "WR"
+        case .tightend: return "TE"
+        case .defensiveLine: return "DE"
+        case .linebacker: return "LB"
+        case .defensiveBack, .cornerback: return "CB"
+        case .safety: return "S"
+        default:
+            return isDefense ? "LB" : "WR"
+        }
+    }
+
+    /// Convert a facing direction (radians from blueprint) to degrees 0-360 for view mapping.
+    /// Blueprint: 0 = right/east, positive = counterclockwise.
+    /// When field is flipped, the visual direction is reversed horizontally.
+    private func facingToAngle(_ facing: Double, isFlipped: Bool) -> Double {
+        var deg = facing * (180.0 / .pi)
+        if isFlipped {
+            deg = 180.0 - deg
+        }
+        // Normalize to 0-360
+        while deg < 0 { deg += 360 }
+        while deg >= 360 { deg -= 360 }
+        return deg
+    }
+
+    /// Try to get an authentic sprite frame for the given player state.
+    /// Returns nil if sprites aren't loaded or animation not available.
+    private func authenticSpriteFrame(
+        pose: PlayerPose,
+        role: PlayerRole,
+        isDefense: Bool,
+        hasBall: Bool,
+        facing: Double,
+        animProgress: Double = 0.0
+    ) -> SpriteFrame? {
+        guard spritesLoaded else { return nil }
+
+        let animState = poseToAnimState(pose)
+        let posCode = roleToPositionCode(role, isDefense: isDefense)
+        let animName = SpriteCache.animationName(for: animState, position: posCode, hasBall: hasBall)
+
+        guard let info = SpriteCache.shared.animationInfo(named: animName) else { return nil }
+
+        // Determine frame based on animation progress (cycle through frames)
+        let frame: Int
+        if info.frames > 1 {
+            frame = Int(animProgress * Double(info.frames)) % info.frames
+        } else {
+            frame = 0
+        }
+
+        // Map facing direction to view index
+        let angle = facingToAngle(facing, isFlipped: isFieldFlipped)
+        let viewIdx = SpriteCache.viewIndex(fromAngle: angle, viewCount: info.views)
+
+        return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx)
+    }
+
     // MARK: - Field Setup
 
     private var isFieldFlipped: Bool {
@@ -913,6 +1028,56 @@ public struct FPSPlayer: Identifiable {
     var isMoving: Bool = false
     var hasBall: Bool = false
     var pose: PlayerPose = .standing
+}
+
+// MARK: - Authentic Player Sprite (FPS '93 Original ANIM.DAT sprites)
+//
+// Renders authentic sprites decoded from ANIM.DAT when available.
+// Falls back to RetroPlayerSprite geometric shapes if sprites aren't loaded.
+
+struct AuthenticPlayerSprite: View {
+    let player: FPSPlayer
+    let isDefense: Bool
+    let spriteFrame: SpriteFrame?
+    let baseScale: CGFloat
+
+    var body: some View {
+        if let frame = spriteFrame {
+            // Authentic sprite rendering
+            ZStack {
+                Image(decorative: frame.image, scale: 1.0)
+                    .interpolation(.none)  // Crisp pixel art, no blurring
+                    .scaleEffect(baseScale)
+
+                // Ball carrier green number box overlay (FPS '93 signature feature!)
+                if player.hasBall {
+                    let boxYOffset: CGFloat = player.pose == .down ? -4 : -CGFloat(frame.height) * baseScale / 2 - 10
+                    VStack(spacing: 0) {
+                        Text("\(player.number)")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(red: 0.0, green: 0.7, blue: 0.0))
+                            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    }
+                    .offset(y: boxYOffset)
+                }
+            }
+            .frame(
+                width: CGFloat(frame.width) * baseScale,
+                height: CGFloat(frame.height) * baseScale
+            )
+            .offset(
+                x: CGFloat(frame.xOffset) * baseScale,
+                y: CGFloat(frame.yOffset) * baseScale
+            )
+            .position(player.position)
+        } else {
+            // Fallback to geometric shapes
+            RetroPlayerSprite(player: player, isDefense: isDefense)
+        }
+    }
 }
 
 // MARK: - Retro Player Sprite (FPS '93 chunky pre-rendered 3D style)
