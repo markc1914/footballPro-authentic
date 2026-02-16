@@ -728,6 +728,9 @@ public class GameViewModel: ObservableObject { // Made public
             )
         }
 
+        let ownTimeouts = game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
+        let oppTimeouts = game.isHomeTeamPossession ? game.awayTimeouts : game.homeTimeouts
+
         return GameSituation(
             down: game.downAndDistance.down,
             yardsToGo: game.downAndDistance.yardsToGo,
@@ -737,7 +740,9 @@ public class GameViewModel: ObservableObject { // Made public
             scoreDifferential: game.isHomeTeamPossession ?
                 game.score.homeScore - game.score.awayScore :
                 game.score.awayScore - game.score.homeScore,
-            isRedZone: game.fieldPosition.isRedZone
+            isRedZone: game.fieldPosition.isRedZone,
+            ownTimeouts: ownTimeouts,
+            opponentTimeouts: oppTimeouts
         )
     }
 

@@ -24,6 +24,16 @@ class AICoach {
 
     func selectOffensivePlay(for team: Team, situation: GameSituation, playbook: [AuthenticPlayDefinition] = []) -> any PlayCall {
 
+        // Clock management: kneel to run out the clock
+        if shouldKneel(situation: situation, opponentTimeouts: situation.opponentTimeouts) {
+            return StandardPlayCall(formation: .singleback, playType: .kneel)
+        }
+
+        // Clock management: spike to stop the clock
+        if shouldSpike(situation: situation, ownTimeouts: situation.ownTimeouts) {
+            return StandardPlayCall(formation: .shotgun, playType: .spike)
+        }
+
         let nonSTPlays = playbook.filter { !$0.isSpecialTeams }
 
         // If no authentic playbook available, fall back to old StandardPlayCall logic
@@ -88,6 +98,30 @@ class AICoach {
         }
         recordPlayType(pick.name)
         return AuthenticPlayCall(play: pick)
+    }
+
+    // MARK: - Clock Management Plays
+
+    /// Check if the AI should kneel to run out the clock
+    private func shouldKneel(situation: GameSituation, opponentTimeouts: Int) -> Bool {
+        guard situation.scoreDifferential > 0 else { return false }
+        guard situation.timeRemaining <= 120 else { return false } // Under 2:00
+
+        // Ahead by any amount, <2:00, opponent has 0 timeouts
+        if opponentTimeouts == 0 { return true }
+
+        // Ahead by 2+ scores (9+ points), <2:00 regardless of timeouts
+        if situation.scoreDifferential >= 9 && situation.timeRemaining <= 120 { return true }
+
+        return false
+    }
+
+    /// Check if the AI should spike to stop the clock
+    private func shouldSpike(situation: GameSituation, ownTimeouts: Int) -> Bool {
+        guard situation.scoreDifferential < 0 else { return false } // Must be trailing
+        guard situation.timeRemaining <= 40 else { return false }   // Under 0:40
+        guard ownTimeouts == 0 else { return false }                // No timeouts left
+        return true
     }
 
     /// Legacy fallback for when no authentic playbook is loaded

@@ -27,6 +27,12 @@ class PlayResolver {
         }
 
         switch offensiveCall.playType {
+        case .kneel:
+            return resolveKneel(offensiveTeam: offensiveTeam)
+
+        case .spike:
+            return resolveSpike(offensiveTeam: offensiveTeam)
+
         case _ where offensiveCall.playType.isRun:
             return resolveRun(
                 playType: offensiveCall.playType,
@@ -85,9 +91,16 @@ class PlayResolver {
 
         // Calculate defensive front rating (weighted more heavily)
         let defenders = allDefenders
-        let dLineRating = defenders.isEmpty ? 70 : defenders
+        var dLineRating = defenders.isEmpty ? 70 : defenders
             .map { ($0.ratings.tackle + $0.ratings.blockShedding + $0.ratings.pursuit) / 3 }
             .reduce(0, +) / defenders.count
+
+        // Linebacker play recognition improves run defense reads
+        let linebackers = [mlb, olb1].compactMap { $0 }
+        if !linebackers.isEmpty {
+            let lbRecognition = Double(linebackers.map { $0.ratings.playRecognition }.reduce(0, +)) / Double(linebackers.count)
+            dLineRating += Int(lbRecognition * 0.3)
+        }
 
         // Running back contribution
         let rbRating = rb.map { ($0.ratings.speed + $0.ratings.elusiveness + $0.ratings.ballCarrierVision) / 3 } ?? 60
@@ -121,6 +134,14 @@ class PlayResolver {
         }
         var yards = Int(baseYards + variance)
 
+        // Break tackle check: RB's breakTackle + trucking can add extra yards
+        if let runner = rb {
+            let breakChance = Double(runner.ratings.breakTackle + runner.ratings.trucking) / 400.0 * 0.20
+            if Double.random(in: 0...1) < breakChance {
+                yards += Int.random(in: 3...8)
+            }
+        }
+
         // 20% chance of tackle for loss if defense wins the matchup
         if dLineRating > oLineRating && Double.random(in: 0...1) < 0.20 {
             yards = Int.random(in: -3...0)
@@ -150,7 +171,13 @@ class PlayResolver {
 
         // Check for fumble (2% base chance, more realistic)
         let carryingSkill = Double(rb?.ratings.carrying ?? 70)
-        let fumbleChance = 0.02 * (1.0 - carryingSkill / 200.0)
+        var fumbleChance = 0.02 * (1.0 - carryingSkill / 200.0)
+
+        // Tackler's hitPower increases fumble chance
+        if let hitPwr = tackler?.ratings.hitPower {
+            fumbleChance *= (1.0 + Double(hitPwr - 70) / 200.0)
+        }
+
         if Double.random(in: 0...1) < fumbleChance {
             let recovered = Double.random(in: 0...1) < 0.45 // Defense recovers 55% of fumbles
             return PlayOutcome(
@@ -164,6 +191,7 @@ class PlayResolver {
                 penalty: nil,
                 isInjury: false,
                 injuredPlayerId: nil,
+                wentOutOfBounds: false,
                 passerId: nil,
                 rusherId: rb?.id,
                 receiverId: nil,
@@ -182,6 +210,16 @@ class PlayResolver {
         // Check for injury (~2% chance on runs, higher on big hits)
         let injuryResult = checkForInjury(ballCarrierId: rb?.id, tacklerId: tackler?.id, isBigHit: yards <= 0)
 
+        // Out-of-bounds check: outside runs ~25%, inside runs ~5%
+        let oobChance: Double
+        switch playType {
+        case .sweep, .outsideRun, .qbScramble:
+            oobChance = 0.25
+        default:
+            oobChance = 0.05
+        }
+        let wentOOB = Double.random(in: 0...1) < oobChance
+
         return PlayOutcome(
             yardsGained: yards,
             timeElapsed: timeElapsed,
@@ -193,6 +231,7 @@ class PlayResolver {
             penalty: nil,
             isInjury: injuryResult.isInjury,
             injuredPlayerId: injuryResult.injuredPlayerId,
+            wentOutOfBounds: wentOOB,
             passerId: nil,
             rusherId: rb?.id,
             receiverId: nil,
@@ -310,6 +349,7 @@ class PlayResolver {
                     penalty: nil,
                     isInjury: false,
                     injuredPlayerId: nil,
+                    wentOutOfBounds: false,
                     passerId: qb?.id,
                     rusherId: nil,
                     receiverId: nil,
@@ -332,6 +372,7 @@ class PlayResolver {
                 penalty: nil,
                 isInjury: sackInjury.isInjury,
                 injuredPlayerId: sackInjury.injuredPlayerId,
+                wentOutOfBounds: false,
                 passerId: qb?.id,
                 rusherId: nil,
                 receiverId: nil,
@@ -354,14 +395,35 @@ class PlayResolver {
             completionChance *= 0.80
         }
 
+        // Catch in traffic: when coverage is tight, receiver's catchInTraffic helps
+        if coverageRating > receiverRating, let receiver = targetReceiver {
+            completionChance += Double(receiver.ratings.catchInTraffic - 60) / 500.0
+        }
+
+        // Press vs release: CB press technique vs WR release off the line
+        if let receiver = targetReceiver {
+            let cornerForPress = cb1 ?? cb2
+            if let corner = cornerForPress {
+                let pressRelease = Double(receiver.ratings.release - corner.ratings.press) / 300.0
+                completionChance += pressRelease
+            }
+        }
+
         // Play type modifiers - more conservative
         switch playType {
         case .screen:
             completionChance += 0.12
         case .deepPass:
             completionChance -= 0.20  // Deep balls are hard
+            // Spectacular catch chance on deep passes
+            if let receiver = targetReceiver {
+                completionChance += Double(receiver.ratings.spectacularCatch - 60) / 600.0
+            }
         case .playAction:
-            completionChance += 0.05
+            // Rating-based play action bonus (replaces flat +5%)
+            let paRating = qb?.ratings.playAction ?? 50
+            let paBonus = 0.02 + Double(paRating - 50) / 1000.0
+            completionChance += paBonus
         case .shortPass:
             completionChance += 0.08
         default:
@@ -413,6 +475,7 @@ class PlayResolver {
                     penalty: nil,
                     isInjury: false,
                     injuredPlayerId: nil,
+                    wentOutOfBounds: false,
                     passerId: qb?.id,
                     rusherId: nil,
                     receiverId: targetReceiver?.id,
@@ -437,6 +500,7 @@ class PlayResolver {
                 penalty: nil,
                 isInjury: false,
                 injuredPlayerId: nil,
+                wentOutOfBounds: false,
                 passerId: qb?.id,
                 rusherId: nil,
                 receiverId: targetReceiver?.id,
@@ -475,6 +539,7 @@ class PlayResolver {
             penalty: nil,
             isInjury: passInjury.isInjury,
             injuredPlayerId: passInjury.injuredPlayerId,
+            wentOutOfBounds: false,
             passerId: qb?.id,
             rusherId: nil,
             receiverId: targetReceiver?.id,
@@ -519,11 +584,64 @@ class PlayResolver {
             penalty: penalty,
             isInjury: false,
             injuredPlayerId: nil,
+            wentOutOfBounds: false,
             passerId: nil,
             rusherId: nil,
             receiverId: nil,
             primaryTacklerId: nil,
             description: "FLAG: \(penalty.description)"
+        )
+    }
+
+    // MARK: - Kneel Resolution
+
+    private func resolveKneel(offensiveTeam: Team) -> PlayOutcome {
+        let qb = offensiveTeam.starter(at: .quarterback)
+        let qbName = qb?.fullName ?? "Quarterback"
+
+        return PlayOutcome(
+            yardsGained: -1,
+            timeElapsed: Int.random(in: 38...42), // ~40 seconds off clock
+            isComplete: true,
+            isTouchdown: false,
+            isTurnover: false,
+            turnoverType: nil,
+            isPenalty: false,
+            penalty: nil,
+            isInjury: false,
+            injuredPlayerId: nil,
+            wentOutOfBounds: false,
+            passerId: nil,
+            rusherId: qb?.id,
+            receiverId: nil,
+            primaryTacklerId: nil,
+            description: "\(qbName) takes a knee"
+        )
+    }
+
+    // MARK: - Spike Resolution
+
+    private func resolveSpike(offensiveTeam: Team) -> PlayOutcome {
+        let qb = offensiveTeam.starter(at: .quarterback)
+        let qbName = qb?.fullName ?? "Quarterback"
+
+        return PlayOutcome(
+            yardsGained: 0,
+            timeElapsed: Int.random(in: 2...4), // ~3 seconds off clock
+            isComplete: false, // Spike is an incomplete pass — clock stops
+            isTouchdown: false,
+            isTurnover: false,
+            turnoverType: nil,
+            isPenalty: false,
+            penalty: nil,
+            isInjury: false,
+            injuredPlayerId: nil,
+            wentOutOfBounds: false,
+            passerId: qb?.id,
+            rusherId: nil,
+            receiverId: nil,
+            primaryTacklerId: nil,
+            description: "\(qbName) spikes the ball to stop the clock"
         )
     }
 

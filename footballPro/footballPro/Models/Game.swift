@@ -320,6 +320,10 @@ public struct Game: Identifiable, Codable, Equatable {
     // Overtime tracking
     public var overtimePossessions: Int
 
+    // Two-minute warning tracking (once per half)
+    public var twoMinuteWarningQ2Triggered: Bool
+    public var twoMinuteWarningQ4Triggered: Bool
+
     public var drives: [Drive]
     public var currentDrive: Drive?
 
@@ -351,6 +355,8 @@ public struct Game: Identifiable, Codable, Equatable {
         self.homeTimeouts = 3
         self.awayTimeouts = 3
         self.overtimePossessions = 0
+        self.twoMinuteWarningQ2Triggered = false
+        self.twoMinuteWarningQ4Triggered = false
 
         self.drives = []
         self.currentDrive = nil

@@ -87,14 +87,27 @@ class SimulationEngine: ObservableObject {
             isTurnover: outcome.isTurnover
         )
 
-        // Update game clock — stops on: incomplete pass, score, turnover, penalty
+        // Update game clock — stops on: incomplete pass, score, turnover, penalty, out of bounds
         let isIncompletePass = !outcome.isComplete && offensiveCall.playType.isPass
-        let shouldClockStop = isIncompletePass || outcome.isTouchdown || outcome.isTurnover || outcome.isPenalty
+        let shouldClockStop = isIncompletePass || outcome.isTouchdown || outcome.isTurnover || outcome.isPenalty || outcome.wentOutOfBounds
+
+        // Track pre-play time for two-minute warning check
+        let prePlayTime = game.clock.timeRemaining
 
         // Always tick the play duration, then set clock state
         game.clock.isRunning = true
         game.clock.tick(seconds: outcome.timeElapsed)
         if shouldClockStop {
+            game.clock.isRunning = false
+        }
+
+        // Two-minute warning: if clock crossed 2:00 mark in Q2 or Q4
+        let postPlayTime = game.clock.timeRemaining
+        if game.clock.quarter == 2 && !game.twoMinuteWarningQ2Triggered && prePlayTime > 120 && postPlayTime <= 120 {
+            game.twoMinuteWarningQ2Triggered = true
+            game.clock.isRunning = false
+        } else if game.clock.quarter == 4 && !game.twoMinuteWarningQ4Triggered && prePlayTime > 120 && postPlayTime <= 120 {
+            game.twoMinuteWarningQ4Triggered = true
             game.clock.isRunning = false
         }
 
@@ -323,6 +336,8 @@ class SimulationEngine: ObservableObject {
         }
 
         // AI timeout check: non-possessing team considers calling a timeout after the play
+        let defOwnTimeouts = game.isHomeTeamPossession ? game.awayTimeouts : game.homeTimeouts
+        let defOppTimeouts = game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
         let aiTimeoutSituation = GameSituation(
             down: game.downAndDistance.down,
             yardsToGo: game.downAndDistance.yardsToGo,
@@ -332,7 +347,9 @@ class SimulationEngine: ObservableObject {
             scoreDifferential: game.isHomeTeamPossession ?
                 game.score.awayScore - game.score.homeScore :
                 game.score.homeScore - game.score.awayScore,
-            isRedZone: game.fieldPosition.isRedZone
+            isRedZone: game.fieldPosition.isRedZone,
+            ownTimeouts: defOwnTimeouts,
+            opponentTimeouts: defOppTimeouts
         )
         let defTimeouts = game.isHomeTeamPossession ? game.awayTimeouts : game.homeTimeouts
         if game.clock.isRunning && aiCoach.shouldCallTimeout(situation: aiTimeoutSituation, timeoutsRemaining: defTimeouts) {
@@ -928,6 +945,8 @@ class SimulationEngine: ObservableObject {
                     break
                 }
 
+                let simOwnTimeouts = game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
+                let simOppTimeouts = game.isHomeTeamPossession ? game.awayTimeouts : game.homeTimeouts
                 let situation = GameSituation(
                     down: game.downAndDistance.down,
                     yardsToGo: game.downAndDistance.yardsToGo,
@@ -937,7 +956,9 @@ class SimulationEngine: ObservableObject {
                     scoreDifferential: game.isHomeTeamPossession ?
                         game.score.homeScore - game.score.awayScore :
                         game.score.awayScore - game.score.homeScore,
-                    isRedZone: game.fieldPosition.isRedZone
+                    isRedZone: game.fieldPosition.isRedZone,
+                    ownTimeouts: simOwnTimeouts,
+                    opponentTimeouts: simOppTimeouts
                 )
 
                 // Handle 4th down decisions
@@ -988,6 +1009,23 @@ public struct GameSituation { // Made public
     public var timeRemaining: Int
     public var scoreDifferential: Int
     public var isRedZone: Bool
+    public var ownTimeouts: Int
+    public var opponentTimeouts: Int
+
+    /// Convenience init that defaults timeouts to 3 (backward compatible)
+    public init(down: Int, yardsToGo: Int, fieldPosition: Int, quarter: Int,
+                timeRemaining: Int, scoreDifferential: Int, isRedZone: Bool,
+                ownTimeouts: Int = 3, opponentTimeouts: Int = 3) {
+        self.down = down
+        self.yardsToGo = yardsToGo
+        self.fieldPosition = fieldPosition
+        self.quarter = quarter
+        self.timeRemaining = timeRemaining
+        self.scoreDifferential = scoreDifferential
+        self.isRedZone = isRedZone
+        self.ownTimeouts = ownTimeouts
+        self.opponentTimeouts = opponentTimeouts
+    }
 
     public var isLateGame: Bool {
         quarter == 4 && timeRemaining < 300

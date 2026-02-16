@@ -27,6 +27,10 @@ public enum PlayType: String, Codable, CaseIterable { // Public for external use
     case playAction = "Play Action"
     case rollout = "Rollout"
 
+    // Clock management
+    case kneel = "Kneel"
+    case spike = "Spike"
+
     // Special teams
     case kickoff = "Kickoff"
     case punt = "Punt"
@@ -45,7 +49,7 @@ public enum PlayType: String, Codable, CaseIterable { // Public for external use
 
     public var isRun: Bool {
         switch self {
-        case .insideRun, .outsideRun, .draw, .counter, .sweep, .qbSneak, .qbScramble:
+        case .insideRun, .outsideRun, .draw, .counter, .sweep, .qbSneak, .qbScramble, .kneel:
             return true
         default:
             return false
@@ -54,7 +58,7 @@ public enum PlayType: String, Codable, CaseIterable { // Public for external use
 
     public var isPass: Bool {
         switch self {
-        case .shortPass, .mediumPass, .deepPass, .screen, .playAction, .rollout:
+        case .shortPass, .mediumPass, .deepPass, .screen, .playAction, .rollout, .spike:
             return true
         default:
             return false
@@ -94,12 +98,16 @@ public enum PlayType: String, Codable, CaseIterable { // Public for external use
         case .screen: return 6.0
         case .playAction: return 15.0
         case .rollout: return 8.0
+        case .kneel: return -1.0
+        case .spike: return 0.0
         default: return 0
         }
     }
 
     public var riskLevel: Int { // 1-10, higher = riskier
         switch self {
+        case .kneel: return 1
+        case .spike: return 1
         case .qbSneak: return 1
         case .insideRun: return 2
         case .outsideRun: return 3
@@ -368,6 +376,9 @@ public struct PlayOutcome: Codable, Equatable {
     public var isInjury: Bool
     public var injuredPlayerId: UUID?
 
+    // Clock management
+    public var wentOutOfBounds: Bool
+
     // Individual player tracking
     public var passerId: UUID?
     public var rusherId: UUID?
@@ -388,6 +399,7 @@ public struct PlayOutcome: Codable, Equatable {
             penalty: nil,
             isInjury: false,
             injuredPlayerId: nil,
+            wentOutOfBounds: false,
             passerId: nil,
             rusherId: nil,
             receiverId: nil,

@@ -608,19 +608,49 @@ struct FPSFieldView: View {
         let w = size.width
         let h = size.height
 
-        // Background — field green extends to screen edges in original FPS '93
-        let bgGreen = Color(red: 0.12, green: 0.38, blue: 0.12)
-        context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(bgGreen))
+        // Background — dark area beyond sidelines
+        let bgDark = Color(red: 0.08, green: 0.08, blue: 0.08)
+        context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(bgDark))
+
+        // Stadium backdrop — simplified stands visible when near end zones
+        drawStadiumBackdrop(context: context, size: size, proj: proj)
+
+        // Gray sideline border strips (track/concrete area beyond sidelines)
+        // These follow the perspective projection — wider at bottom, narrower at top
+        let sidelineGray = Color(red: 0.50, green: 0.50, blue: 0.50)
+        let borderFraction: CGFloat = 0.06  // Width of gray strip as fraction of field width
+
+        let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
+        let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
+        let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
+        let farRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
+
+        let nearBorderW = proj.nearWidth * borderFraction
+        let farBorderW = proj.farWidth * borderFraction
+
+        // Left gray strip
+        var leftStrip = Path()
+        leftStrip.move(to: CGPoint(x: nearLeft.x - nearBorderW, y: proj.fieldBottom))
+        leftStrip.addLine(to: CGPoint(x: farLeft.x - farBorderW, y: proj.fieldTop))
+        leftStrip.addLine(to: farLeft)
+        leftStrip.addLine(to: nearLeft)
+        leftStrip.closeSubpath()
+        context.fill(leftStrip, with: .color(sidelineGray))
+
+        // Right gray strip
+        var rightStrip = Path()
+        rightStrip.move(to: nearRight)
+        rightStrip.addLine(to: farRight)
+        rightStrip.addLine(to: CGPoint(x: farRight.x + farBorderW, y: proj.fieldTop))
+        rightStrip.addLine(to: CGPoint(x: nearRight.x + nearBorderW, y: proj.fieldBottom))
+        rightStrip.closeSubpath()
+        context.fill(rightStrip, with: .color(sidelineGray))
 
         // Green field surface with alternating grass stripes every 5 yards (matching original FPS '93)
         let fieldGreenLight = Color(red: 0.18, green: 0.54, blue: 0.18)  // #2D8A2D lighter band
         let fieldGreenDark = Color(red: 0.14, green: 0.50, blue: 0.14)   // #248024 darker band
 
         // Base fill with darker green
-        let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
-        let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
-        let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
-        let farRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
         var fieldTrapezoid = Path()
         fieldTrapezoid.move(to: nearLeft)
         fieldTrapezoid.addLine(to: farLeft)
@@ -852,6 +882,83 @@ struct FPSFieldView: View {
                 .font(.system(size: fontSize, weight: .heavy, design: .monospaced))
                 .foregroundColor(VGA.fieldLine.opacity(0.75))
             context.draw(context.resolve(text), at: CGPoint(x: proj.fieldCenterX, y: screenY))
+        }
+    }
+
+    // MARK: - Stadium Backdrop
+
+    /// Draw simplified stadium stands behind the field when camera is near an end zone.
+    /// Only visible when the LOS is within 20 yards of either end zone.
+    private func drawStadiumBackdrop(context: GraphicsContext, size: CGSize, proj: PerspectiveProjection) {
+        guard let game = viewModel.game else { return }
+        let yardLine = game.fieldPosition.yardLine
+
+        // Only show backdrop when near an end zone (within 20 yards)
+        let nearEndZone = yardLine < 20 || yardLine > 80
+        guard nearEndZone else { return }
+
+        // The stadium appears at the far end (top of screen, depth ~1.0)
+        // Draw a simplified bleacher/stands structure
+        let standsDarkGray = Color(red: 0.25, green: 0.22, blue: 0.20)
+        let standsMedGray = Color(red: 0.35, green: 0.32, blue: 0.30)
+        let standsHighlight = Color(red: 0.45, green: 0.42, blue: 0.40)
+
+        // Stands fill the top portion of the screen behind the far field edge
+        let standsHeight = size.height * 0.18
+        let topY = proj.fieldTop
+        let standsTop = topY - standsHeight
+
+        // Width matches the far field edge
+        let farHalfW = proj.farWidth / 2
+        let cx = proj.fieldCenterX
+
+        // Main stands block (dark gray rectangle)
+        var standsPath = Path()
+        standsPath.move(to: CGPoint(x: cx - farHalfW * 1.1, y: standsTop))
+        standsPath.addLine(to: CGPoint(x: cx + farHalfW * 1.1, y: standsTop))
+        standsPath.addLine(to: CGPoint(x: cx + farHalfW, y: topY))
+        standsPath.addLine(to: CGPoint(x: cx - farHalfW, y: topY))
+        standsPath.closeSubpath()
+        context.fill(standsPath, with: .color(standsDarkGray))
+
+        // Horizontal tiers (3-4 bleacher rows)
+        let tierCount = 4
+        for i in 0..<tierCount {
+            let t = CGFloat(i) / CGFloat(tierCount)
+            let tierY = standsTop + t * standsHeight
+            let tierColor = i % 2 == 0 ? standsMedGray : standsDarkGray
+
+            // Each tier is a thin horizontal band
+            let tierHeight = standsHeight / CGFloat(tierCount)
+            let leftX = cx - farHalfW * (1.1 - 0.1 * t)
+            let rightX = cx + farHalfW * (1.1 - 0.1 * t)
+            let nextLeftX = cx - farHalfW * (1.1 - 0.1 * (t + 1.0 / CGFloat(tierCount)))
+            let nextRightX = cx + farHalfW * (1.1 - 0.1 * (t + 1.0 / CGFloat(tierCount)))
+
+            var tierPath = Path()
+            tierPath.move(to: CGPoint(x: leftX, y: tierY))
+            tierPath.addLine(to: CGPoint(x: rightX, y: tierY))
+            tierPath.addLine(to: CGPoint(x: nextRightX, y: tierY + tierHeight))
+            tierPath.addLine(to: CGPoint(x: nextLeftX, y: tierY + tierHeight))
+            tierPath.closeSubpath()
+            context.fill(tierPath, with: .color(tierColor))
+        }
+
+        // Crowd dots — small scattered highlights suggesting people in the stands
+        let dotColor = standsHighlight
+        let dotCount = 30
+        // Use a deterministic pattern (not random, to avoid flicker on redraw)
+        for i in 0..<dotCount {
+            let seed = Double(i)
+            let tx = (seed * 0.618).truncatingRemainder(dividingBy: 1.0)  // Golden ratio scatter
+            let ty = (seed * 0.381).truncatingRemainder(dividingBy: 1.0)
+
+            let dotX = cx - farHalfW * 0.9 + tx * farHalfW * 1.8
+            let dotY = standsTop + ty * standsHeight * 0.9
+            let dotSize: CGFloat = 1.5
+
+            let dotRect = CGRect(x: dotX - dotSize / 2, y: dotY - dotSize / 2, width: dotSize, height: dotSize)
+            context.fill(Path(dotRect), with: .color(dotColor))
         }
     }
 
