@@ -20,7 +20,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | `Views/FPSPlayResultOverlay.swift` | Dark charcoal result box on field, team names in cyan/red |
 | `Views/FPSRefereeOverlay.swift` | Referee signal overlay on field |
 | `Views/FPSReplayControls.swift` | VCR-style replay transport buttons |
-| `Engine/PlayBlueprintGenerator.swift` | Generates animation paths for all 22 players in 640x360 flat space |
+| `Engine/PlayBlueprintGenerator.swift` | Generates animation paths for all 22 players in 640x360 flat space; uses authentic STOCK.DAT routes when available |
 | `Views/Components/AuthenticSplashScreen.swift` | INTDYNA.SCR + CREDIT.SCR splash sequence on app launch |
 | `Engine/SimulationEngine.swift` | Core play-by-play simulation |
 | `Engine/PlayerAnimationState.swift` | Per-player animation state machine (~15fps sprite cycling) |
@@ -28,7 +28,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | `ViewModels/GameViewModel.swift` | Game state MVVM binding, GamePhase enum state machine |
 | `App/FootballProApp.swift` | App entry, GameScreen enum, GameState, ManagementHubView |
 | `Views/Franchise/StandingsView.swift` | Division/conference standings (W-L-T, PCT, PF, PA) |
-| `Views/Franchise/StatsView.swift` | Tabbed stat leaders (Passing, Rushing, Receiving, Defense) |
+| `Views/Franchise/StatsView.swift` | Tabbed stat leaders + 1992 historical stats toggle |
 | `Views/Franchise/DraftRoomView.swift` | Draft room with prospect grid, scouting, auto-pick |
 | `Views/Franchise/PlayoffBracketView.swift` | 8-team bracket (4 per conference, seeded 1-4) |
 | `Views/Franchise/TradeProposalView.swift` | Trade builder with fairness evaluation |
@@ -45,6 +45,8 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - `VGA.playSlotGreen` = #269426 (bright green play slots)
 - `VGA.screenBg` = black
 - `VGA.digitalAmber` = #FFA600 (LED clocks)
+- `VGA.teamCyan` = #55BBFF (possessing team name highlight)
+- `VGA.teamRed` = #DD3333 (opposing team name highlight)
 
 **Always use RetroFont presets** — never system fonts in game UI:
 - tiny(9), small(10), body(12), bodyBold(12), header(14), title(18), large(24), huge(36), score(48)
@@ -58,7 +60,13 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - AuthenticPlayerSprite renders original ANIM.DAT sprites (falls back to RetroPlayerSprite if files missing)
 - Green number box overlay on ball carrier (matching original FPS '93 style)
 - Team color remapping via SpriteCache.setTeamColors() (CT1=home, CT2=away palette overrides)
-- Amber LED clocks at bottom corners only
+- Amber LED clocks at bottom corners only (play clock wired to viewModel.playClockSeconds)
+- Yellow goalposts with blue base padding
+- Vertical hash mark ticks (not horizontal dashes)
+- LOS "X" marker at center during pre-snap
+- Ball carrier green number box with alternating blue/orange border
+- VCR toolbar (11 red buttons) during play animation phase
+- Pre-snap situation text box with narrative (team, yard line, down/distance, time)
 
 ## Important Patterns & Rules
 
@@ -96,16 +104,16 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | SCRDecoder.swift | *.SCR | DGDS LZW/RLE, nibble merge, CGImage via PAL. 320x200/640x350. |
 | SampleDecoder.swift | SAMPLE.DAT | Offset table + 8-bit unsigned PCM. ~115 samples. |
 | SampleAudioService.swift | (runtime) | WAV wrapping + AVAudioPlayer playback for decoded samples. |
+| StockDATDecoder.swift | STOCK.DAT/MAP | 1002 play/formation records. 25B header + 11 variable-length player entries with routes, motion, assignments. |
+| SeasonStatsDecoder.swift | 1992.DAT/IDX/PYR/XGE | 3442 × 20B stat records (rushing, passing, receiving, defense, kicking). B-tree index. Real 1992 NFL stats. |
 
 ### Remaining Undecoded Files
 
 | File | Size | Status | Content |
 |------|------|--------|---------|
-| `*.DDA` | 34-429KB | Unexamined | Dynamix Delta Animation cutscenes |
-| `STOCK.DAT` | — | Unexamined | Stock team/player data |
-| `1992.DAT/.IDX` | — | Unexamined | Season/roster data with index |
+| `*.DDA` | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table decoded, RLE encoding in progress) |
 
-All major game data formats are fully decoded: ANIM.DAT (sprites), SCR (screens), SAMPLE.DAT (audio), PAL (palettes), LGE/PYR (teams/players), PRF/PLN (playbooks), and 10+ supporting data files.
+All game data formats are fully decoded: ANIM.DAT (sprites), SCR (screens), SAMPLE.DAT (audio), PAL (palettes), LGE/PYR (teams/players), PRF/PLN (playbooks), STOCK.DAT/MAP (play routes), 1992.DAT (season stats), and 10+ supporting data files.
 
 ---
 
@@ -182,7 +190,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 |------|------|---------------|---------|
 | *.PAL | 784B each | **DECODED** (PALDecoder) | VGA palettes, 256 RGB colors |
 | *.SCR | 3-29KB | Header: `SCR:` + `BIN:` compressed bitmap | Full-screen VGA graphics (title, intro, championship) |
-| *.DDA | 34-429KB | Unexamined | Dynamix Delta Animation scripts (cutscenes) |
+| *.DDA | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table + RLE encoding) |
 | SAMPLE.DAT | 855KB | **DECODED** (SampleDecoder + SampleAudioService) | ~115 audio samples (crowd, whistle, hits) |
 
 ---
