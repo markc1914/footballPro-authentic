@@ -85,6 +85,9 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - Kick return TD: 0.3% (NFL average)
 - AI play calling: tracks last 5 calls, reduces repeat weight by 50%
 - AI timeouts: wired into post-play loop for defensive team
+- Player ratings wired: breakTackle/trucking (extra rush yards), catchInTraffic/spectacularCatch (completion%), hitPower (fumble forcing), playRecognition (run defense), playAction (PA bonus), press/release (route matchup)
+- Clock management: out-of-bounds stops (25% outside runs, 5% inside), two-minute warning Q2/Q4, kneel-down and spike plays with AI logic
+- Field visuals: sideline gray/track borders, stadium backdrop near end zones, authentic RCSTAND referee sprite
 
 ## Original Game Data (FPS Football Pro '93)
 
