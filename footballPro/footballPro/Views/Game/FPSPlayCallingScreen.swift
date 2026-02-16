@@ -61,30 +61,6 @@ struct FPSPlayCallingScreen: View {
 
             Spacer()
 
-            // PREV page button
-            FPSButton("< PREV") {
-                viewModel.previousPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-            }
-            .opacity(viewModel.currentPlaybookPage > 0 ? 1.0 : 0.5)
-            .disabled(viewModel.currentPlaybookPage <= 0)
-
-            // Page indicator
-            Text("PG \(viewModel.currentPlaybookPage + 1)/\(viewModel.totalPages(isSpecialTeams: showSpecialTeams))")
-                .font(RetroFont.small())
-                .foregroundColor(.black)
-                .padding(.horizontal, 4)
-
-            // NEXT page button
-            FPSButton("NEXT >") {
-                viewModel.nextPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-            }
-            .opacity(viewModel.currentPlaybookPage < viewModel.totalPages(isSpecialTeams: showSpecialTeams) - 1 ? 1.0 : 0.5)
-            .disabled(viewModel.currentPlaybookPage >= viewModel.totalPages(isSpecialTeams: showSpecialTeams) - 1)
-
-            Spacer()
-
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") {
                 showSpecialTeams.toggle()
                 viewModel.currentPlaybookPage = 0
@@ -156,29 +132,29 @@ struct FPSPlayCallingScreen: View {
         }
     }
 
-    // MARK: - Play Slot Grid (8 rows, numbers 1-8 left / 9-16 right)
+    // MARK: - Play Slot Grid (4 columns x 4 rows = 16 slots, matching original FPS '93)
 
     private var playSlotGrid: some View {
         VStack(spacing: 1) {
-            ForEach(0..<8, id: \.self) { row in
+            ForEach(0..<4, id: \.self) { row in
                 HStack(spacing: 0) {
-                    // Left number (1-8)
-                    Text("\(row + 1)")
+                    // Row number on left
+                    Text("\(row * 4 + 1)")
                         .font(RetroFont.bodyBold())
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                         .frame(width: 18, alignment: .trailing)
                         .padding(.trailing, 2)
 
-                    // Left play slots (row spans from slot 1-8 on left side)
-                    greenSlot(number: row + 1, name: playNameForSlot(row + 1))
+                    // 4 play slots per row
+                    ForEach(0..<4, id: \.self) { col in
+                        let slotNum = row * 4 + col + 1
+                        greenSlot(number: slotNum, name: playNameForSlot(slotNum))
+                    }
 
-                    // Right play slots (slots 9-16)
-                    greenSlot(number: row + 9, name: playNameForSlot(row + 9))
-
-                    // Right number (9-16)
-                    Text("\(row + 9)")
+                    // Row number on right
+                    Text("\(row * 4 + 4)")
                         .font(RetroFont.bodyBold())
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                         .frame(width: 18, alignment: .leading)
                         .padding(.leading, 2)
                 }
@@ -216,27 +192,24 @@ struct FPSPlayCallingScreen: View {
     private var opponentSlotGrid: some View {
         ZStack {
             VStack(spacing: 1) {
-                ForEach(0..<8, id: \.self) { row in
+                ForEach(0..<4, id: \.self) { row in
                     HStack(spacing: 0) {
-                        Text("\(row + 1)")
+                        Text("\(row * 4 + 1)")
                             .font(RetroFont.bodyBold())
-                            .foregroundColor(.black)
+                            .foregroundColor(.white)
                             .frame(width: 18, alignment: .trailing)
                             .padding(.trailing, 2)
 
-                        // Empty green slots for opponent
-                        HStack(spacing: 0) {
-                            Rectangle()
-                                .fill(VGA.playSlotGreen)
-                                .border(VGA.playSlotDark, width: 1)
+                        // Empty green slots for opponent (4 columns)
+                        ForEach(0..<4, id: \.self) { _ in
                             Rectangle()
                                 .fill(VGA.playSlotGreen)
                                 .border(VGA.playSlotDark, width: 1)
                         }
 
-                        Text("\(row + 9)")
+                        Text("\(row * 4 + 4)")
                             .font(RetroFont.bodyBold())
-                            .foregroundColor(.black)
+                            .foregroundColor(.white)
                             .frame(width: 18, alignment: .leading)
                             .padding(.leading, 2)
                     }

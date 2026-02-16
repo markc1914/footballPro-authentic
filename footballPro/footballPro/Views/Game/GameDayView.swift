@@ -471,7 +471,8 @@ struct FPSPresnapSituationBox: View {
                     .frame(maxWidth: 480)
                     .background(VGA.panelVeryDark.opacity(0.88))
                     .modifier(DOSPanelBorder(.raised, width: 1))
-                    .padding(.bottom, 50)
+
+                Spacer()
             }
         }
     }

@@ -189,7 +189,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | File | Size | Format Status | Content |
 |------|------|---------------|---------|
 | *.PAL | 784B each | **DECODED** (PALDecoder) | VGA palettes, 256 RGB colors |
-| *.SCR | 3-29KB | Header: `SCR:` + `BIN:` compressed bitmap | Full-screen VGA graphics (title, intro, championship) |
+| *.SCR | 3-29KB | **DECODED** (SCRDecoder) BIN:/VGA: LZW + VQT: quadtree | Full-screen VGA graphics (title, intro, championship, ball, kick) |
 | *.DDA | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table + RLE encoding) |
 | SAMPLE.DAT | 855KB | **DECODED** (SampleDecoder + SampleAudioService) | ~115 audio samples (crowd, whistle, hits) |
 
@@ -345,7 +345,7 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - `BIN:` section: type(1B=0x02) + uncomp_size(4B LE) + Dynamix LZW data → low nibbles
 - `VGA:` section: same format → high nibbles
 - Pixels are 4-bit nibble-packed (2 per byte). Final pixel = bin_nibble | (vga_nibble << 4)
-- VQT: sections use Vector Quantization (separate codec, not yet decoded)
+- VQT: sections use recursive quadtree decomposition with adaptive color tables (DECODED)
 - Dynamix LZW: 9-bit initial, max 12-bit, clear=0x100, no end code, LSB-first, block-aligned
 
 **Decoded screens:**
@@ -360,7 +360,7 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - `GameDayView.swift`: CHAMP.SCR as championship game-over background
 
 **Deferred (low priority):**
-- VQT: format for BALL.SCR and KICK.SCR (Vector Quantization, separate codec)
+- VQT: format for BALL.SCR and KICK.SCR — NOW DECODED (recursive quadtree + adaptive color tables)
 - DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA)
 
 ### Phase G: Audio (SAMPLE.DAT) — COMPLETE

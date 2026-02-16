@@ -105,8 +105,20 @@ class PlayResolver {
         let matchupDiff = Double(oLineRating + rbRating/2 - dLineRating) / 150.0
         let baseYards = playType.averageYards * (0.8 + matchupDiff) * formationModifier
 
-        // Add randomness with more variance towards negative (TFLs are common in NFL)
-        let variance = Double.random(in: -4...4)
+        // NFL-realistic right-skewed rushing distribution
+        let roll = Double.random(in: 0...1)
+        let variance: Double
+        if roll < 0.40 {
+            variance = Double.random(in: -2...1)       // 40%: stuffed/short (0-3 yds)
+        } else if roll < 0.75 {
+            variance = Double.random(in: 1...4)        // 35%: moderate (3-6 yds)
+        } else if roll < 0.90 {
+            variance = Double.random(in: 4...8)        // 15%: good gain (6-10 yds)
+        } else if roll < 0.97 {
+            variance = Double.random(in: 8...18)       // 7%: big play (10-20 yds)
+        } else {
+            variance = Double.random(in: 18...45)      // 3%: breakaway (20+ yds)
+        }
         var yards = Int(baseYards + variance)
 
         // 20% chance of tackle for loss if defense wins the matchup
@@ -202,7 +214,19 @@ class PlayResolver {
 
         let qb = offensiveTeam.starter(at: .quarterback)
         let receivers = offensiveTeam.players(at: .wideReceiver) + offensiveTeam.players(at: .tightEnd)
-        let targetReceiver = receivers.randomElement()
+        // Weight target selection by receiver overall rating so WR1 gets more targets
+        let targetReceiver: Player? = {
+            guard !receivers.isEmpty else { return nil }
+            let weights = receivers.map { Double($0.overall) }
+            let totalWeight = weights.reduce(0, +)
+            guard totalWeight > 0 else { return receivers.randomElement() }
+            var pick = Double.random(in: 0..<totalWeight)
+            for (i, w) in weights.enumerated() {
+                pick -= w
+                if pick <= 0 { return receivers[i] }
+            }
+            return receivers.last
+        }()
 
         let cb1 = defensiveTeam.starter(at: .cornerback)
         let cb2 = defensiveTeam.players(at: .cornerback).dropFirst().first

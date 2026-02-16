@@ -103,6 +103,8 @@
 		RES001 /* PlaybookData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC028; };
 		RES002 /* TeamData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC029; };
 		RES003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = SRC030; };
+		RES004 /* BALL.SCR in Resources */ = {isa = PBXBuildFile; fileRef = SRC076; };
+		RES005 /* KICK.SCR in Resources */ = {isa = PBXBuildFile; fileRef = SRC077; };
 		914732D6C9240E9B10B3A29B /* RetroStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBE3A96EF1C83F6D1C037C1 /* RetroStyle.swift */; };
 		897F2E43EE774621E5A28342 /* PlayRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E44E63DDDC5274C33620B28 /* PlayRoute.swift */; };
 		6796A29516984646DC0CA87F /* PlayerRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84D11AB8190F08D13810BA1 /* PlayerRole.swift */; };
@@ -208,6 +210,8 @@
 		SRC064 /* SampleAudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleAudioService.swift; sourceTree = "<group>"; };
 		SRC074 /* SeasonStatsDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonStatsDecoder.swift; sourceTree = "<group>"; };
 		SRC075 /* StockDATDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDATDecoder.swift; sourceTree = "<group>"; };
+		SRC076 /* BALL.SCR */ = {isa = PBXFileReference; lastKnownFileType = file; path = BALL.SCR; sourceTree = "<group>"; };
+		SRC077 /* KICK.SCR */ = {isa = PBXFileReference; lastKnownFileType = file; path = KICK.SCR; sourceTree = "<group>"; };
 
 		/* Franchise Views */
 		SRC065 /* StandingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsView.swift; sourceTree = "<group>"; };
@@ -389,8 +393,26 @@
 			children = (
 				SRC028 /* PlaybookData.json */,
 				SRC029 /* TeamData.json */,
+				GRP099 /* GameData */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		GRP099 /* GameData */ = {
+			isa = PBXGroup;
+			children = (
+				GRP100 /* TTM */,
+			);
+			path = GameData;
+			sourceTree = "<group>";
+		};
+		GRP100 /* TTM */ = {
+			isa = PBXGroup;
+			children = (
+				SRC076 /* BALL.SCR */,
+				SRC077 /* KICK.SCR */,
+			);
+			path = TTM;
 			sourceTree = "<group>";
 		};
 		GRP010 /* MainMenu */ = {
@@ -518,6 +540,8 @@
 				RES001 /* PlaybookData.json in Resources */,
 				RES002 /* TeamData.json in Resources */,
 				RES003 /* Assets.xcassets in Resources */,
+				RES004 /* BALL.SCR in Resources */,
+				RES005 /* KICK.SCR in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

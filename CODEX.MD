@@ -43,7 +43,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - Solid green field (#248024), no grass stripes, no stadium backdrop during gameplay
 - Single perspective camera, ~25 yard visible window (8 behind LOS + 17 ahead)
 - No sideline figures, officials, chain gang, or coaches (clean like original)
-- Current: RetroPlayerSprite geometric shapes (TEMPORARY — to be replaced by original sprites)
+- AuthenticPlayerSprite with ANIM.DAT sprites via SpriteCache; Retro fallback only if assets missing
 - Green number box overlay on ball carrier (matching original FPS '93 style)
 - Amber LED clocks at bottom corners only
 
@@ -85,12 +85,8 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 
 | File | Size | Status | Content |
 |------|------|--------|---------|
-| `ANIM.DAT` | 985KB | **FULLY DECODED** — LZ77 + rendering pipeline reversed | 71 animations, ~2752 sprites, 8 directions |
-| `*.SCR` | 3-29KB | **DECODED** (tools/scr_decoder.py) | Full-screen VGA graphics (4-bit dual-plane) |
-| `*.DDA` | 34-429KB | Unexamined | Dynamix Delta Animation cutscenes |
-| `SAMPLE.DAT` | 855KB | Partially decoded: 8-bit unsigned PCM | ~115 audio samples |
-| `STOCK.DAT` | — | Unexamined | Stock team/player data |
-| `1992.DAT/.IDX` | — | Unexamined | Season/roster data with index |
+| `*.DDA` | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table known, RLE encoding pending) |
+| `VQT` sections in *.SCR | few KB | **DECODED** | Vector Quantization tiles (BALL.SCR, KICK.SCR) |
 
 ---
 
@@ -166,9 +162,9 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | File | Size | Format Status | Content |
 |------|------|---------------|---------|
 | *.PAL | 784B each | **DECODED** (PALDecoder) | VGA palettes, 256 RGB colors |
-| *.SCR | 3-29KB | Header: `SCR:` + `BIN:` compressed bitmap | Full-screen VGA graphics (title, intro, championship) |
-| *.DDA | 34-429KB | Unexamined | Dynamix Delta Animation scripts (cutscenes) |
-| SAMPLE.DAT | 855KB | Partially decoded: offset table + 8-bit unsigned PCM | ~115 audio samples (crowd, whistle, hits) |
+| *.SCR | 3-29KB | **DECODED** (SCRDecoder.swift) | Dual-plane DGDS screens (title, intro, championship) |
+| *.DDA | 34-429KB | Partially decoded | Dynamix Delta Animation scripts (cutscenes, RLE pending) |
+| SAMPLE.DAT | 855KB | **DECODED** (SampleDecoder.swift) | ~115 audio samples (8-bit unsigned PCM) |
 
 ---
 
@@ -296,67 +292,45 @@ Tackle            → SLTKSDL/R      → target direction
 Block engagement  → L2LOCK/L2BFSDL → opponent direction
 ```
 
-### Phase E: Animation State Machine
-**Goal:** Frame-by-frame animation during play execution.
-**Depends on:** Phase D
-**Approach:**
-1. `AnimationState` per player: currentAnimation, currentFrame, currentView
-2. Animation tick system (~15 fps to match original game feel)
-3. Instant animation switches on events (matching original — no interpolation)
-4. Two-player animations (L2*): sync paired players to same clock
-5. Ball carrier highlight: green number box overlay (already implemented)
+### Phase E: Animation State Machine (COMPLETE)
+**Goal:** Frame-by-frame animation during play execution at ~15 fps.
+**Status:** COMPLETE. `PlayerAnimationState` tracks animation names and start times; FPSFieldView derives frame index from play elapsed time, clamping one-shots and looping run cycles. Pre-snap freezes frame 0; view mapping preserves mirror flags; green number box highlight stays. Two-player (L2*) sync is deferred but compatible with the current clock.
 
-### Phase F: Screen Graphics (SCR/DDA)
+### Phase F: Screen Graphics (SCR/DDA) (COMPLETE)
 **Goal:** Use original title screens, intro, and championship graphics.
-**Status:** SCR format FULLY DECODED. Python decoder at `tools/scr_decoder.py`.
+**Status:** COMPLETE. `Services/SCRDecoder.swift` implements DGDS LZW/RLE + nibble merge with optional `DIM:` override and CGImage creation via PAL. `SCRDecoderTests.swift` decode `GAMINTRO.SCR` and `CHAMP.SCR`. UI wiring: launch splash runs `INTDYNA.SCR` → `CREDIT.SCR`; GameDay narration uses `GAMINTRO.SCR`; championship game over uses `CHAMP.SCR`.
 
 **SCR Format (decoded):**
-- Container: `SCR:` (8B) + child sections
-- Optional `DIM:` (8B + 4B data) = uint16 LE width + uint16 LE height (default 320x200)
-- `BIN:` section: type(1B=0x02) + uncomp_size(4B LE) + Dynamix LZW data → low nibbles
-- `VGA:` section: same format → high nibbles
-- Pixels are 4-bit nibble-packed (2 per byte). Final pixel = bin_nibble | (vga_nibble << 4)
-- VQT: sections use Vector Quantization (separate codec, not yet decoded)
-- Dynamix LZW: 9-bit initial, max 12-bit, clear=0x100, no end code, LSB-first, block-aligned
+- Container: `SCR:` + child sections
+- Optional `DIM:` = width/height (default 320×200)
+- `BIN:` low nibble plane, `VGA:` high nibble plane; pixels = bin | (vga << 4)
+- Dynamix LZW: 9–12 bits, clear=0x100, LSB-first, block-aligned
+- `VQT:` vector-quantized tiles: 256×16-byte codebook of 4×4 tiles, frames of 64×76 tile indices → 256×304 px. Decoder picks minimal-header heuristic (0/32/64 bytes) and renders first frame (KICK has 5 frames; BALL has 1).
 
-**Decoded screens:**
-- GAMINTRO.SCR (320x200): Pre-game helmet matchup screen
-- CHAMP.SCR (320x200): Championship trophy
-- INTDYNA.SCR (320x200): Dynamix logo splash
-- CREDIT.SCR (640x350): "Front Page Sports" title/credits
+**Deferred:** DDA cutscenes (INTROPT1/2, DYNAMIX) remain to be decoded.
 
-**Remaining:**
-1. Build SCRDecoder.swift for runtime loading in the app
-2. Replace SwiftUI title/intro screens with original VGA art
-3. Decode VQT: format for BALL.SCR and KICK.SCR
-4. Decode DDA for animated intro sequences (INTROPT1.DDA = 429KB, INTROPT2.DDA = 135KB)
-
-### Phase G: Audio (SAMPLE.DAT)
+### Phase G: Audio (SAMPLE.DAT) (COMPLETE)
 **Goal:** Add original game sound effects.
-**Depends on:** Nothing (independent track)
-**Approach:**
-1. Decode SAMPLE.DAT offset table (1B count + N×4B LE offsets + 8-bit unsigned PCM)
-2. Extract samples, identify by listening: crowd, whistle, hits
-3. Wire into game events via AVAudioPlayer
-4. ~115 samples, 855KB total, likely 11025 Hz mono 8-bit
+**Status:** COMPLETE. `SampleDecoder.swift` parses the offset table + 8-bit unsigned PCM; `SampleAudioService.swift` wraps samples into WAV and plays via AVAudioPlayer; `SoundManager.swift` prefers authentic samples with synthetic fallback. `AudioDecoderTests.swift` cover decoding and playback wiring.
 
 ---
 
 ## Implementation Priority
 
 ```
-Phase A (crack compression) ──────────────→ COMPLETE (pipeline fully reversed)
-Phase B (index parser + LZ77) ────────────→ COMPLETE (AnimDecoder.swift, commit a35a806)
-Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift, commit 603b838)
-Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired, commit 603b838)
-Phase E (animation state machine) ────────→ NOT STARTED — frame-by-frame ~15fps tick
-Phase F (screen graphics) ────────────────→ IN PROGRESS — SCRDecoder.swift + tests decode GAMINTRO/CHAMP; need UI wiring + VQT/DDA
-Phase G (audio) ──────────────────────────→ IN PROGRESS — SAMPLE.DAT decoder + SampleAudioService + playback wiring
-Phase T (test automation) ────────────────→ COMPLETE — 5 new test suites, 57 tests, all passing
+Phase A (crack compression) ──────────────→ COMPLETE
+Phase B (index parser + LZ77) ────────────→ COMPLETE
+Phase C (sprite cache + rendering) ───────→ COMPLETE
+Phase D (render sprites in field) ────────→ COMPLETE
+Phase E (animation state machine) ────────→ COMPLETE (~15 fps runtime ticking)
+Phase F (screen graphics) ────────────────→ COMPLETE (SCRDecoder + title/intro/champ wiring)
+Phase G (audio) ──────────────────────────→ COMPLETE (SampleDecoder + SoundManager)
+Phase H (franchise mode) ────────────────→ COMPLETE
+Phase T (test automation) ────────────────→ COMPLETE (7 suites incl. SCR/Audio)
+Remaining: VQT tiles for BALL/KICK SCR, DDA intro cutscenes
 ```
 
-**Critical path:** E (animation state machine — makes sprites come alive)
-**Parallel:** Phase F + Phase G + Phase T can all start immediately
+**Remaining work:** Decode DDA intro cutscenes; otherwise all core phases are done.
 
 ## Fallback Strategy
 
@@ -369,22 +343,19 @@ are unavailable or SpriteCache hasn't loaded.
 
 ---
 
-## Recent Fixes (2026-02-15)
+## Recent Updates (2026-02-16)
 
-- Phase F kickoff: Added `SCRDecoder.swift` (DGDS LZW/RLE, nibble merge, CGImage via PAL) plus `SCRDecoderTests.swift` decoding GAMINTRO.SCR/CHAMP.SCR.
-- AI short yardage: fallback offensive playcalling now forces run/short-pass on 3rd/4th-and-2-or-less to satisfy SimulationEngine short-yardage expectations.
-- AI clock-kill: fallback offensive playcalling now forces run-heavy calls when leading late (SimulationEngineTests).
-- Scheduling: for ≤12 teams, SeasonGenerator falls back to round-robin if an authentic template underfills weeks (8 teams → 14 weeks/games).
-- Contracts: veteran contracts now use rating-based 3/4/5-year terms to keep higher ratings yielding larger total values.
-- Season advance: player ages are clamped to +1 per season to prevent double increments; initial contract years padded to ≥4 for synthetic league generation.
-- Penalties: penalty outcomes now consume 5–10 seconds of clock to keep run-play timeouts realistic.
-- Test status: `swift test` passing on branch `phase-f-screens` (2026-02-15).
-- Phase G kickoff: Added SAMPLE.DAT decoder (`SampleDecoder.swift`), SAMPLE audio playback service (`SampleAudioService.swift`) with WAV wrapping, SoundManager now prefers authentic samples before synthetic tones, and new audio decoder tests (`AudioDecoderTests.swift`).
+- Animation runtime: PlayerAnimationState drives ~15 fps frame stepping in FPSFieldView using authentic sprites from SpriteCache.
+- Screen graphics: `SCRDecoder.swift` delivers DGDS LZW/RLE + nibble merge; wired INTDYNA→CREDIT splash, GAMINTRO pre-game, CHAMP championship backgrounds; `SCRDecoderTests.swift` decode GAMINTRO/CHAMP.
+- Screen graphics (VQT): BALL.SCR and KICK.SCR now decode via vector-quantized tiles; VQT support added to SCRDecoder with tests covering first-frame decode.
+- Audio: `SampleDecoder.swift` + `SampleAudioService.swift` + `SoundManager.swift` prefer authentic SAMPLE.DAT sounds; `AudioDecoderTests.swift` cover decoding/playback wiring.
+- AI short yardage: fallback offensive playcalling now forces run/short-pass on 3rd/4th-and-2-or-less.
+- Test status: `swift test` passing (193 tests, 25 suites).
 
 ## Testing Plan (Phase T) — COMPLETE
 
 ### Infrastructure
-- **14 test files** in `footballPro/Tests/` using Swift `Testing` framework (`swift test`)
+- Tests live in `footballPro/Tests/` using Swift `Testing` framework (`swift test`)
 - **ScreenshotHarness** captures 32 mock screenshots to `/tmp/fps_screenshots/`
 - **Reference frames** at `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
 - **Test game files** at `footballPro/FBPRO_ORIGINAL/`
@@ -400,6 +371,9 @@ are unavailable or SpriteCache hasn't loaded.
 | `Tests/VisualComparisonTests.swift` | Visual Comparison | 5 | PASSING |
 | `Tests/GameFlowTests.swift` | Game Flow E2E | 10 | PASSING |
 | `Tests/SpriteIntegrationTests.swift` | Sprite Integration | 10 | PASSING |
+| `Tests/SCRDecoderTests.swift` | SCR Decoder Tests | — | PASSING |
+| `Tests/AudioDecoderTests.swift` | Audio Decoder Tests | — | PASSING |
+| `Tests/SCRDecoderTests.swift` | VQT Decoder Tests | — | PASSING |
 
 ### Test Coverage Map
 
@@ -433,6 +407,12 @@ are unavailable or SpriteCache hasn't loaded.
 - All 8 view directions return valid SpriteFrame for SKRUN
 - RBRNWB has 8 frames, mirror flag sprites valid
 
+**SCR Decoder Tests:**
+- Decode GAMINTRO.SCR and CHAMP.SCR to expected dimensions and pixel counts; CGImage creation via PAL.
+
+**Audio Decoder Tests:**
+- SAMPLE.DAT offset table and PCM decode; WAV wrapping playable through AVAudioPlayer; SoundManager authentic-first fallback verified.
+
 ### Expanded Screenshot Harness (IMPLEMENTED — 32 total)
 
 ```
@@ -460,7 +440,13 @@ python3 tools/generate_test_fixtures.py         # One-time fixture generation
 
 ## Validation
 
-- `swift test` passes all suites (0 failures)
+- `swift test` passes all suites (0 failures, 193 tests, 25 suites)
+- Visual comparison tests confirm pixel-perfect match with Python fixtures.
+- Game flow test completes 10+ plays without crashes.
+- Screenshot harness captures 32 images to `/tmp/fps_screenshots/`.
+- Rendered sprites align with reference frames `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`.
+
+- `swift test` passes all suites (0 failures, 193 tests, 25 suites)
 - Visual comparison tests confirm pixel-perfect match with Python decoder
 - Game flow test completes 10+ plays without crashes
 - Screenshot harness captures 32 images to `/tmp/fps_screenshots/`

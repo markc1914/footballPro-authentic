@@ -42,4 +42,28 @@ struct SCRDecoderTests {
         #expect(cg?.width == image.width)
         #expect(cg?.height == image.height)
     }
+
+    @Test("BALL.SCR VQT decodes first frame")
+    func decodeBallVQT() throws {
+        let url = SCRDecoder.defaultDirectory
+            .appendingPathComponent("TTM")
+            .appendingPathComponent("BALL.SCR")
+        let image = try SCRDecoder.decode(at: url)
+        #expect(image.width == 256)
+        #expect(image.height == 304)
+        #expect(image.pixels.count == image.width * image.height)
+        #expect(Set(image.pixels).count > 32)
+    }
+
+    @Test("KICK.SCR VQT decodes first frame")
+    func decodeKickVQT() throws {
+        let url = SCRDecoder.defaultDirectory
+            .appendingPathComponent("TTM")
+            .appendingPathComponent("KICK.SCR")
+        let image = try SCRDecoder.decode(at: url)
+        #expect(image.width == 256)
+        #expect(image.height == 304)
+        #expect(image.pixels.count == image.width * image.height)
+        #expect(Set(image.pixels).count > 32)
+    }
 }

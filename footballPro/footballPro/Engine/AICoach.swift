@@ -9,6 +9,17 @@ import Foundation
 
 class AICoach {
 
+    // Track recent play types to avoid repetition (last 5 calls)
+    private var recentPlayTypes: [String] = []
+
+    /// Record a play type and trim to last 5
+    private func recordPlayType(_ playType: String) {
+        recentPlayTypes.append(playType)
+        if recentPlayTypes.count > 5 {
+            recentPlayTypes.removeFirst()
+        }
+    }
+
     // MARK: - Offensive Play Selection
 
     func selectOffensivePlay(for team: Team, situation: GameSituation, playbook: [AuthenticPlayDefinition] = []) -> any PlayCall {
@@ -64,7 +75,18 @@ class AICoach {
         let filtered = nonSTPlays.filter { preferredCategories.contains($0.category) }
         let chosen = filtered.isEmpty ? nonSTPlays : filtered
 
-        let pick = chosen.randomElement()!
+        // Weight selection: reduce weight of recently called play types by 50%
+        let weights: [Double] = chosen.map { play in
+            recentPlayTypes.contains(play.name) ? 0.5 : 1.0
+        }
+        let totalWeight = weights.reduce(0, +)
+        var roll = Double.random(in: 0..<totalWeight)
+        var pick = chosen.last!
+        for (i, w) in weights.enumerated() {
+            roll -= w
+            if roll <= 0 { pick = chosen[i]; break }
+        }
+        recordPlayType(pick.name)
         return AuthenticPlayCall(play: pick)
     }
 
@@ -93,6 +115,7 @@ class AICoach {
             formation = [.singleback, .shotgun].randomElement()!
             playType = [.insideRun, .shortPass, .mediumPass].randomElement()!
         }
+        recordPlayType(String(describing: playType))
         return StandardPlayCall(formation: formation, playType: playType)
     }
 

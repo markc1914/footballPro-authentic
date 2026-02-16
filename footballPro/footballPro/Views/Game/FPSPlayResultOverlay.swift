@@ -30,7 +30,7 @@ struct FPSPlayResultOverlay: View {
             GeometryReader { geo in
                 resultBox
                     .frame(maxWidth: 500)
-                    .position(x: geo.size.width * 0.45, y: geo.size.height * 0.5)
+                    .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
             }
         }
     }
@@ -96,7 +96,7 @@ struct FPSPlayResultOverlay: View {
             }
         }
         .frame(maxWidth: 500)
-        .background(VGA.panelVeryDark.opacity(0.92))
+        .background(Color(red: 0.23, green: 0.23, blue: 0.29))
         .modifier(DOSPanelBorder(.raised, width: 1))
     }
 

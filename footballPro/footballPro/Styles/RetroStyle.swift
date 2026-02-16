@@ -370,7 +370,7 @@ struct FPSPlaySlot: View {
                     .frame(width: 18, alignment: .trailing)
 
                 Text(playName)
-                    .font(.system(size: 11, weight: .regular, design: .monospaced).italic())
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
                     .foregroundColor(isSelected ? .black : .white)
                     .lineLimit(1)
 

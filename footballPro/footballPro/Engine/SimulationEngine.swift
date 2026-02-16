@@ -118,7 +118,7 @@ class SimulationEngine: ObservableObject {
                     game.awayTeamStats.penaltyYards += penalty.yards
                 } else {
                     game.homeTeamStats.penalties += 1
-                    game.awayTeamStats.penaltyYards += penalty.yards
+                    game.homeTeamStats.penaltyYards += penalty.yards
                 }
             }
         } else {
@@ -322,6 +322,28 @@ class SimulationEngine: ObservableObject {
             game.currentDrive?.plays.append(result)
         }
 
+        // AI timeout check: non-possessing team considers calling a timeout after the play
+        let aiTimeoutSituation = GameSituation(
+            down: game.downAndDistance.down,
+            yardsToGo: game.downAndDistance.yardsToGo,
+            fieldPosition: game.fieldPosition.yardLine,
+            quarter: game.clock.quarter,
+            timeRemaining: game.clock.timeRemaining,
+            scoreDifferential: game.isHomeTeamPossession ?
+                game.score.awayScore - game.score.homeScore :
+                game.score.homeScore - game.score.awayScore,
+            isRedZone: game.fieldPosition.isRedZone
+        )
+        let defTimeouts = game.isHomeTeamPossession ? game.awayTimeouts : game.homeTimeouts
+        if game.clock.isRunning && aiCoach.shouldCallTimeout(situation: aiTimeoutSituation, timeoutsRemaining: defTimeouts) {
+            if game.isHomeTeamPossession {
+                game.awayTimeouts -= 1
+            } else {
+                game.homeTimeouts -= 1
+            }
+            game.clock.isRunning = false
+        }
+
         // Check for end of quarter
         if game.clock.timeRemaining <= 0 {
             handleEndOfQuarter(game: &game)
@@ -375,8 +397,8 @@ class SimulationEngine: ObservableObject {
             let bigPlayChance = Double.random(in: 0...1)
 
             let returnYards: Int
-            if bigPlayChance < 0.02 {
-                // ~2% chance of kick return TD
+            if bigPlayChance < 0.003 {
+                // ~0.3% chance of kick return TD (NFL realistic)
                 returnYards = 100
             } else if bigPlayChance < 0.05 {
                 // ~3% chance of big return (50-80 yards)
@@ -438,7 +460,8 @@ class SimulationEngine: ObservableObject {
         let accuracy = kicker?.ratings.kickAccuracy ?? 70
 
         // Extra points are from 15 yards (33 yard kick)
-        let successChance = Double(accuracy) / 100.0 * 0.95 // 95% base rate modified by accuracy
+        // NFL XP rate is ~94%. Scale slightly by kicker accuracy around that baseline.
+        let successChance = 0.94 + Double(accuracy - 70) * 0.002
         let success = Double.random(in: 0...1) < successChance
 
         if success {
@@ -517,8 +540,8 @@ class SimulationEngine: ObservableObject {
             successChance = 0.30
         }
 
-        // Modify by kicker ratings
-        let ratingModifier = Double(kickPower + kickAccuracy) / 200.0
+        // Modify by kicker ratings — centered around 1.0 so average kickers don't ruin base rates
+        let ratingModifier = 0.85 + Double(kickPower + kickAccuracy) / 1000.0
         successChance *= ratingModifier
 
         // Weather effects

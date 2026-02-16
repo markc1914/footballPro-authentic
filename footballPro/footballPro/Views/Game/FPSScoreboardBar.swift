@@ -3,8 +3,8 @@
 //  footballPro
 //
 //  FPS Football Pro '93 scoreboard bar — matched from actual gameplay video frames
-//  Dark bg, team names with ratings, football possession icon, QTR grid,
-//  amber LED game clock, WIND, TIME OUTS, DOWN, TO GO, BALL ON, PLAY CLOCK
+//  Two-row layout: Away team top, Home team bottom
+//  QTR column headers between rows, game clock + situation on right side
 //
 
 import SwiftUI
@@ -18,83 +18,151 @@ struct FPSScoreboardBar: View {
 
     var body: some View {
         if let game = viewModel.game {
-            VStack(spacing: 0) {
-                // Top row: team info + scores + clock + situation
-                HStack(spacing: 0) {
-                    // Left side: Team names, possession, scores
-                    teamScoresBlock(game: game)
+            HStack(spacing: 0) {
+                // Left section: Team names + scores in two rows with QTR headers
+                VStack(spacing: 0) {
+                    // Row 1: Away team
+                    teamRow(
+                        name: viewModel.awayTeam?.name ?? "Away",
+                        rating: viewModel.awayTeam?.overallRating,
+                        hasPossession: !game.isHomeTeamPossession,
+                        quarterScores: quarterScoresArray(game: game, isHome: false),
+                        totalScore: game.score.awayScore,
+                        currentQuarter: game.clock.quarter
+                    )
 
-                    // Center: Game clock (large amber LED)
-                    VStack(spacing: 1) {
+                    // QTR header row (column labels between team rows)
+                    HStack(spacing: 0) {
+                        // Team name placeholder space
+                        Spacer().frame(width: 120)
+
+                        Text("1")
+                            .font(RetroFont.tiny())
+                            .foregroundColor(game.clock.quarter == 1 ? VGA.digitalAmber : VGA.lightGray)
+                            .frame(width: 28)
+                        Text("2")
+                            .font(RetroFont.tiny())
+                            .foregroundColor(game.clock.quarter == 2 ? VGA.digitalAmber : VGA.lightGray)
+                            .frame(width: 28)
+                        Text("3")
+                            .font(RetroFont.tiny())
+                            .foregroundColor(game.clock.quarter == 3 ? VGA.digitalAmber : VGA.lightGray)
+                            .frame(width: 28)
+                        Text("4")
+                            .font(RetroFont.tiny())
+                            .foregroundColor(game.clock.quarter == 4 ? VGA.digitalAmber : VGA.lightGray)
+                            .frame(width: 28)
+                        Text("TOTAL")
+                            .font(RetroFont.tiny())
+                            .foregroundColor(VGA.lightGray)
+                            .frame(width: 48)
+                    }
+                    .frame(height: 12)
+
+                    // Row 2: Home team
+                    teamRow(
+                        name: viewModel.homeTeam?.name ?? "Home",
+                        rating: viewModel.homeTeam?.overallRating,
+                        hasPossession: game.isHomeTeamPossession,
+                        quarterScores: quarterScoresArray(game: game, isHome: true),
+                        totalScore: game.score.homeScore,
+                        currentQuarter: game.clock.quarter
+                    )
+                }
+                .frame(width: 280)
+
+                // Center: Game clock + WIND
+                VStack(spacing: 2) {
+                    FPSDigitalClock(time: game.clock.displayTime, fontSize: 20)
+
+                    HStack(spacing: 4) {
                         Text("WIND")
                             .font(RetroFont.tiny())
                             .foregroundColor(VGA.lightGray)
                         Text("\(windDirection) \(String(format: "%02d", windSpeed))")
-                            .font(RetroFont.small())
+                            .font(RetroFont.tiny())
                             .foregroundColor(VGA.white)
                     }
-                    .frame(width: 60)
-
-                    FPSDigitalClock(time: game.clock.displayTime, fontSize: 22)
-                        .frame(width: 100)
-
-                    // Right side: Game situation
-                    situationBlock(game: game)
                 }
-                .frame(height: 52)
-                .background(VGA.panelVeryDark)
-                .modifier(DOSPanelBorder(.raised, width: 1))
+                .frame(width: 110)
+
+                // Right section: Situation (two rows: away timeouts top, home timeouts bottom + DOWN/TO GO/BALL ON)
+                VStack(spacing: 2) {
+                    // Away team timeouts row
+                    HStack(spacing: 8) {
+                        HStack(spacing: 2) {
+                            Text("T/O")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.awayTimeouts)")
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.digitalAmber)
+                        }
+
+                        Spacer()
+                    }
+
+                    // Situation data row
+                    HStack(spacing: 8) {
+                        VStack(spacing: 0) {
+                            Text("DOWN")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.downAndDistance.down)")
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.digitalAmber)
+                        }
+
+                        VStack(spacing: 0) {
+                            Text("TO GO")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.downAndDistance.yardsToGo)")
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.white)
+                        }
+
+                        VStack(spacing: 0) {
+                            Text("BALL ON")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text(game.fieldPosition.displayYardLine)
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.digitalAmber)
+                        }
+
+                        VStack(spacing: 0) {
+                            Text("PLAY CLK")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            FPSDigitalClock(time: "\(viewModel.playClockSeconds)", fontSize: 12)
+                        }
+                    }
+
+                    // Home team timeouts row
+                    HStack(spacing: 8) {
+                        HStack(spacing: 2) {
+                            Text("T/O")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.homeTimeouts)")
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.digitalAmber)
+                        }
+
+                        Spacer()
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
             }
+            .frame(height: 60)
+            .background(VGA.panelVeryDark)
+            .modifier(DOSPanelBorder(.raised, width: 1))
         }
     }
 
-    // MARK: - Team Scores Block (left side)
-
-    private func teamScoresBlock(game: Game) -> some View {
-        VStack(spacing: 0) {
-            // Away team row
-            teamRow(
-                name: viewModel.awayTeam?.name ?? "Away",
-                rating: viewModel.awayTeam?.overallRating,
-                hasPossession: !game.isHomeTeamPossession,
-                quarterScores: quarterScoresArray(game: game, isHome: false),
-                totalScore: game.score.awayScore,
-                currentQuarter: game.clock.quarter
-            )
-
-            // QTR header row
-            HStack(spacing: 0) {
-                Text("QTR:")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                    .frame(width: 100, alignment: .leading)
-                    .padding(.leading, 4)
-
-                ForEach(1...4, id: \.self) { q in
-                    Text("\(q)")
-                        .font(RetroFont.tiny())
-                        .foregroundColor(game.clock.quarter == q ? VGA.digitalAmber : VGA.lightGray)
-                        .frame(width: 28)
-                }
-
-                Text("TOTAL")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                    .frame(width: 48)
-            }
-
-            // Home team row
-            teamRow(
-                name: viewModel.homeTeam?.name ?? "Home",
-                rating: viewModel.homeTeam?.overallRating,
-                hasPossession: game.isHomeTeamPossession,
-                quarterScores: quarterScoresArray(game: game, isHome: true),
-                totalScore: game.score.homeScore,
-                currentQuarter: game.clock.quarter
-            )
-        }
-        .frame(width: 320)
-    }
+    // MARK: - Team Row
 
     private func teamRow(
         name: String,
@@ -105,32 +173,28 @@ struct FPSScoreboardBar: View {
         currentQuarter: Int
     ) -> some View {
         HStack(spacing: 0) {
-            // Team name
-            HStack(spacing: 4) {
+            // Team name + possession football + rating
+            HStack(spacing: 3) {
                 Text(name)
                     .font(RetroFont.small())
                     .foregroundColor(VGA.white)
                     .lineLimit(1)
 
-                // Possession indicator (amber dot, matching original FPS '93)
+                // Possession indicator (small football shape)
                 if hasPossession {
-                    Circle()
+                    Ellipse()
                         .fill(VGA.digitalAmber)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 8, height: 5)
+                }
+
+                if let rating = rating {
+                    Text("(\(rating))")
+                        .font(RetroFont.tiny())
+                        .foregroundColor(VGA.digitalAmber)
                 }
             }
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 120, alignment: .leading)
             .padding(.leading, 4)
-
-            // Rating in parens
-            if let rating = rating {
-                Text("(\(rating))")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.digitalAmber)
-                    .frame(width: 32)
-            } else {
-                Spacer().frame(width: 32)
-            }
 
             // Quarter scores
             ForEach(0..<4, id: \.self) { q in
@@ -146,70 +210,7 @@ struct FPSScoreboardBar: View {
                 .foregroundColor(VGA.white)
                 .frame(width: 48)
         }
-    }
-
-    // MARK: - Situation Block (right side)
-
-    private func situationBlock(game: Game) -> some View {
-        HStack(spacing: 12) {
-            VStack(spacing: 1) {
-                Text("TIME OUTS")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                // Away team timeouts
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { i in
-                        Circle()
-                            .fill(i < game.awayTimeouts ? VGA.digitalAmber : VGA.darkGray)
-                            .frame(width: 6, height: 6)
-                    }
-                }
-                // Home team timeouts
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { i in
-                        Circle()
-                            .fill(i < game.homeTimeouts ? VGA.digitalAmber : VGA.darkGray)
-                            .frame(width: 6, height: 6)
-                    }
-                }
-            }
-
-            VStack(spacing: 1) {
-                Text("DOWN")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                Text("\(game.downAndDistance.down)")
-                    .font(RetroFont.small())
-                    .foregroundColor(VGA.digitalAmber)
-            }
-
-            VStack(spacing: 1) {
-                Text("TO GO")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                Text("\(game.downAndDistance.yardsToGo)")
-                    .font(RetroFont.small())
-                    .foregroundColor(VGA.white)
-            }
-
-            VStack(spacing: 1) {
-                Text("BALL ON")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                Text(game.fieldPosition.displayYardLine)
-                    .font(RetroFont.small())
-                    .foregroundColor(VGA.digitalAmber)
-            }
-
-            VStack(spacing: 1) {
-                Text("PLAY CLOCK")
-                    .font(RetroFont.tiny())
-                    .foregroundColor(VGA.lightGray)
-                FPSDigitalClock(time: "\(viewModel.playClockSeconds)", fontSize: 14)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 4)
+        .frame(height: 16)
     }
 
     // MARK: - Helpers

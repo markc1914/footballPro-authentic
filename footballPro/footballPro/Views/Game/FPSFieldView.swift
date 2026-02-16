@@ -612,8 +612,11 @@ struct FPSFieldView: View {
         let bgGreen = Color(red: 0.12, green: 0.38, blue: 0.12)
         context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(bgGreen))
 
-        // Green field surface — solid uniform green #248024 (no grass stripes, matching original FPS '93)
-        let fieldGreen = Color(red: 0.14, green: 0.50, blue: 0.14)  // #248024
+        // Green field surface with alternating grass stripes every 5 yards (matching original FPS '93)
+        let fieldGreenLight = Color(red: 0.18, green: 0.54, blue: 0.18)  // #2D8A2D lighter band
+        let fieldGreenDark = Color(red: 0.14, green: 0.50, blue: 0.14)   // #248024 darker band
+
+        // Base fill with darker green
         let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
         let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
         let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
@@ -624,9 +627,41 @@ struct FPSFieldView: View {
         fieldTrapezoid.addLine(to: farRight)
         fieldTrapezoid.addLine(to: nearRight)
         fieldTrapezoid.closeSubpath()
-        context.fill(fieldTrapezoid, with: .color(fieldGreen))
+        context.fill(fieldTrapezoid, with: .color(fieldGreenDark))
 
         let (minYard, maxYard) = proj.visibleYardRange(isFieldFlipped: isFieldFlipped)
+
+        // Draw alternating grass stripes every 5 yards (light bands on even 5-yard zones)
+        // Zones: 0-5 = zone 0, 5-10 = zone 1, etc. Even zones get lighter stripe.
+        let stripeMinYard = max(-10, minYard - 5)
+        let stripeMaxYard = min(110, maxYard + 5)
+        for zoneStart in stride(from: (stripeMinYard / 5) * 5, through: stripeMaxYard, by: 5) {
+            let zoneIndex = zoneStart / 5
+            guard zoneIndex % 2 == 0 else { continue }  // Only draw light stripes on even zones
+
+            let yardNear = zoneStart
+            let yardFar = zoneStart + 5
+
+            let depthNear = proj.yardToDepth(yardNear, isFieldFlipped: isFieldFlipped)
+            let depthFar = proj.yardToDepth(yardFar, isFieldFlipped: isFieldFlipped)
+
+            // Clamp to visible range
+            let dMin = min(depthNear, depthFar)
+            let dMax = max(depthNear, depthFar)
+            if dMax < -0.05 || dMin > 1.05 { continue }
+
+            let clampedNear = max(0, min(dMin, 1.0))
+            let clampedFar = max(0, min(dMax, 1.0))
+
+            let (tl, tr, br, bl) = proj.trapezoid(depthNear: clampedNear, depthFar: clampedFar)
+            var stripePath = Path()
+            stripePath.move(to: bl)
+            stripePath.addLine(to: tl)
+            stripePath.addLine(to: tr)
+            stripePath.addLine(to: br)
+            stripePath.closeSubpath()
+            context.fill(stripePath, with: .color(fieldGreenLight))
+        }
 
         // End zones — same green as field in original FPS '93 (no colored fill)
 
@@ -671,7 +706,7 @@ struct FPSFieldView: View {
             }
         }
 
-        // Hash marks — every yard, short vertical ticks perpendicular to yard lines (FPS '93 style)
+        // Hash marks — every yard, short horizontal dashes parallel to yard lines (FPS '93 style)
         for yard in max(1, minYard)..<min(100, maxYard) {
             if yard % 5 == 0 { continue }
             let depth = proj.yardToDepth(yard, isFieldFlipped: isFieldFlipped)
@@ -680,21 +715,21 @@ struct FPSFieldView: View {
             let screenY = proj.depthToScreenY(depth)
             let halfW = proj.widthAtDepth(depth) / 2
             let scale = proj.scaleAtDepth(depth)
-            let hashLen = 4 * scale  // Short vertical tick
+            let hashLen = 4 * scale  // Short horizontal dash width
 
-            // Left hash marks — vertical ticks perpendicular to yard lines
+            // Left hash marks — horizontal dashes parallel to yard lines
             let leftHashX = proj.fieldCenterX - halfW * 0.30
             let leftHash = Path { p in
-                p.move(to: CGPoint(x: leftHashX, y: screenY - hashLen / 2))
-                p.addLine(to: CGPoint(x: leftHashX, y: screenY + hashLen / 2))
+                p.move(to: CGPoint(x: leftHashX - hashLen / 2, y: screenY))
+                p.addLine(to: CGPoint(x: leftHashX + hashLen / 2, y: screenY))
             }
             context.stroke(leftHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
 
             // Right hash marks
             let rightHashX = proj.fieldCenterX + halfW * 0.30
             let rightHash = Path { p in
-                p.move(to: CGPoint(x: rightHashX, y: screenY - hashLen / 2))
-                p.addLine(to: CGPoint(x: rightHashX, y: screenY + hashLen / 2))
+                p.move(to: CGPoint(x: rightHashX - hashLen / 2, y: screenY))
+                p.addLine(to: CGPoint(x: rightHashX + hashLen / 2, y: screenY))
             }
             context.stroke(rightHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
         }
