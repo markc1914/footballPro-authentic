@@ -70,6 +70,7 @@
 		SVC023 /* AnimDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC058; };
 		SVC024 /* SpriteCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC059; };
 		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
+		VIW012 /* AuthenticSplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC061; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -185,6 +186,7 @@
 		SRC058 /* AnimDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimDecoder.swift; sourceTree = "<group>"; };
 		SRC059 /* SpriteCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteCache.swift; sourceTree = "<group>"; };
 		SRC060 /* PlayerAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerAnimationState.swift; sourceTree = "<group>"; };
+		SRC061 /* AuthenticSplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticSplashScreen.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -388,6 +390,7 @@
 				SRC025 /* NavigationBar.swift */,
 				SRC032 /* GameAnimations.swift */,
 				SRC053 /* ScreenshotCaptureWindow.swift */,
+				SRC061 /* AuthenticSplashScreen.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -545,6 +548,7 @@
 				SVC023 /* AnimDecoder.swift in Sources */,
 				SVC024 /* SpriteCache.swift in Sources */,
 				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
+				VIW012 /* AuthenticSplashScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
