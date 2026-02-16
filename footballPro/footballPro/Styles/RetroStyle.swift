@@ -52,6 +52,9 @@ struct VGA {
     // Text colors
     static let yellow = Color(red: 1.0, green: 1.0, blue: 0.0)
     static let cyan = Color(red: 0.0, green: 1.0, blue: 1.0)
+    // Team highlight colors for play result overlays (softer than pure cyan/red)
+    static let teamCyan = Color(red: 0.33, green: 0.73, blue: 1.0)     // ~#55BBFF
+    static let teamRed = Color(red: 0.87, green: 0.20, blue: 0.20)     // ~#DD3333
     static let green = Color(red: 0.0, green: 1.0, blue: 0.0)
     static let brightRed = Color(red: 1.0, green: 0.0, blue: 0.0)
     static let orange = Color(red: 1.0, green: 0.40, blue: 0.0)

@@ -442,7 +442,7 @@ struct FPSFieldView: View {
                         .padding(8)
                 }
                 Spacer()
-                FPSDigitalClock(time: "25", fontSize: 16)
+                FPSDigitalClock(time: "\(viewModel.playClockSeconds)", fontSize: 16)
                     .padding(8)
             }
         }
@@ -612,9 +612,8 @@ struct FPSFieldView: View {
         let bgGreen = Color(red: 0.12, green: 0.38, blue: 0.12)
         context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(bgGreen))
 
-        // Green field surface — base trapezoid
-        let fieldDarkGreen = Color(red: 0.16, green: 0.48, blue: 0.16)   // Dark stripe
-        let fieldLightGreen = Color(red: 0.20, green: 0.50, blue: 0.20)  // Light stripe
+        // Green field surface — solid uniform green #248024 (no grass stripes, matching original FPS '93)
+        let fieldGreen = Color(red: 0.14, green: 0.50, blue: 0.14)  // #248024
         let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
         let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
         let farLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
@@ -625,31 +624,9 @@ struct FPSFieldView: View {
         fieldTrapezoid.addLine(to: farRight)
         fieldTrapezoid.addLine(to: nearRight)
         fieldTrapezoid.closeSubpath()
-        context.fill(fieldTrapezoid, with: .color(fieldDarkGreen))
+        context.fill(fieldTrapezoid, with: .color(fieldGreen))
 
         let (minYard, maxYard) = proj.visibleYardRange(isFieldFlipped: isFieldFlipped)
-
-        // Alternating grass stripes — every 5 yards, alternating light/dark green
-        // Matches original FPS '93 mowed-field look
-        for yard in stride(from: max(-5, minYard), to: min(105, maxYard), by: 5) {
-            let stripeIndex = ((yard + 5) / 5)  // Determine which stripe band
-            if stripeIndex % 2 == 0 { continue } // Only draw light stripes over dark base
-
-            let depthNear = proj.yardToDepth(yard, isFieldFlipped: isFieldFlipped)
-            let depthFar = proj.yardToDepth(yard + 5, isFieldFlipped: isFieldFlipped)
-            let dNear = min(depthNear, depthFar)
-            let dFar = max(depthNear, depthFar)
-            if dFar < -0.1 || dNear > 1.1 { continue }
-
-            let (tl, tr, br, bl) = proj.trapezoid(depthNear: max(0, dNear), depthFar: min(1, dFar))
-            var stripePath = Path()
-            stripePath.move(to: tl)
-            stripePath.addLine(to: tr)
-            stripePath.addLine(to: br)
-            stripePath.addLine(to: bl)
-            stripePath.closeSubpath()
-            context.fill(stripePath, with: .color(fieldLightGreen))
-        }
 
         // End zones — same green as field in original FPS '93 (no colored fill)
 
@@ -694,7 +671,7 @@ struct FPSFieldView: View {
             }
         }
 
-        // Hash marks — every yard, short horizontal dashes like original FPS '93
+        // Hash marks — every yard, short vertical ticks perpendicular to yard lines (FPS '93 style)
         for yard in max(1, minYard)..<min(100, maxYard) {
             if yard % 5 == 0 { continue }
             let depth = proj.yardToDepth(yard, isFieldFlipped: isFieldFlipped)
@@ -703,21 +680,21 @@ struct FPSFieldView: View {
             let screenY = proj.depthToScreenY(depth)
             let halfW = proj.widthAtDepth(depth) / 2
             let scale = proj.scaleAtDepth(depth)
-            let hashLen = 8 * scale
+            let hashLen = 4 * scale  // Short vertical tick
 
-            // Left hash marks — horizontal dashes parallel to yard lines
+            // Left hash marks — vertical ticks perpendicular to yard lines
             let leftHashX = proj.fieldCenterX - halfW * 0.30
             let leftHash = Path { p in
-                p.move(to: CGPoint(x: leftHashX - hashLen / 2, y: screenY))
-                p.addLine(to: CGPoint(x: leftHashX + hashLen / 2, y: screenY))
+                p.move(to: CGPoint(x: leftHashX, y: screenY - hashLen / 2))
+                p.addLine(to: CGPoint(x: leftHashX, y: screenY + hashLen / 2))
             }
             context.stroke(leftHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
 
             // Right hash marks
             let rightHashX = proj.fieldCenterX + halfW * 0.30
             let rightHash = Path { p in
-                p.move(to: CGPoint(x: rightHashX - hashLen / 2, y: screenY))
-                p.addLine(to: CGPoint(x: rightHashX + hashLen / 2, y: screenY))
+                p.move(to: CGPoint(x: rightHashX, y: screenY - hashLen / 2))
+                p.addLine(to: CGPoint(x: rightHashX, y: screenY + hashLen / 2))
             }
             context.stroke(rightHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
         }
@@ -737,7 +714,9 @@ struct FPSFieldView: View {
         // End zone text
         drawEndZoneText(context: context, proj: proj, minYard: minYard, maxYard: maxYard)
 
-        // Goalpost — simple blue vertical line at far end zone (FPS '93 style)
+        // Goalpost — yellow uprights with blue padding at base (FPS '93 style)
+        let goalpostYellow = Color(red: 0.9, green: 0.85, blue: 0.1)
+        let goalpostBasePad = Color(red: 0.1, green: 0.1, blue: 0.6)
         for goalYard in [0, 100] {
             let depth = proj.yardToDepth(goalYard, isFieldFlipped: isFieldFlipped)
             if depth < 0.6 || depth > 1.05 { continue } // Only draw when far enough away
@@ -747,19 +726,26 @@ struct FPSFieldView: View {
             let postHeight = 30 * scale
             let postWidth = max(2, 3 * scale)
 
+            // Blue padding at base
+            let padH = 5 * scale
+            let padW = 6 * scale
+            let padRect = CGRect(x: proj.fieldCenterX - padW / 2, y: screenY - padH, width: padW, height: padH)
+            context.fill(Path(padRect), with: .color(goalpostBasePad))
+
+            // Yellow vertical post
             let postPath = Path { p in
-                p.move(to: CGPoint(x: proj.fieldCenterX, y: screenY))
+                p.move(to: CGPoint(x: proj.fieldCenterX, y: screenY - padH))
                 p.addLine(to: CGPoint(x: proj.fieldCenterX, y: screenY - postHeight))
             }
-            context.stroke(postPath, with: .color(Color(red: 0.1, green: 0.1, blue: 0.6)), lineWidth: postWidth)
+            context.stroke(postPath, with: .color(goalpostYellow), lineWidth: postWidth)
 
-            // Crossbar
+            // Yellow crossbar
             let crossWidth = 14 * scale
             let crossPath = Path { p in
                 p.move(to: CGPoint(x: proj.fieldCenterX - crossWidth, y: screenY - postHeight))
                 p.addLine(to: CGPoint(x: proj.fieldCenterX + crossWidth, y: screenY - postHeight))
             }
-            context.stroke(crossPath, with: .color(Color(red: 0.1, green: 0.1, blue: 0.6)), lineWidth: max(1.5, 2 * scale))
+            context.stroke(crossPath, with: .color(goalpostYellow), lineWidth: max(1.5, 2 * scale))
         }
 
         // Line of scrimmage (cyan) and first down marker (yellow) — prominent like original
@@ -775,6 +761,16 @@ struct FPSFieldView: View {
                     p.addLine(to: CGPoint(x: proj.fieldCenterX + losHalfW, y: losY))
                 }
                 context.stroke(losPath, with: .color(VGA.cyan.opacity(0.7)), lineWidth: 3.0 * losScale)
+
+                // LOS "X" marker at center of field (FPS '93 pre-snap indicator)
+                let xSize = 4 * losScale
+                let xPath = Path { p in
+                    p.move(to: CGPoint(x: proj.fieldCenterX - xSize, y: losY - xSize))
+                    p.addLine(to: CGPoint(x: proj.fieldCenterX + xSize, y: losY + xSize))
+                    p.move(to: CGPoint(x: proj.fieldCenterX + xSize, y: losY - xSize))
+                    p.addLine(to: CGPoint(x: proj.fieldCenterX - xSize, y: losY + xSize))
+                }
+                context.stroke(xPath, with: .color(VGA.cyan), lineWidth: max(1.5, 2 * losScale))
             }
 
             let firstDownYard = game.fieldPosition.yardLine + game.downAndDistance.yardsToGo
@@ -1166,16 +1162,8 @@ struct AuthenticPlayerSprite: View {
                 // Ball carrier green number box overlay (FPS '93 signature feature!)
                 if player.hasBall {
                     let boxYOffset: CGFloat = player.pose == .down ? -4 : -CGFloat(frame.height) * baseScale / 2 - 10
-                    VStack(spacing: 0) {
-                        Text("\(player.number)")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color(red: 0.0, green: 0.7, blue: 0.0))
-                            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    }
-                    .offset(y: boxYOffset)
+                    BallCarrierNumberBox(number: player.number)
+                        .offset(y: boxYOffset)
                 }
             }
             .frame(
@@ -1191,6 +1179,36 @@ struct AuthenticPlayerSprite: View {
             // Fallback to geometric shapes
             RetroPlayerSprite(player: player, isDefense: isDefense)
         }
+    }
+}
+
+// MARK: - Ball Carrier Number Box (FPS '93 — bright green with alternating border)
+
+struct BallCarrierNumberBox: View {
+    let number: Int
+    @State private var borderPhase = false
+
+    // Bright green matching original (#00CC00)
+    private let boxGreen = Color(red: 0.0, green: 0.80, blue: 0.0)
+    private let boxBorderDark = Color(red: 0.0, green: 0.55, blue: 0.0)
+
+    var body: some View {
+        Text("\(number)")
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundColor(.white)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(boxGreen)
+            .overlay(
+                Rectangle()
+                    .stroke(borderPhase ? Color.blue : Color.orange, lineWidth: 1.5)
+            )
+            .onAppear {
+                // Alternate border color every 0.3s
+                Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
+                    borderPhase.toggle()
+                }
+            }
     }
 }
 
@@ -1271,14 +1289,16 @@ struct RetroPlayerSprite: View {
                 drawStanding(context: context, cx: cx, cy: cy)
             }
 
-            // === BALL CARRIER: GREEN NUMBER BOX (FPS '93 signature feature!) ===
+            // Ball carrier green number box is rendered as SwiftUI overlay (BallCarrierNumberBox)
+            // Canvas can't host SwiftUI Timer-driven views, so the green box for RetroPlayerSprite
+            // is drawn statically here as a fallback
             if player.hasBall {
                 let boxY: CGFloat = player.pose == .down ? cy - 14 : cy - 30
                 let numBoxW: CGFloat = 22
                 let numBoxH: CGFloat = 13
                 let numBoxRect = CGRect(x: cx - numBoxW / 2, y: boxY, width: numBoxW, height: numBoxH)
-                context.fill(Path(numBoxRect), with: .color(Color(red: 0.0, green: 0.7, blue: 0.0)))
-                context.stroke(Path(numBoxRect), with: .color(.black), lineWidth: 1)
+                context.fill(Path(numBoxRect), with: .color(Color(red: 0.0, green: 0.80, blue: 0.0)))
+                context.stroke(Path(numBoxRect), with: .color(Color.orange), lineWidth: 1.5)
 
                 let ballNumText = Text("\(player.number)")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))

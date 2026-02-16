@@ -106,19 +106,16 @@ struct FPSPlayCallingScreen: View {
     private var bottomButtonBar: some View {
         HStack(spacing: 0) {
             FPSButton("TIME OUT") { }
-                .opacity(0.5)
                 .disabled(true)
 
             Spacer()
 
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") { }
-                .opacity(0.5)
                 .disabled(true)
 
             Spacer()
 
             FPSButton("READY - BREAK!") { }
-                .opacity(0.5)
                 .disabled(true)
         }
     }
@@ -136,13 +133,26 @@ struct FPSPlayCallingScreen: View {
     }
 
     private var statusText: String {
-        if viewModel.isUserPossession {
-            if showSpecialTeams {
-                return "\(viewModel.possessionTeamName) is in a special teams formation"
-            }
-            return "\(viewModel.possessionTeamName) has called a regular play"
-        } else {
-            return "\(viewModel.possessionTeamName) has called a regular play"
+        let teamName = viewModel.possessionTeamName
+        if showSpecialTeams {
+            return "\(teamName) is in a special teams formation"
+        }
+        if let game = viewModel.game {
+            let down = game.downAndDistance.down
+            let toGo = game.downAndDistance.yardsToGo
+            let yard = game.fieldPosition.displayYardLine
+            return "\(teamName) — \(downOrdinal(down)) and \(toGo) on \(yard)"
+        }
+        return "\(teamName) has called a regular play"
+    }
+
+    private func downOrdinal(_ down: Int) -> String {
+        switch down {
+        case 1: return "1st"
+        case 2: return "2nd"
+        case 3: return "3rd"
+        case 4: return "4th"
+        default: return "\(down)th"
         }
     }
 
@@ -187,7 +197,7 @@ struct FPSPlayCallingScreen: View {
             HStack {
                 if !name.isEmpty && name != "---" {
                     Text(name)
-                        .font(.system(size: 11, weight: .regular, design: .monospaced).italic())
+                        .font(RetroFont.small())
                         .foregroundColor(selectedSlot == number ? .black : .white)
                         .lineLimit(1)
                 }
@@ -201,36 +211,69 @@ struct FPSPlayCallingScreen: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Opponent Slot Grid (hidden plays)
+    // MARK: - Opponent Slot Grid (hidden plays with notification overlay)
 
     private var opponentSlotGrid: some View {
-        VStack(spacing: 1) {
-            ForEach(0..<8, id: \.self) { row in
-                HStack(spacing: 0) {
-                    Text("\(row + 1)")
-                        .font(RetroFont.bodyBold())
-                        .foregroundColor(.black)
-                        .frame(width: 18, alignment: .trailing)
-                        .padding(.trailing, 2)
-
-                    // Empty green slots for opponent
+        ZStack {
+            VStack(spacing: 1) {
+                ForEach(0..<8, id: \.self) { row in
                     HStack(spacing: 0) {
-                        Rectangle()
-                            .fill(VGA.playSlotGreen)
-                            .border(VGA.playSlotDark, width: 1)
-                        Rectangle()
-                            .fill(VGA.playSlotGreen)
-                            .border(VGA.playSlotDark, width: 1)
-                    }
+                        Text("\(row + 1)")
+                            .font(RetroFont.bodyBold())
+                            .foregroundColor(.black)
+                            .frame(width: 18, alignment: .trailing)
+                            .padding(.trailing, 2)
 
-                    Text("\(row + 9)")
-                        .font(RetroFont.bodyBold())
-                        .foregroundColor(.black)
-                        .frame(width: 18, alignment: .leading)
-                        .padding(.leading, 2)
+                        // Empty green slots for opponent
+                        HStack(spacing: 0) {
+                            Rectangle()
+                                .fill(VGA.playSlotGreen)
+                                .border(VGA.playSlotDark, width: 1)
+                            Rectangle()
+                                .fill(VGA.playSlotGreen)
+                                .border(VGA.playSlotDark, width: 1)
+                        }
+
+                        Text("\(row + 9)")
+                            .font(RetroFont.bodyBold())
+                            .foregroundColor(.black)
+                            .frame(width: 18, alignment: .leading)
+                            .padding(.leading, 2)
+                    }
                 }
             }
+
+            // Opponent notification panel (raised gray panel like original FPS '93)
+            Text(opponentNotificationText)
+                .font(RetroFont.body())
+                .foregroundColor(.black)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(VGA.panelBg)
+                .modifier(DOSPanelBorder(.raised, width: 1))
         }
+    }
+
+    private var opponentNotificationText: String {
+        // When user is on offense, opponent = defense (non-possessing team)
+        // When user is on defense, opponent = offense (possessing team)
+        let opponentName: String
+        if viewModel.isUserPossession {
+            // User has the ball — opponent is the other team
+            if let game = viewModel.game {
+                let defTeam = game.isHomeTeamPossession ? viewModel.awayTeam : viewModel.homeTeam
+                opponentName = defTeam?.name ?? "Opponent"
+            } else {
+                opponentName = "Opponent"
+            }
+        } else {
+            opponentName = viewModel.possessionTeamName
+        }
+        if showSpecialTeams {
+            return "\(opponentName) is in a special teams formation"
+        }
+        return "\(opponentName) has called a regular play"
     }
 
     // MARK: - Play Data (reads from viewModel's authentic playbook)

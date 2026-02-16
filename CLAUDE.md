@@ -4,7 +4,7 @@
 macOS SwiftUI recreation of **Front Page Sports: Football Pro** (1993, Dynamix/Sierra).
 Reuse as much of the original game as possible: sprites, animations, screens, audio.
 - **Target:** macOS 14+, Swift 5.9, MVVM architecture
-- **Source root:** `footballPro/footballPro/footballPro/` (App/, Engine/, Models/, Views/, ViewModels/, Styles/, Services/, Input/, Resources/)
+- **Source root:** `footballPro/footballPro/footballPro/` (App/, Engine/, Models/, Views/, Views/Franchise/, ViewModels/, Styles/, Services/, Input/, Resources/)
 - **Build:** `open footballPro/footballPro.xcodeproj` then Cmd+R
 - **Original game files:** `~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/`
 - **Reference frames:** `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
@@ -25,7 +25,17 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | `Engine/SimulationEngine.swift` | Core play-by-play simulation |
 | `Engine/PlayerAnimationState.swift` | Per-player animation state machine (~15fps sprite cycling) |
 | `Styles/RetroStyle.swift` | VGA color palette (`VGA` struct) and `RetroFont` presets |
-| `ViewModels/GameViewModel.swift` | Game state MVVM binding |
+| `ViewModels/GameViewModel.swift` | Game state MVVM binding, GamePhase enum state machine |
+| `App/FootballProApp.swift` | App entry, GameScreen enum, GameState, ManagementHubView |
+| `Views/Franchise/StandingsView.swift` | Division/conference standings (W-L-T, PCT, PF, PA) |
+| `Views/Franchise/StatsView.swift` | Tabbed stat leaders (Passing, Rushing, Receiving, Defense) |
+| `Views/Franchise/DraftRoomView.swift` | Draft room with prospect grid, scouting, auto-pick |
+| `Views/Franchise/PlayoffBracketView.swift` | 8-team bracket (4 per conference, seeded 1-4) |
+| `Views/Franchise/TradeProposalView.swift` | Trade builder with fairness evaluation |
+| `Views/Franchise/FreeAgencyView.swift` | Free agent market sorted by rating |
+| `Views/Franchise/DepthChartView.swift` | Position group depth chart editor |
+| `Views/Franchise/SaveLoadView.swift` | 8-slot UserDefaults save/load system |
+| `Views/Franchise/SettingsView.swift` | FranchiseSettingsView (difficulty, audio, speed) |
 
 ## Visual Style Rules (FPS '93 Authenticity)
 
@@ -45,8 +55,9 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - Solid green field (#248024), no grass stripes, no stadium backdrop during gameplay
 - Single perspective camera, ~25 yard visible window (8 behind LOS + 17 ahead)
 - No sideline figures, officials, chain gang, or coaches (clean like original)
-- Current: RetroPlayerSprite geometric shapes (TEMPORARY — to be replaced by original sprites)
+- AuthenticPlayerSprite renders original ANIM.DAT sprites (falls back to RetroPlayerSprite if files missing)
 - Green number box overlay on ball carrier (matching original FPS '93 style)
+- Team color remapping via SpriteCache.setTeamColors() (CT1=home, CT2=away palette overrides)
 - Amber LED clocks at bottom corners only
 
 ## Important Patterns & Rules
@@ -90,12 +101,11 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 
 | File | Size | Status | Content |
 |------|------|--------|---------|
-| `ANIM.DAT` | 985KB | **FULLY DECODED** — LZ77 + rendering pipeline reversed | 71 animations, ~2752 sprites, 8 directions |
-| `*.SCR` | 3-29KB | **DECODED** (tools/scr_decoder.py) | Full-screen VGA graphics (4-bit dual-plane) |
 | `*.DDA` | 34-429KB | Unexamined | Dynamix Delta Animation cutscenes |
-| `SAMPLE.DAT` | 855KB | Partially decoded: 8-bit unsigned PCM | ~115 audio samples |
 | `STOCK.DAT` | — | Unexamined | Stock team/player data |
 | `1992.DAT/.IDX` | — | Unexamined | Season/roster data with index |
+
+All major game data formats are fully decoded: ANIM.DAT (sprites), SCR (screens), SAMPLE.DAT (audio), PAL (palettes), LGE/PYR (teams/players), PRF/PLN (playbooks), and 10+ supporting data files.
 
 ---
 
@@ -173,7 +183,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | *.PAL | 784B each | **DECODED** (PALDecoder) | VGA palettes, 256 RGB colors |
 | *.SCR | 3-29KB | Header: `SCR:` + `BIN:` compressed bitmap | Full-screen VGA graphics (title, intro, championship) |
 | *.DDA | 34-429KB | Unexamined | Dynamix Delta Animation scripts (cutscenes) |
-| SAMPLE.DAT | 855KB | Partially decoded: offset table + 8-bit unsigned PCM | ~115 audio samples (crowd, whistle, hits) |
+| SAMPLE.DAT | 855KB | **DECODED** (SampleDecoder + SampleAudioService) | ~115 audio samples (crowd, whistle, hits) |
 
 ---
 
@@ -345,35 +355,55 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - VQT: format for BALL.SCR and KICK.SCR (Vector Quantization, separate codec)
 - DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA)
 
-### Phase G: Audio (SAMPLE.DAT) — IN PROGRESS
+### Phase G: Audio (SAMPLE.DAT) — COMPLETE
 **Goal:** Add original game sound effects.
-**Status:** Decoder + playback service implemented. SoundManager prefers authentic samples.
+**Status:** COMPLETE. Decoder + playback + SoundManager all wired.
 **Files:**
 - `Services/SampleDecoder.swift`: SAMPLE.DAT decoder (offset table + 8-bit unsigned PCM)
 - `Services/SampleAudioService.swift`: WAV wrapping + AVAudioPlayer playback
 - `Services/SoundManager.swift`: Prefers authentic samples, falls back to synthetic tones
 - `Tests/AudioDecoderTests.swift`: Decoder + playback tests passing
-**Remaining:**
-- Identify and map all ~115 samples to game events by listening
-- Fine-tune audio mixing and timing
+
+### Phase H: Franchise Mode — COMPLETE
+**Goal:** Full franchise management UI (9 screens).
+**Status:** COMPLETE. All views wired into ManagementHubView navigation.
+**Files:**
+- `Views/Franchise/StandingsView.swift`: Division/conference standings
+- `Views/Franchise/StatsView.swift`: Tabbed stat leaders
+- `Views/Franchise/DraftRoomView.swift`: Draft room with scouting + auto-pick
+- `Views/Franchise/PlayoffBracketView.swift`: 8-team seeded bracket
+- `Views/Franchise/TradeProposalView.swift`: Trade builder with AI evaluation
+- `Views/Franchise/FreeAgencyView.swift`: Free agent market
+- `Views/Franchise/DepthChartView.swift`: Position group depth chart editor
+- `Views/Franchise/SaveLoadView.swift`: 8-slot UserDefaults save/load
+- `Views/Franchise/SettingsView.swift`: FranchiseSettingsView (difficulty, audio, speed)
+**Navigation:** `ManagementHubView` in `FootballProApp.swift` uses `ManagementScreen` enum (hub, freeAgency, trade, draft, standings, stats, depthChart, saveLoad, settings)
+
+### Gameplay Polish — COMPLETE
+- **Celebrations:** Random end zone animations (EZBOW, EZSPIKE, EZKNEEL, EZSLIDE)
+- **Play clock:** 25-second countdown displayed on scoreboard
+- **Team colors:** Palette override system via SpriteCache.setTeamColors() (CT1=home, CT2=away)
+- **Replay:** GamePhase.replay with FPSReplayControls VCR transport, auto-trigger on big plays
+- **Player progression:** Age-based rating changes, retirement logic (age >36 or age >34 + low rating)
 
 ---
 
 ## Implementation Priority
 
 ```
-Phase A (crack compression) ──────────────→ COMPLETE (pipeline fully reversed)
-Phase B (index parser + LZ77) ────────────→ COMPLETE (AnimDecoder.swift, commit a35a806)
-Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift, commit 603b838)
-Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired, commit 603b838)
-Phase E (animation state machine) ────────→ COMPLETE (PlayerAnimationState.swift + FPSFieldView per-player 15fps)
-Phase F (screen graphics) ────────────────→ COMPLETE — SCRDecoder + AuthenticSplashScreen + GAMINTRO/CHAMP wired
-Phase G (audio) ──────────────────────────→ IN PROGRESS — SampleDecoder + SampleAudioService + SoundManager wired
-Phase T (test automation) ────────────────→ COMPLETE — 5 new test suites, 57 tests, all passing
+Phase A (crack compression) ──────────────→ COMPLETE
+Phase B (index parser + LZ77) ────────────→ COMPLETE (AnimDecoder.swift)
+Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift)
+Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired)
+Phase E (animation state machine) ────────→ COMPLETE (PlayerAnimationState.swift + 15fps cycling)
+Phase F (screen graphics) ────────────────→ COMPLETE (SCRDecoder + splash/intro/champ screens)
+Phase G (audio) ──────────────────────────→ COMPLETE (SampleDecoder + SoundManager)
+Phase H (franchise mode) ────────────────→ COMPLETE (9 franchise views + ManagementHubView)
+Phase T (test automation) ────────────────→ COMPLETE (7 test suites, all passing)
+Gameplay polish ──────────────────────────→ COMPLETE (celebrations, play clock, team colors, replay, progression)
 ```
 
-**Critical path:** E (animation state machine — makes sprites come alive)
-**Parallel:** Phase F + Phase G + Phase T can all start immediately
+**All core phases complete.** Remaining work: visual/gameplay accuracy refinement to match original game more closely.
 
 ## Fallback Strategy
 

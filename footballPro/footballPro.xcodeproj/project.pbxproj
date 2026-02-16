@@ -72,6 +72,8 @@
 		SVC025 /* SCRDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC062; };
 		SVC026 /* SampleDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC063; };
 		SVC027 /* SampleAudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC064; };
+		SVC028 /* SeasonStatsDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC074; };
+		SVC029 /* StockDATDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC075; };
 		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
 		VIW012 /* AuthenticSplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC061; };
 
@@ -204,6 +206,8 @@
 		SRC062 /* SCRDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCRDecoder.swift; sourceTree = "<group>"; };
 		SRC063 /* SampleDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleDecoder.swift; sourceTree = "<group>"; };
 		SRC064 /* SampleAudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleAudioService.swift; sourceTree = "<group>"; };
+		SRC074 /* SeasonStatsDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonStatsDecoder.swift; sourceTree = "<group>"; };
+		SRC075 /* StockDATDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDATDecoder.swift; sourceTree = "<group>"; };
 
 		/* Franchise Views */
 		SRC065 /* StandingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsView.swift; sourceTree = "<group>"; };
@@ -374,6 +378,8 @@
 				SRC062 /* SCRDecoder.swift */,
 				SRC063 /* SampleDecoder.swift */,
 				SRC064 /* SampleAudioService.swift */,
+				SRC074 /* SeasonStatsDecoder.swift */,
+				SRC075 /* StockDATDecoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -598,6 +604,8 @@
 				SVC025 /* SCRDecoder.swift in Sources */,
 				SVC026 /* SampleDecoder.swift in Sources */,
 				SVC027 /* SampleAudioService.swift in Sources */,
+				SVC028 /* SeasonStatsDecoder.swift in Sources */,
+				SVC029 /* StockDATDecoder.swift in Sources */,
 				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
 				VIW012 /* AuthenticSplashScreen.swift in Sources */,
 				VIW013 /* StandingsView.swift in Sources */,

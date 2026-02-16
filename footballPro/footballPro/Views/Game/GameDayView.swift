@@ -27,10 +27,18 @@ struct GameDayView: View {
                     FPSPlayCallingScreen(viewModel: viewModel)
 
                 case .presnap:
-                    FPSFieldView(viewModel: viewModel)
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        // Pre-snap situation text box (FPS '93 style)
+                        FPSPresnapSituationBox(viewModel: viewModel)
+                    }
 
                 case .playAnimation:
-                    FPSFieldView(viewModel: viewModel)
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        // VCR toolbar at top during play animation (FPS '93 style)
+                        FPSVCRToolbar(viewModel: viewModel)
+                    }
 
                 case .playResult:
                     ZStack {
@@ -441,6 +449,94 @@ struct PregameNarrationView: View {
            let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
             backgroundImage = scr.cgImage(palette: pal)
         }
+    }
+}
+
+// MARK: - Pre-Snap Situation Text Box (FPS '93 style — dark charcoal overlay on field)
+
+struct FPSPresnapSituationBox: View {
+    @ObservedObject var viewModel: GameViewModel
+
+    var body: some View {
+        if let game = viewModel.game {
+            VStack {
+                Spacer()
+
+                Text(situationText(game: game))
+                    .font(RetroFont.body())
+                    .foregroundColor(VGA.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: 480)
+                    .background(VGA.panelVeryDark.opacity(0.88))
+                    .modifier(DOSPanelBorder(.raised, width: 1))
+                    .padding(.bottom, 50)
+            }
+        }
+    }
+
+    private func situationText(game: Game) -> String {
+        let teamName = viewModel.possessionTeamName
+        let yardDesc = game.fieldPosition.displayYardLine.lowercased()
+        let down = game.downAndDistance.displayDownAndDistance
+        let timeLeft = game.clock.displayTime
+        let qtr: String
+        switch game.clock.quarter {
+        case 1: qtr = "first"
+        case 2: qtr = "second"
+        case 3: qtr = "third"
+        case 4: qtr = "fourth"
+        default: qtr = "overtime"
+        }
+        return "\(teamName)'s ball on the \(yardDesc) yard line. \(down) to go. \(timeLeft) left in the \(qtr) quarter."
+    }
+}
+
+// MARK: - VCR Toolbar (Red icon bar at top during play animation, FPS '93 style)
+
+struct FPSVCRToolbar: View {
+    @ObservedObject var viewModel: GameViewModel
+
+    var body: some View {
+        VStack {
+            HStack(spacing: 2) {
+                vcrButton("EJECT") { }
+                vcrButton("STOP") { }
+                vcrButton("#") { }  // Numbers toggle
+                vcrButton("BALL") { }  // Follow ball
+                vcrButton("CAM") { }   // Camera select
+
+                Spacer().frame(width: 8)
+
+                vcrButton("<<") { }   // Fast reverse
+                vcrButton("<") { }    // Reverse
+                vcrButton("||") { }   // Pause
+                vcrButton(">") { }    // Play
+                vcrButton(">>") { }   // Fast forward
+                vcrButton("SLO") { }  // Slow motion
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(VGA.panelVeryDark.opacity(0.85))
+
+            Spacer()
+        }
+    }
+
+    private func vcrButton(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(RetroFont.tiny())
+                .foregroundColor(.white)
+                .frame(width: 36, height: 22)
+                .background(VGA.buttonBg)
+                .overlay(
+                    Rectangle()
+                        .stroke(VGA.buttonHighlight, lineWidth: 1)
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

@@ -12,6 +12,10 @@ import SwiftUI
 struct FPSScoreboardBar: View {
     @ObservedObject var viewModel: GameViewModel
 
+    // Random wind generated once per game (cosmetic display)
+    @State private var windDirection: String = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].randomElement()!
+    @State private var windSpeed: Int = Int.random(in: 0...15)
+
     var body: some View {
         if let game = viewModel.game {
             VStack(spacing: 0) {
@@ -25,7 +29,7 @@ struct FPSScoreboardBar: View {
                         Text("WIND")
                             .font(RetroFont.tiny())
                             .foregroundColor(VGA.lightGray)
-                        Text("SW 01")
+                        Text("\(windDirection) \(String(format: "%02d", windSpeed))")
                             .font(RetroFont.small())
                             .foregroundColor(VGA.white)
                     }
@@ -108,10 +112,11 @@ struct FPSScoreboardBar: View {
                     .foregroundColor(VGA.white)
                     .lineLimit(1)
 
-                // Football icon for possession
+                // Possession indicator (amber dot, matching original FPS '93)
                 if hasPossession {
-                    Text("\u{1F3C8}")
-                        .font(.system(size: 8))
+                    Circle()
+                        .fill(VGA.digitalAmber)
+                        .frame(width: 6, height: 6)
                 }
             }
             .frame(width: 80, alignment: .leading)
@@ -151,13 +156,20 @@ struct FPSScoreboardBar: View {
                 Text("TIME OUTS")
                     .font(RetroFont.tiny())
                     .foregroundColor(VGA.lightGray)
-                // Show timeout pips (filled = remaining, empty = used)
-                let timeouts = game.isHomeTeamPossession ? game.homeTimeouts : game.awayTimeouts
+                // Away team timeouts
                 HStack(spacing: 3) {
                     ForEach(0..<3, id: \.self) { i in
                         Circle()
-                            .fill(i < timeouts ? VGA.digitalAmber : VGA.darkGray)
-                            .frame(width: 8, height: 8)
+                            .fill(i < game.awayTimeouts ? VGA.digitalAmber : VGA.darkGray)
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                // Home team timeouts
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .fill(i < game.homeTimeouts ? VGA.digitalAmber : VGA.darkGray)
+                            .frame(width: 6, height: 6)
                     }
                 }
             }
@@ -203,10 +215,10 @@ struct FPSScoreboardBar: View {
     // MARK: - Helpers
 
     private func quarterScoresArray(game: Game, isHome: Bool) -> [String] {
-        (1...4).map { q in
-            if q > game.clock.quarter { return "00" }
-            if q == game.clock.quarter {
-                return String(format: "%02d", isHome ? game.score.homeScore : game.score.awayScore)
+        let scores = isHome ? game.score.homeQuarterScores : game.score.awayQuarterScores
+        return (0..<4).map { i in
+            if i < scores.count {
+                return String(format: "%02d", scores[i])
             }
             return "00"
         }
