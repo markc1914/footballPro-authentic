@@ -21,23 +21,7 @@ struct GameDayView: View {
                 // State machine: show the right screen for the current phase
                 switch viewModel.currentPhase {
                 case .pregameNarration:
-                    ZStack {
-                        Color.black.ignoresSafeArea()
-                        VStack(spacing: 24) {
-                            Spacer()
-                            Text(viewModel.narrationText)
-                                .font(RetroFont.body())
-                                .foregroundColor(VGA.white)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                                .lineSpacing(4)
-                            Spacer()
-                            FPSButton("START GAME") {
-                                viewModel.startGameAfterNarration()
-                            }
-                            Spacer().frame(height: 40)
-                        }
-                    }
+                    PregameNarrationView(viewModel: viewModel)
 
                 case .playCalling:
                     FPSPlayCallingScreen(viewModel: viewModel)
@@ -132,6 +116,7 @@ struct GameDayView: View {
                         homeTeam: viewModel.homeTeam,
                         awayTeam: viewModel.awayTeam,
                         game: game,
+                        isChampionship: isCurrentGameChampionship,
                         onContinue: {
                             recordGameResult()
                             gameState.currentScreen = .season
@@ -168,6 +153,16 @@ struct GameDayView: View {
         .onAppear {
             setupGame()
         }
+    }
+
+    private var isCurrentGameChampionship: Bool {
+        guard let game = viewModel.game,
+              let season = gameState.currentSeason else { return false }
+        return season.schedule.first(where: {
+            $0.homeTeamId == game.homeTeamId &&
+            $0.awayTeamId == game.awayTeamId &&
+            $0.week == game.week
+        })?.playoffRound == .championship
     }
 
     private func recordGameResult() {
@@ -300,13 +295,24 @@ struct GameOverView: View {
     let homeTeam: Team?
     let awayTeam: Team?
     let game: Game
+    var isChampionship: Bool = false
     let onContinue: () -> Void
+
+    @State private var champImage: CGImage?
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            FPSDialog("FINAL SCORE") {
+            // CHAMP.SCR background for championship games
+            if isChampionship, let bg = champImage {
+                Image(decorative: bg, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .opacity(0.4)
+            }
+
+            FPSDialog(isChampionship ? "CHAMPIONS!" : "FINAL SCORE") {
                 VStack(spacing: 16) {
                     Spacer().frame(height: 8)
 
@@ -335,9 +341,9 @@ struct GameOverView: View {
                     }
 
                     if let winner = game.score.homeScore > game.score.awayScore ? homeTeam : awayTeam {
-                        Text("\(winner.fullName) WIN!")
+                        Text(isChampionship ? "\(winner.fullName) ARE CHAMPIONS!" : "\(winner.fullName) WIN!")
                             .font(RetroFont.title())
-                            .foregroundColor(VGA.digitalAmber)
+                            .foregroundColor(isChampionship ? VGA.yellow : VGA.digitalAmber)
                     } else if game.score.isTied {
                         Text("TIE GAME")
                             .font(RetroFont.title())
@@ -355,6 +361,18 @@ struct GameOverView: View {
                 .padding(24)
             }
         }
+        .onAppear {
+            if isChampionship {
+                loadChampBackground()
+            }
+        }
+    }
+
+    private func loadChampBackground() {
+        if let scr = SCRDecoder.load(named: "CHAMP.SCR"),
+           let pal = PALDecoder.loadPalette(named: "CHAMP.PAL") {
+            champImage = scr.cgImage(palette: pal)
+        }
     }
 }
 
@@ -367,6 +385,54 @@ struct PlayTypeButton: View {
 
     var body: some View {
         FPSButton(title, action: action)
+    }
+}
+
+// MARK: - Pre-game Narration with GAMINTRO.SCR Background
+
+struct PregameNarrationView: View {
+    @ObservedObject var viewModel: GameViewModel
+    @State private var backgroundImage: CGImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            // GAMINTRO.SCR background (helmet matchup screen)
+            if let bg = backgroundImage {
+                Image(decorative: bg, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .opacity(0.5)
+            }
+
+            // Narration text and button overlaid
+            VStack(spacing: 24) {
+                Spacer()
+                Text(viewModel.narrationText)
+                    .font(RetroFont.body())
+                    .foregroundColor(VGA.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .lineSpacing(4)
+                    .shadow(color: .black, radius: 2, x: 1, y: 1)
+                Spacer()
+                FPSButton("START GAME") {
+                    viewModel.startGameAfterNarration()
+                }
+                Spacer().frame(height: 40)
+            }
+        }
+        .onAppear {
+            loadBackground()
+        }
+    }
+
+    private func loadBackground() {
+        if let scr = SCRDecoder.load(named: "GAMINTRO.SCR"),
+           let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            backgroundImage = scr.cgImage(palette: pal)
+        }
     }
 }
 

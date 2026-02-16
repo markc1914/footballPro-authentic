@@ -21,6 +21,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | `Views/FPSRefereeOverlay.swift` | Referee signal overlay on field |
 | `Views/FPSReplayControls.swift` | VCR-style replay transport buttons |
 | `Engine/PlayBlueprintGenerator.swift` | Generates animation paths for all 22 players in 640x360 flat space |
+| `Views/Components/AuthenticSplashScreen.swift` | INTDYNA.SCR + CREDIT.SCR splash sequence on app launch |
 | `Engine/SimulationEngine.swift` | Core play-by-play simulation |
 | `Engine/PlayerAnimationState.swift` | Per-player animation state machine (~15fps sprite cycling) |
 | `Styles/RetroStyle.swift` | VGA color palette (`VGA` struct) and `RetroFont` presets |
@@ -313,9 +314,9 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - Instant animation switches on pose transitions (no interpolation, matches original)
 - L2* two-player sync deferred to future enhancement
 
-### Phase F: Screen Graphics (SCR/DDA) — IN PROGRESS
+### Phase F: Screen Graphics (SCR/DDA) — COMPLETE
 **Goal:** Use original title screens, intro, and championship graphics.
-**Status:** SCRDecoder.swift implemented + SCRDecoderTests passing. UI wiring remaining.
+**Status:** COMPLETE. All decodable SCR screens wired into SwiftUI views.
 **Files:**
 - `Services/SCRDecoder.swift`: DGDS LZW/RLE decoder, nibble merge, CGImage via PAL
 - `Tests/SCRDecoderTests.swift`: Decodes GAMINTRO.SCR and CHAMP.SCR
@@ -335,10 +336,14 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - INTDYNA.SCR (320x200): Dynamix logo splash
 - CREDIT.SCR (640x350): "Front Page Sports" title/credits
 
-**Remaining:**
-1. Replace SwiftUI title/intro screens with original VGA art
-2. Decode VQT: format for BALL.SCR and KICK.SCR
-3. Decode DDA for animated intro sequences (INTROPT1.DDA = 429KB, INTROPT2.DDA = 135KB)
+**Wired screens:**
+- `AuthenticSplashScreen.swift`: INTDYNA.SCR → CREDIT.SCR splash sequence on app launch
+- `GameDayView.swift`: GAMINTRO.SCR as pre-game narration background
+- `GameDayView.swift`: CHAMP.SCR as championship game-over background
+
+**Deferred (low priority):**
+- VQT: format for BALL.SCR and KICK.SCR (Vector Quantization, separate codec)
+- DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA)
 
 ### Phase G: Audio (SAMPLE.DAT) — IN PROGRESS
 **Goal:** Add original game sound effects.
@@ -362,7 +367,7 @@ Phase B (index parser + LZ77) ────────────→ COMPLETE (
 Phase C (sprite cache + rendering) ───────→ COMPLETE (SpriteCache.swift, commit 603b838)
 Phase D (render sprites in field) ────────→ COMPLETE (FPSFieldView wired, commit 603b838)
 Phase E (animation state machine) ────────→ COMPLETE (PlayerAnimationState.swift + FPSFieldView per-player 15fps)
-Phase F (screen graphics) ────────────────→ IN PROGRESS — SCRDecoder.swift + tests; need UI wiring + VQT/DDA
+Phase F (screen graphics) ────────────────→ COMPLETE — SCRDecoder + AuthenticSplashScreen + GAMINTRO/CHAMP wired
 Phase G (audio) ──────────────────────────→ IN PROGRESS — SampleDecoder + SampleAudioService + SoundManager wired
 Phase T (test automation) ────────────────→ COMPLETE — 5 new test suites, 57 tests, all passing
 ```

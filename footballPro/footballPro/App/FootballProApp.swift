@@ -82,6 +82,12 @@ struct ContentView: View {
             Color.black.ignoresSafeArea()
 
             switch gameState.currentScreen {
+            case .splash:
+                AuthenticSplashScreen {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gameState.currentScreen = .mainMenu
+                    }
+                }
             case .mainMenu:
                 MainMenuView()
             case .teamManagement:
@@ -178,6 +184,7 @@ struct SaveGameDialogView: View {
 // MARK: - Game State
 
 enum GameScreen {
+    case splash
     case mainMenu
     case teamManagement
     case gameDay
@@ -213,7 +220,7 @@ enum QuarterLength: Int, CaseIterable {
 
 @MainActor
 class GameState: ObservableObject {
-    @Published var currentScreen: GameScreen = .mainMenu
+    @Published var currentScreen: GameScreen = .splash
     @Published var showNewGameDialog = false
     @Published var showLoadGameDialog = false
     @Published var showSaveGameDialog = false
