@@ -51,8 +51,7 @@ struct LGELeague: Equatable {
 // MARK: - Decoder
 
 struct LGEDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     private static let teamMarker = Data("T00:".utf8)
     private static let rosterMarker = Data("R00:".utf8)

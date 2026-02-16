@@ -403,10 +403,20 @@ struct League: Identifiable, Codable, Equatable {
             }
         }
 
-        // 3. Add expired contract players to free agents
-        for player in allExpiredPlayers {
-            freeAgents.append(FreeAgent(player: player))
+        // 3. Handle retirements and expired contracts
+        for index in teams.indices {
+            let retirees = teams[index].roster.filter { $0.shouldRetire }
+            for retiree in retirees {
+                teams[index].removePlayer(retiree.id)
+            }
         }
+        for player in allExpiredPlayers {
+            if !player.shouldRetire {
+                freeAgents.append(FreeAgent(player: player))
+            }
+        }
+        // Remove retiring free agents
+        freeAgents.removeAll { $0.player.shouldRetire }
 
         // 4. Generate new draft class
         draftClass = DraftClass(year: nextYear, teams: teams)

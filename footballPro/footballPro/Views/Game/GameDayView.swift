@@ -123,6 +123,14 @@ struct GameDayView: View {
                         }
                     )
 
+                case .replay:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSReplayControls(viewModel: viewModel) {
+                            viewModel.exitReplay()
+                        }
+                    }
+
                 case .paused:
                     ZStack {
                         Color.black.ignoresSafeArea()

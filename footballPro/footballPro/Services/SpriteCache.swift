@@ -32,10 +32,14 @@ struct SpriteFrame {
 
 enum PlayerAnimState {
     case standing
+    case dbReady        // Defensive back pre-snap ready stance
+    case snapping       // Center snapping the ball
+    case qbSnap         // QB receiving snap under center
     case running
     case blocking
     case tackling
     case passing
+    case handingOff     // QB handoff to RB
     case catching
     case diving
     case gettingUp
@@ -53,7 +57,21 @@ final class SpriteCache {
     private let lock = NSLock()
     private var isLoaded = false
 
+    /// Team color palette overrides (keyed by color table index: 1=home, 2=away)
+    private var teamColorOverrides: [Int: [Int: (UInt8, UInt8, UInt8)]] = [:]
+
     private init() {}
+
+    /// Set team colors for rendering. Call before game starts.
+    /// - Parameters:
+    ///   - homeColors: 5 RGB triplets from NFLPA93.LGE for home team
+    ///   - awayColors: 5 RGB triplets from NFLPA93.LGE for away team
+    func setTeamColors(homeColors: [(UInt8, UInt8, UInt8)], awayColors: [(UInt8, UInt8, UInt8)]) {
+        teamColorOverrides[SpriteCache.homeColorTable] = AnimDecoder.teamColorPaletteOverride(colors: homeColors)
+        teamColorOverrides[SpriteCache.awayColorTable] = AnimDecoder.teamColorPaletteOverride(colors: awayColors)
+        // Clear cached images so they re-render with new colors
+        clearImageCache()
+    }
 
     // MARK: - Loading
 
@@ -119,11 +137,13 @@ final class SpriteCache {
         }
         lock.unlock()
 
-        // Render to CGImage
+        // Render to CGImage (with optional team color overrides)
+        let overrides = teamColorOverrides[colorTable]
         guard let cgImage = AnimDecoder.spriteToImage(
             sprite: decodedSprite,
             palette: db.palette,
-            mirrored: mirrored
+            mirrored: mirrored,
+            colorOverrides: overrides
         ) else {
             return nil
         }
@@ -192,7 +212,6 @@ final class SpriteCache {
     static func animationName(for state: PlayerAnimState, position: String, hasBall: Bool) -> String {
         let isLineman = ["C", "OG", "OT", "DE", "DT"].contains(position)
         let isQB = position == "QB"
-        let isKicker = position == "K"
         let isPunter = position == "P"
 
         switch state {
@@ -200,6 +219,15 @@ final class SpriteCache {
             if isQB { return "QBPSET" }
             if isLineman { return "LMT3PT" }
             return "LMSTAND"
+
+        case .dbReady:
+            return "DBREADY"
+
+        case .snapping:
+            return "CTSNP"
+
+        case .qbSnap:
+            return "QBSNP"
 
         case .running:
             if isQB { return "QBRUN" }
@@ -218,6 +246,9 @@ final class SpriteCache {
         case .passing:
             return "QBBULIT"
 
+        case .handingOff:
+            return "QBHAND"
+
         case .catching:
             return "FCATCH"
 
@@ -234,9 +265,28 @@ final class SpriteCache {
             return "KICK"
 
         case .celebrating:
-            return "EZSPIKE"
+            return SpriteCache.randomCelebration()
         }
     }
+
+    // MARK: - Celebration Animations
+
+    /// All available end zone celebration animation names from ANIM.DAT
+    static let celebrations = ["EZBOW", "EZSPIKE", "EZKNEEL", "EZSLIDE"]
+
+    /// Pick a random celebration animation name
+    static func randomCelebration() -> String {
+        celebrations.randomElement() ?? "EZSPIKE"
+    }
+
+    // MARK: - Team Color Support
+
+    /// Color table indices for team color remapping.
+    /// CT0 = outline only, CT1-4 = team color variants.
+    /// Default (0) uses identity mapping (no remap).
+    static let defaultColorTable = 0
+    static let homeColorTable = 1
+    static let awayColorTable = 2
 
     // MARK: - Cache Management
 

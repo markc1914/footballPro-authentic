@@ -193,7 +193,7 @@ struct FPSScoreboardBar: View {
                 Text("PLAY CLOCK")
                     .font(RetroFont.tiny())
                     .foregroundColor(VGA.lightGray)
-                FPSDigitalClock(time: "40", fontSize: 14)
+                FPSDigitalClock(time: "\(viewModel.playClockSeconds)", fontSize: 14)
             }
         }
         .frame(maxWidth: .infinity)

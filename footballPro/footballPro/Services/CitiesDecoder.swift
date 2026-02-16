@@ -17,8 +17,7 @@ struct GameCity: Equatable {
 }
 
 struct CitiesDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     private static let cityMarker = Data("CTY:".utf8)
     private static let headerMarker = Data("CTL:".utf8)

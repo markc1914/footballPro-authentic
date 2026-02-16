@@ -354,10 +354,12 @@ struct FPSFieldView: View {
                         let depth = staticProj.flatXToDepth(entry.player.position.x, isFieldFlipped: isFieldFlipped)
                         let scale = staticProj.scaleAtDepth(depth)
 
-                        // Pre-snap poses: linemen in 3-point stance, others standing
+                        // Pre-snap poses: match authentic FPS '93 stances
                         let preSnapPose: PlayerPose = {
                             switch entry.player.role {
                             case .lineman, .defensiveLine: return .threePointStance
+                            case .linebacker, .defensiveBack, .cornerback, .safety: return .dbReady
+                            case .quarterback: return .standing
                             default: return .standing
                             }
                         }()
@@ -461,65 +463,77 @@ struct FPSFieldView: View {
 
         switch phaseName {
         case .preSnap:
-            // Everyone in pre-snap stance
+            // Authentic pre-snap stances matching FPS '93
             switch role {
-            case .lineman, .defensiveLine:
-                return .threePointStance
+            case .lineman:
+                return .threePointStance       // OL in 3-point stance (LMT3PT)
+            case .defensiveLine:
+                return .threePointStance       // DL in 3-point stance (LMT3PT)
+            case .quarterback:
+                return .standing               // QB upright (QBPSET)
+            case .linebacker:
+                return .dbReady                // LB in ready crouch (DBREADY)
+            case .defensiveBack, .cornerback, .safety:
+                return .dbReady                // DBs in ready crouch (DBREADY)
             default:
-                return .standing
+                return .standing               // WR/TE/RB upright (LMSTAND)
             }
 
         case .snap:
-            // Linemen engage, QB receives snap
+            // Ball snapped — linemen engage, QB receives, receivers start
             switch role {
             case .lineman:
-                return .blocking
+                return .blocking               // OL fires into blocks (LMPUSH)
             case .defensiveLine:
-                return isMoving ? .running : .threePointStance
+                return .running                // DL rushes off line (LMRUN)
             case .quarterback:
-                return .standing
+                return .qbUnderCenter          // QB receiving snap (QBSNP)
+            case .linebacker:
+                return isMoving ? .running : .dbReady
+            case .defensiveBack, .cornerback, .safety:
+                return .backpedaling           // DBs drop back (SKRUN)
             default:
-                return .standing
+                return isMoving ? .running : .standing
             }
 
         case .routesDevelop:
             // Routes developing — everyone in motion
             if hasBall {
-                return .running
+                return .running                // Ball carrier runs (RBRNWB)
             }
             switch role {
             case .lineman:
-                return .blocking
+                return .blocking               // OL sustains blocks (LMPUSH)
             case .defensiveLine:
-                return .running
+                return .running                // DL pursuing (LMRUN)
             case .quarterback:
-                return .throwing
-            case .runningback, .runningBack:
+                return .throwing               // QB in pocket/throwing (QBBULIT)
+            case .runningback, .runningBack, .fullback:
                 return isMoving ? .running : .standing
             case .receiver, .tightend:
-                return isMoving ? .running : .standing
+                return .running                // Running routes (SKRUN)
             case .linebacker:
-                return isMoving ? .running : .backpedaling
+                return isMoving ? .running : .dbReady
             case .defensiveBack, .cornerback, .safety:
-                return isMoving ? .backpedaling : .standing
+                return isMoving ? .running : .backpedaling
             default:
                 return isMoving ? .running : .standing
             }
 
         case .resolution:
-            // Ball thrown/caught/handed off
+            // Ball thrown/caught/handed off — key action moment
             if hasBall {
-                return .running
+                return .running                // Ball carrier running (RBRNWB)
             }
             switch role {
             case .lineman:
-                return .blocking
+                return .blocking               // OL still blocking
             case .defensiveLine:
-                return .running
+                return .running                // DL pursuing
             case .quarterback:
-                return .throwing
+                return .throwing               // QB follow-through (QBBULIT)
             case .receiver, .tightend:
-                return isMoving ? .running : .catching
+                return isMoving ? .running : .catching  // FCATCH if target
             case .linebacker, .defensiveBack, .cornerback, .safety:
                 return isMoving ? .running : .standing
             default:
@@ -527,27 +541,33 @@ struct FPSFieldView: View {
             }
 
         case .yac:
-            // Yards after catch — ball carrier running, defenders pursuing
+            // Yards after catch/contact — ball carrier running, defenders converging
             if hasBall {
-                return .running
+                return .running                // Ball carrier still going (RBRNWB)
             }
             if isDefense && isMoving {
-                return .tackling
+                return .running                // Defenders pursuing (SKRUN/LMRUN)
             }
             switch role {
             case .lineman:
-                return .standing
+                return .standing               // OL done blocking
             default:
                 return isMoving ? .running : .standing
             }
 
         case .tackle:
-            // Play ending — ball carrier goes down, nearby defenders tackle
+            // Play ending — ball carrier goes down, tacklers dive in
             if hasBall {
-                return .down
+                // Ball carrier hit — play diving animation then go down
+                let phaseProgress = phase.map { (progress - $0.startTime) / ($0.endTime - $0.startTime) } ?? 1.0
+                if phaseProgress < 0.5 {
+                    return .diving             // Going down (SKDIVE/LMDIVE)
+                } else {
+                    return .down               // On the ground
+                }
             }
             if isDefense && isMoving {
-                return .tackling
+                return .tackling               // Tackler making contact (SLTKSDL/LMCHK)
             }
             return .standing
         }
@@ -860,13 +880,20 @@ struct FPSFieldView: View {
         switch pose {
         case .threePointStance: return .standing
         case .standing: return .standing
+        case .dbReady: return .dbReady
+        case .snapping: return .snapping
+        case .qbUnderCenter: return .qbSnap
         case .running: return .running
         case .blocking: return .blocking
         case .catching: return .catching
         case .throwing: return .passing
+        case .handingOff: return .handingOff
         case .tackling: return .tackling
+        case .diving: return .diving
         case .down: return .diving
+        case .gettingUp: return .gettingUp
         case .backpedaling: return .running
+        case .celebrating: return .celebrating
         }
     }
 
@@ -1087,15 +1114,22 @@ struct FPSFieldView: View {
 
 /// Visual pose state for sprite rendering — determines which body shape to draw.
 public enum PlayerPose {
-    case threePointStance   // Pre-snap linemen: crouched, one hand down
-    case standing           // Pre-snap QB, receivers, defensive backs
-    case running            // Upright with legs in stride
-    case blocking           // Leaned forward, arms out, engaging defender
-    case catching           // Arms extended upward to catch ball
-    case throwing           // QB with arm back/releasing
-    case tackling           // Reaching/diving toward ball carrier
+    case threePointStance   // Pre-snap linemen: crouched, one hand down (LMT3PT)
+    case standing           // Pre-snap WR/TE/RB standing upright (LMSTAND)
+    case dbReady            // Pre-snap DB/LB ready crouch (DBREADY)
+    case snapping           // Center snapping the ball (CTSNP)
+    case qbUnderCenter      // QB receiving snap (QBSNP)
+    case running            // Upright with legs in stride (SKRUN/LMRUN/QBRUN)
+    case blocking           // Leaned forward, arms out, engaging defender (LMPUSH/L2LOCK)
+    case catching           // Arms extended upward to catch ball (FCATCH)
+    case throwing           // QB with arm back/releasing (QBBULIT)
+    case handingOff         // QB handing off to RB (QBHAND)
+    case tackling           // Reaching/diving toward ball carrier (SLTKSDL/LMCHK)
+    case diving             // Diving for ball/tackle (SKDIVE/LMDIVE)
     case down               // On the ground after tackle
-    case backpedaling       // Defensive backs dropping into coverage
+    case gettingUp          // Getting up after being down (LMGETUPF/SKSTUP)
+    case backpedaling       // Defensive backs dropping into coverage (SKRUN)
+    case celebrating        // End zone celebration (EZSPIKE etc.)
 }
 
 public struct FPSPlayer: Identifiable {
@@ -1211,22 +1245,30 @@ struct RetroPlayerSprite: View {
             switch player.pose {
             case .threePointStance:
                 drawThreePointStance(context: context, cx: cx, cy: cy)
-            case .standing:
+            case .standing, .qbUnderCenter:
                 drawStanding(context: context, cx: cx, cy: cy)
-            case .running:
+            case .dbReady:
+                drawThreePointStance(context: context, cx: cx, cy: cy)
+            case .snapping:
+                drawBlocking(context: context, cx: cx, cy: cy)
+            case .running, .backpedaling:
                 drawRunning(context: context, cx: cx, cy: cy)
             case .blocking:
                 drawBlocking(context: context, cx: cx, cy: cy)
             case .catching:
                 drawCatching(context: context, cx: cx, cy: cy)
-            case .throwing:
+            case .throwing, .handingOff:
                 drawThrowing(context: context, cx: cx, cy: cy)
             case .tackling:
                 drawTackling(context: context, cx: cx, cy: cy)
+            case .diving:
+                drawTackling(context: context, cx: cx, cy: cy)
             case .down:
                 drawDown(context: context, cx: cx, cy: cy)
-            case .backpedaling:
-                drawBackpedaling(context: context, cx: cx, cy: cy)
+            case .gettingUp:
+                drawStanding(context: context, cx: cx, cy: cy)
+            case .celebrating:
+                drawStanding(context: context, cx: cx, cy: cy)
             }
 
             // === BALL CARRIER: GREEN NUMBER BOX (FPS '93 signature feature!) ===

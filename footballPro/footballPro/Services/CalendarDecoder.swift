@@ -66,8 +66,7 @@ struct CalendarData: Equatable {
 }
 
 struct CalendarDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     static func decode(at url: URL) throws -> CalendarData {
         let data = try Data(contentsOf: url)

@@ -91,8 +91,7 @@ struct SampleDecoder {
             URL(fileURLWithPath: cwd).appendingPathComponent("footballPro/Resources/GameData/SAMPLE.DAT"),
             URL(fileURLWithPath: cwd).appendingPathComponent("footballPro/footballPro/Resources/GameData/SAMPLE.DAT"),
             URL(fileURLWithPath: cwd).appendingPathComponent("Resources/GameData/SAMPLE.DAT"),
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/SAMPLE.DAT")
+            URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL/SAMPLE.DAT")
         ]
         return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
     }

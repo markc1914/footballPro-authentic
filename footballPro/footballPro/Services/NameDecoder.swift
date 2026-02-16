@@ -27,8 +27,7 @@ struct NameDatabase {
 
 struct NameDecoder {
     /// Default game data directory
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     /// Decode a name database file (NAMEF.DAT or NAMEL.DAT)
     /// Format: null-terminated ASCII strings packed sequentially

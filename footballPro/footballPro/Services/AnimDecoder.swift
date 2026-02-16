@@ -57,8 +57,7 @@ struct AnimDatabase {
 
 struct AnimDecoder {
 
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     // Identity color table - passes through raw palette indices unchanged
     static let identityColorTable: [UInt8] = Array(0..<64)
@@ -505,7 +504,34 @@ struct AnimDecoder {
 
     /// Convert a decoded sprite to a CGImage using the given palette.
     /// Palette index 0 = transparent. If mirrored, flips pixels horizontally.
-    static func spriteToImage(sprite: DecodedSprite, palette: [(UInt8, UInt8, UInt8)], mirrored: Bool = false) -> CGImage? {
+    /// Build a team-color palette override from 5 RGB triplets (from NFLPA93.LGE T00:+0x0A).
+    /// Returns a sparse remap: palette index → (R, G, B) for the jersey color range.
+    /// Indices 32-45 get primary jersey color, 48-63 get secondary.
+    static func teamColorPaletteOverride(colors: [(UInt8, UInt8, UInt8)]) -> [Int: (UInt8, UInt8, UInt8)] {
+        guard colors.count >= 2 else { return [:] }
+        var overrides: [Int: (UInt8, UInt8, UInt8)] = [:]
+        let primary = colors[0]
+        let secondary = colors[1]
+        // Primary jersey range: palette indices 32-45 (14 entries with gradient)
+        for i in 32...45 {
+            let t = Double(i - 32) / 13.0
+            let r = UInt8(clamping: Int(Double(primary.0) * (0.5 + 0.5 * t)))
+            let g = UInt8(clamping: Int(Double(primary.1) * (0.5 + 0.5 * t)))
+            let b = UInt8(clamping: Int(Double(primary.2) * (0.5 + 0.5 * t)))
+            overrides[i] = (r, g, b)
+        }
+        // Secondary jersey range: palette indices 48-63 (16 entries with gradient)
+        for i in 48...63 {
+            let t = Double(i - 48) / 15.0
+            let r = UInt8(clamping: Int(Double(secondary.0) * (0.5 + 0.5 * t)))
+            let g = UInt8(clamping: Int(Double(secondary.1) * (0.5 + 0.5 * t)))
+            let b = UInt8(clamping: Int(Double(secondary.2) * (0.5 + 0.5 * t)))
+            overrides[i] = (r, g, b)
+        }
+        return overrides
+    }
+
+    static func spriteToImage(sprite: DecodedSprite, palette: [(UInt8, UInt8, UInt8)], mirrored: Bool = false, colorOverrides: [Int: (UInt8, UInt8, UInt8)]? = nil) -> CGImage? {
         let w = sprite.width
         let h = sprite.height
         guard w > 0, h > 0 else { return nil }
@@ -525,6 +551,11 @@ struct AnimDecoder {
                     rgba[dstOff + 1] = 0
                     rgba[dstOff + 2] = 0
                     rgba[dstOff + 3] = 0
+                } else if let override = colorOverrides?[palIdx] {
+                    rgba[dstOff] = override.0
+                    rgba[dstOff + 1] = override.1
+                    rgba[dstOff + 2] = override.2
+                    rgba[dstOff + 3] = 255
                 } else {
                     let color = palIdx < palette.count ? palette[palIdx] : (255, 0, 255)
                     rgba[dstOff] = color.0

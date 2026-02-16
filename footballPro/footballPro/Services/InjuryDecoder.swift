@@ -45,8 +45,7 @@ struct GameInjury: Equatable {
 }
 
 struct InjuryDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     /// Severity classification based on injury name keywords
     private static func classifySeverity(_ name: String) -> GameInjury.InjurySeverity {

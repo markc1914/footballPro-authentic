@@ -1430,39 +1430,145 @@ struct TeamPreviewCard: View {
 struct ManagementHubView: View {
     @EnvironmentObject var gameState: GameState
 
+    enum ManagementScreen {
+        case hub
+        case freeAgency
+        case trade
+        case draft
+        case standings
+        case stats
+        case depthChart
+        case saveLoad
+        case settings
+    }
+
+    @State private var currentScreen: ManagementScreen = .hub
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    FPSButton("< TEAM") {
-                        gameState.navigateTo(.teamManagement)
-                    }
+            switch currentScreen {
+            case .hub:
+                hubContent
 
-                    Spacer()
-
-                    Text("MANAGEMENT")
-                        .font(RetroFont.header())
-                        .foregroundColor(VGA.digitalAmber)
-
-                    Spacer()
+            case .freeAgency:
+                if var league = gameState.currentLeague,
+                   let userTeamId = gameState.userTeam?.id {
+                    FreeAgencyView(
+                        league: Binding(
+                            get: { gameState.currentLeague ?? league },
+                            set: { gameState.currentLeague = $0 }
+                        ),
+                        userTeamId: userTeamId,
+                        onDismiss: { currentScreen = .hub }
+                    )
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(VGA.panelDark)
-                .modifier(DOSPanelBorder(.raised, width: 1))
 
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 20) {
+            case .trade:
+                if var league = gameState.currentLeague,
+                   let userTeamId = gameState.userTeam?.id {
+                    TradeProposalView(
+                        league: Binding(
+                            get: { gameState.currentLeague ?? league },
+                            set: { gameState.currentLeague = $0 }
+                        ),
+                        userTeamId: userTeamId,
+                        onDismiss: { currentScreen = .hub }
+                    )
+                }
+
+            case .draft:
+                DraftRoomView()
+                    .environmentObject(gameState)
+
+            case .standings:
+                StandingsView()
+                    .environmentObject(gameState)
+
+            case .stats:
+                StatsView()
+                    .environmentObject(gameState)
+
+            case .depthChart:
+                DepthChartView()
+                    .environmentObject(gameState)
+
+            case .saveLoad:
+                SaveLoadView()
+                    .environmentObject(gameState)
+
+            case .settings:
+                FranchiseSettingsView()
+                    .environmentObject(gameState)
+            }
+        }
+    }
+
+    private var hubContent: some View {
+        VStack(spacing: 0) {
+            // Top bar
+            HStack {
+                FPSButton("< TEAM") {
+                    gameState.navigateTo(.teamManagement)
+                }
+
+                Spacer()
+
+                Text("MANAGEMENT")
+                    .font(RetroFont.header())
+                    .foregroundColor(VGA.digitalAmber)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(VGA.panelDark)
+            .modifier(DOSPanelBorder(.raised, width: 1))
+
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 20) {
+                    Button(action: { currentScreen = .freeAgency }) {
                         ManagementCard(title: "Free Agency", icon: "person.badge.plus", description: "Sign free agents")
-                        ManagementCard(title: "Trade", icon: "arrow.left.arrow.right", description: "Trade players")
-                        ManagementCard(title: "Draft", icon: "list.number", description: "View draft prospects")
-                        ManagementCard(title: "Injuries", icon: "cross.case", description: "View injured players")
                     }
-                    .padding()
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .trade }) {
+                        ManagementCard(title: "Trade", icon: "arrow.left.arrow.right", description: "Trade players")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .draft }) {
+                        ManagementCard(title: "Draft", icon: "list.number", description: "Draft prospects")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .standings }) {
+                        ManagementCard(title: "Standings", icon: "list.bullet", description: "League standings")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .stats }) {
+                        ManagementCard(title: "Stats", icon: "chart.bar", description: "League stat leaders")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .depthChart }) {
+                        ManagementCard(title: "Depth Chart", icon: "person.3", description: "Set your starters")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .saveLoad }) {
+                        ManagementCard(title: "Save/Load", icon: "externaldrive", description: "Save or load game")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: { currentScreen = .settings }) {
+                        ManagementCard(title: "Settings", icon: "gearshape", description: "Game settings")
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding()
             }
         }
     }

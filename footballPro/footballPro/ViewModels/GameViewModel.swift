@@ -25,6 +25,7 @@ public enum GamePhase: Equatable { // Made public
     case extraPointChoice     // TD scored — kick PAT or go for 2?
     case halftime             // Halftime display
     case gameOver             // Final score
+    case replay               // Instant replay of last play
     case paused               // Pause menu overlay
 }
 
@@ -69,6 +70,8 @@ public class GameViewModel: ObservableObject { // Made public
     @Published public var playByPlay: [PlayResult] = [] // Made public
     @Published public var lastPlayResult: PlayResult? // Made public
     @Published public var narrationText: String = "" // Pre-game narration from GAMINTRO.DAT
+    @Published public var playClockSeconds: Int = 25 // Play clock countdown (25 or 40 seconds)
+    @Published public var selectedCelebration: String = "EZSPIKE" // Current TD celebration animation
 
     // Phase before pause was entered (to restore on resume)
     private var phaseBeforePause: GamePhase = .playCalling
@@ -157,7 +160,9 @@ public class GameViewModel: ObservableObject { // Made public
     // NEW: Placeholder for opening kickoff logic
     internal func executeOpeningKickoff() async {
         print("Executing opening kickoff...")
-        // This will be implemented fully later. For now, it just advances the game.
+        // Start crowd ambient sound
+        SoundManager.shared.startCrowdAmbient()
+        SoundManager.shared.play(.whistle)
         _ = await simulationEngine.executeKickoff()
         self.game = simulationEngine.currentGame
         updatePossessionStatus()
@@ -412,9 +417,18 @@ public class GameViewModel: ObservableObject { // Made public
 
             currentPhase = .playAnimation
 
+            // Hike/snap sound at play start
+            SoundManager.shared.play(.hike)
+
             try? await Task.sleep(nanoseconds: UInt64((currentAnimationBlueprint?.totalDuration ?? 3.0) * 1_000_000_000))
 
+            // Whistle at end of play
+            SoundManager.shared.play(.whistle)
+
             currentPhase = .playResult
+
+            // Play result-specific sound effects (TD fanfare, turnover, big play, etc.)
+            SoundManager.shared.playSoundForResult(result)
         } else {
             self.game = simulationEngine.currentGame
         }
@@ -437,6 +451,7 @@ public class GameViewModel: ObservableObject { // Made public
             // Check if user's team scored the TD
             if isUserPossession {
                 // Show choice dialog — user decides PAT vs 2PT
+                pickCelebration()
                 currentPhase = .extraPointChoice
                 return // Don't auto-advance; user will call kickExtraPoint() or attemptTwoPointConversion()
             } else {
@@ -800,6 +815,7 @@ public class GameViewModel: ObservableObject { // Made public
                game.gameStatus == .inProgress, !game.isKickoff, !game.isExtraPoint {
                 Task { await handleAIFourthDown() }
             } else {
+                resetPlayClock()
                 currentPhase = .playCalling
             }
         }
@@ -808,6 +824,7 @@ public class GameViewModel: ObservableObject { // Made public
     /// AI 4th-down decision during interactive play: punt, FG, or go for it
     private func handleAIFourthDown() async {
         guard let game = game else {
+            resetPlayClock()
             currentPhase = .playCalling
             return
         }
@@ -828,6 +845,7 @@ public class GameViewModel: ObservableObject { // Made public
             await attemptFieldGoal()
         case .goForIt:
             // AI goes for it — show play calling as normal
+            resetPlayClock()
             currentPhase = .playCalling
         }
     }
@@ -835,6 +853,35 @@ public class GameViewModel: ObservableObject { // Made public
     public func startSecondHalf() { // Made public
         simulationEngine.startSecondHalf()
         self.game = simulationEngine.currentGame
+    }
+
+    /// Reset play clock to default (25 seconds) when entering play calling
+    public func resetPlayClock() {
+        playClockSeconds = 25
+    }
+
+    /// Pick a random celebration for touchdown
+    public func pickCelebration() {
+        selectedCelebration = SpriteCache.randomCelebration()
+    }
+
+    /// Enter instant replay mode for the last play
+    public func enterReplay() {
+        guard currentAnimationBlueprint != nil else { return }
+        phaseBeforePause = currentPhase
+        currentPhase = .replay
+    }
+
+    /// Exit instant replay and return to previous phase
+    public func exitReplay() {
+        currentPhase = phaseBeforePause
+    }
+
+    /// Whether the last play was a "big play" worthy of auto-replay
+    public var lastPlayWasBigPlay: Bool {
+        guard let result = lastPlayResult else { return false }
+        let yards = abs(result.yardsGained)
+        return result.isTouchdown || result.isTurnover || yards >= 20
     }
 
     // MARK: - PRF Play Art Decoding Helpers

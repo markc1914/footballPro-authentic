@@ -148,8 +148,7 @@ struct PYRFile: Equatable {
 // MARK: - Decoder
 
 struct PYRDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     static let recordSize = 51
     static let indexOffset = 0

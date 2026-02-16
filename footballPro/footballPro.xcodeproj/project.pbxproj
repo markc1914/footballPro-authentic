@@ -69,8 +69,22 @@
 		SVC022 /* LGTDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC057; };
 		SVC023 /* AnimDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC058; };
 		SVC024 /* SpriteCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC059; };
+		SVC025 /* SCRDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC062; };
+		SVC026 /* SampleDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC063; };
+		SVC027 /* SampleAudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC064; };
 		VIW011 /* ScreenshotCaptureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC053; };
 		VIW012 /* AuthenticSplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC061; };
+
+		/* Franchise Views */
+		VIW013 /* StandingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC065; };
+		VIW014 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC066; };
+		VIW015 /* DraftRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC067; };
+		VIW016 /* PlayoffBracketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC068; };
+		VIW017 /* TradeProposalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC069; };
+		VIW018 /* FreeAgencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC070; };
+		VIW019 /* DepthChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC071; };
+		VIW020 /* SaveLoadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC072; };
+		VIW021 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC073; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -187,6 +201,20 @@
 		SRC059 /* SpriteCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteCache.swift; sourceTree = "<group>"; };
 		SRC060 /* PlayerAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerAnimationState.swift; sourceTree = "<group>"; };
 		SRC061 /* AuthenticSplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticSplashScreen.swift; sourceTree = "<group>"; };
+		SRC062 /* SCRDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCRDecoder.swift; sourceTree = "<group>"; };
+		SRC063 /* SampleDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleDecoder.swift; sourceTree = "<group>"; };
+		SRC064 /* SampleAudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleAudioService.swift; sourceTree = "<group>"; };
+
+		/* Franchise Views */
+		SRC065 /* StandingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingsView.swift; sourceTree = "<group>"; };
+		SRC066 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
+		SRC067 /* DraftRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftRoomView.swift; sourceTree = "<group>"; };
+		SRC068 /* PlayoffBracketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayoffBracketView.swift; sourceTree = "<group>"; };
+		SRC069 /* TradeProposalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradeProposalView.swift; sourceTree = "<group>"; };
+		SRC070 /* FreeAgencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeAgencyView.swift; sourceTree = "<group>"; };
+		SRC071 /* DepthChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthChartView.swift; sourceTree = "<group>"; };
+		SRC072 /* SaveLoadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveLoadView.swift; sourceTree = "<group>"; };
+		SRC073 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -311,6 +339,7 @@
 				GRP011 /* Game */,
 				GRP012 /* Team */,
 				GRP013 /* Components */,
+				GRP014 /* Franchise */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -342,6 +371,9 @@
 				SRC057 /* LGTDecoder.swift */,
 				SRC058 /* AnimDecoder.swift */,
 				SRC059 /* SpriteCache.swift */,
+				SRC062 /* SCRDecoder.swift */,
+				SRC063 /* SampleDecoder.swift */,
+				SRC064 /* SampleAudioService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -393,6 +425,22 @@
 				SRC061 /* AuthenticSplashScreen.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		GRP014 /* Franchise */ = {
+			isa = PBXGroup;
+			children = (
+				SRC065 /* StandingsView.swift */,
+				SRC066 /* StatsView.swift */,
+				SRC067 /* DraftRoomView.swift */,
+				SRC068 /* PlayoffBracketView.swift */,
+				SRC069 /* TradeProposalView.swift */,
+				SRC070 /* FreeAgencyView.swift */,
+				SRC071 /* DepthChartView.swift */,
+				SRC072 /* SaveLoadView.swift */,
+				SRC073 /* SettingsView.swift */,
+			);
+			path = Franchise;
 			sourceTree = "<group>";
 		};
 		GRP999 /* Products */ = {
@@ -547,8 +595,20 @@
 				SVC022 /* LGTDecoder.swift in Sources */,
 				SVC023 /* AnimDecoder.swift in Sources */,
 				SVC024 /* SpriteCache.swift in Sources */,
+				SVC025 /* SCRDecoder.swift in Sources */,
+				SVC026 /* SampleDecoder.swift in Sources */,
+				SVC027 /* SampleAudioService.swift in Sources */,
 				VIW011 /* ScreenshotCaptureWindow.swift in Sources */,
 				VIW012 /* AuthenticSplashScreen.swift in Sources */,
+				VIW013 /* StandingsView.swift in Sources */,
+				VIW014 /* StatsView.swift in Sources */,
+				VIW015 /* DraftRoomView.swift in Sources */,
+				VIW016 /* PlayoffBracketView.swift in Sources */,
+				VIW017 /* TradeProposalView.swift in Sources */,
+				VIW018 /* FreeAgencyView.swift in Sources */,
+				VIW019 /* DepthChartView.swift in Sources */,
+				VIW020 /* SaveLoadView.swift in Sources */,
+				VIW021 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

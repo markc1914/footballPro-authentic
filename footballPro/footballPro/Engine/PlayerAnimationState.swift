@@ -75,11 +75,11 @@ struct PlayerAnimationState {
         case "SKRUN", "LMRUN", "QBRUN", "RBRNWB",
              "LMPUSH", "L2LOCK",
              "LMT3PT", "LMT4PT", "LMSTAND", "QBPSET",
-             "DBREADY", "DBPREBZ",
+             "DBREADY", "DBPREBZ", "BNDOVER",
              "LMSPINCC", "LMSPINCW",
              "RCSTAND", "LMBBUT":
             return true
-        // Everything else is one-shot (catches, tackles, throws, celebrations, etc.)
+        // Everything else is one-shot (snaps, catches, tackles, throws, celebrations, getting up, etc.)
         default:
             return false
         }

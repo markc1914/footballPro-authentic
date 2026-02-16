@@ -45,8 +45,7 @@ struct VGAPalette: Equatable {
 }
 
 struct PALDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     static let headerSize = 16 // "PAL:" (8B) + "VGA:" (8B)
     static let paletteEntries = 256

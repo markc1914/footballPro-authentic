@@ -680,6 +680,9 @@ public struct Player: Identifiable, Codable, Equatable { // Public
         age += 1
         experience += 1
 
+        // Apply age-based progression/regression
+        applyProgression()
+
         // Decrement contract years
         if contract.yearsRemaining > 0 {
             contract.yearsRemaining -= 1
@@ -690,6 +693,74 @@ public struct Player: Identifiable, Codable, Equatable { // Public
 
         // Reset status for new season
         status = .healthy
+    }
+
+    /// Apply age-based rating progression/regression.
+    /// Players <26 improve, 26-29 hold steady, 30+ decline, 35+ decline sharply.
+    public mutating func applyProgression() {
+        let change: Int
+        switch age {
+        case ...22:
+            change = Int.random(in: 2...4)   // Young players improve fast
+        case 23...25:
+            change = Int.random(in: 1...3)   // Still improving
+        case 26...29:
+            change = Int.random(in: -1...1)  // Prime years, hold steady
+        case 30...33:
+            change = Int.random(in: -3 ... -1) // Declining
+        case 34...:
+            change = Int.random(in: -5 ... -2) // Sharp decline
+        default:
+            change = 0
+        }
+
+        guard change != 0 else { return }
+
+        // Apply to all ratings, clamping to 1-99
+        ratings.speed = max(1, min(99, ratings.speed + change))
+        ratings.strength = max(1, min(99, ratings.strength + change))
+        ratings.agility = max(1, min(99, ratings.agility + change))
+        ratings.stamina = max(1, min(99, ratings.stamina + change))
+        ratings.awareness = max(1, min(99, ratings.awareness + (change > 0 ? change + 1 : change)))
+        ratings.toughness = max(1, min(99, ratings.toughness + change))
+
+        // Position-specific ratings
+        ratings.throwPower = max(1, min(99, ratings.throwPower + change))
+        ratings.throwAccuracyShort = max(1, min(99, ratings.throwAccuracyShort + change))
+        ratings.throwAccuracyMid = max(1, min(99, ratings.throwAccuracyMid + change))
+        ratings.throwAccuracyDeep = max(1, min(99, ratings.throwAccuracyDeep + change))
+        ratings.playAction = max(1, min(99, ratings.playAction + change))
+        ratings.carrying = max(1, min(99, ratings.carrying + change))
+        ratings.breakTackle = max(1, min(99, ratings.breakTackle + change))
+        ratings.trucking = max(1, min(99, ratings.trucking + change))
+        ratings.elusiveness = max(1, min(99, ratings.elusiveness + change))
+        ratings.ballCarrierVision = max(1, min(99, ratings.ballCarrierVision + change))
+        ratings.catching = max(1, min(99, ratings.catching + change))
+        ratings.catchInTraffic = max(1, min(99, ratings.catchInTraffic + change))
+        ratings.spectacularCatch = max(1, min(99, ratings.spectacularCatch + change))
+        ratings.routeRunning = max(1, min(99, ratings.routeRunning + change))
+        ratings.release = max(1, min(99, ratings.release + change))
+        ratings.runBlock = max(1, min(99, ratings.runBlock + change))
+        ratings.passBlock = max(1, min(99, ratings.passBlock + change))
+        ratings.impactBlock = max(1, min(99, ratings.impactBlock + change))
+        ratings.tackle = max(1, min(99, ratings.tackle + change))
+        ratings.hitPower = max(1, min(99, ratings.hitPower + change))
+        ratings.pursuit = max(1, min(99, ratings.pursuit + change))
+        ratings.playRecognition = max(1, min(99, ratings.playRecognition + change))
+        ratings.manCoverage = max(1, min(99, ratings.manCoverage + change))
+        ratings.zoneCoverage = max(1, min(99, ratings.zoneCoverage + change))
+        ratings.press = max(1, min(99, ratings.press + change))
+        ratings.blockShedding = max(1, min(99, ratings.blockShedding + change))
+        ratings.passRush = max(1, min(99, ratings.passRush + change))
+        ratings.kickPower = max(1, min(99, ratings.kickPower + change))
+        ratings.kickAccuracy = max(1, min(99, ratings.kickAccuracy + change))
+    }
+
+    /// Whether this player should retire (age >36, or age >34 and overall <45).
+    public var shouldRetire: Bool {
+        if age > 36 { return true }
+        if age > 34 && overall < 45 { return true }
+        return false
     }
 
     /// Whether player's contract has expired

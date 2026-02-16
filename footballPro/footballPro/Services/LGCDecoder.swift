@@ -24,8 +24,7 @@ struct LGCData: Equatable {
 }
 
 struct LGCDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     private static let sectionMarker = Data("LGC:".utf8)
     private static let recordSize = 44  // 8B header + 36B content

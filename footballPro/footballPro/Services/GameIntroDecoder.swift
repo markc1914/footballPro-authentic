@@ -35,8 +35,7 @@ struct GameIntroTemplate: Equatable {
 }
 
 struct GameIntroDecoder {
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     /// Decode GAMINTRO.DAT
     /// Header: 2-byte total size + 2-byte count/flags + N x 2-byte LE offsets to template strings

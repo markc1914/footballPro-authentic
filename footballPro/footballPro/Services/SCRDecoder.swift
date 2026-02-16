@@ -62,8 +62,7 @@ struct SCRDecoder {
         case missingSections
     }
 
-    static let defaultDirectory = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+    static let defaultDirectory = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
 
     /// Decode a .SCR file at the given URL.
     static func decode(at url: URL) throws -> SCRImage {

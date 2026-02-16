@@ -155,7 +155,7 @@ struct FormationDecoder {
 
     /// Load from default game directory
     static func loadDefault() -> FormationCatalog? {
-        let path = NSString(string: "~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/STOCK.MAP").expandingTildeInPath
+        let path = "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL/STOCK.MAP"
         return decode(at: path)
     }
 }

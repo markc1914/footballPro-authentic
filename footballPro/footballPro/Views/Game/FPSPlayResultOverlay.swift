@@ -56,8 +56,7 @@ struct FPSPlayResultOverlay: View {
                     } else {
                         HStack(spacing: 16) {
                             FPSButton("Instant Replay") {
-                                // Replay not yet wired — continue for now
-                                viewModel.continueAfterResult()
+                                viewModel.enterReplay()
                             }
                             FPSButton("Continue") {
                                 viewModel.continueAfterResult()
