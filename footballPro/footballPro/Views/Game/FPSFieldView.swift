@@ -1320,7 +1320,15 @@ struct FPSFieldView: View {
         let angle = facingToAngle(facing, isFlipped: isFieldFlipped)
         let viewIdx = SpriteCache.viewIndex(fromAngle: angle, viewCount: info.views)
 
-        return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx)
+        // Apply team color table (same logic as animatedSpriteFrame)
+        let colorTable: Int = {
+            guard let game = viewModel.game else { return 0 }
+            let offenseIsHome = game.isHomeTeamPossession
+            let isHomePlayer = isDefense ? !offenseIsHome : offenseIsHome
+            return isHomePlayer ? SpriteCache.homeColorTable : SpriteCache.awayColorTable
+        }()
+
+        return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx, colorTable: colorTable)
     }
 
     /// Per-player animated sprite frame using independent animation state machines.

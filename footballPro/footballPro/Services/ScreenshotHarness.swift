@@ -87,6 +87,7 @@ struct ScreenshotHarness {
         game.awayTimeouts = 3
         vm.game = game
         vm.loadAuthenticPlaybooks()
+        vm.applyTeamColors()
 
         // Set last play result if provided
         if let desc = lastPlayDescription {
@@ -292,13 +293,12 @@ struct ScreenshotHarness {
             captured += 1
         } catch { print("[Harness] 09_replay_controls failed: \(error)") }
 
-        // --- 10: Presnap - Different Formation ---
+        // --- 10: Presnap - Different Formation (no blueprint = static rendering) ---
         do {
             report(10, "10_presnap_formation2.png")
-            let bp = mockBlueprint(losYard: 45)
             let vm = configureViewModel(homeTeam: home, awayTeam: away, phase: .presnap,
                                         quarter: 1, timeRemaining: 820, down: 2, yardsToGo: 7,
-                                        yardLine: 45, blueprint: bp)
+                                        yardLine: 45)
             let view = FPSFieldView(viewModel: vm)
             try ScreenshotService.captureView(view, filename: "10_presnap_formation2.png")
             captured += 1

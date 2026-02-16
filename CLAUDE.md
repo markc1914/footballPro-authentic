@@ -433,20 +433,20 @@ Animation fixes ─────────────────────�
 
 **All core phases complete.** Remaining work: DDA intro cutscenes; visual accuracy refinement (see below).
 
-## Visual Accuracy Refinement (Planned)
+## Visual Accuracy Refinement — DONE
 
-Comparison of screenshots (`/tmp/fps_screenshots/`) against original reference frames (`/tmp/fps_gameplay/`) identified these issues:
+All 7 issues identified from screenshot-vs-reference comparison have been fixed, plus sprite rendering bugs:
 
-### High Priority
-1. **Play result overlay style** — Original uses flat dark rectangle (no rounded corners) with continuous prose and buttons OUTSIDE the text box. Our version has a rounded dialog with embedded buttons. Files: `FPSPlayResultOverlay.swift`, `GameViewModel.swift`.
-2. **VCR replay bar** — Original shows a compact 11-button VCR toolbar (24x20 icons, green/red split) at the top of the field during presnap/playAnimation/playResult/refereeCall phases. Our `FPSVCRToolbar` exists but only during playAnimation and is oversized. File: `GameDayView.swift`.
-3. **Play calling button layout** — Original has exactly 3 buttons (TIME OUT, SPECIAL TEAMS, READY-BREAK!). We show 5 (extra PAGE -/+). Remove page buttons, add keyboard left/right arrow for pagination. File: `FPSPlayCallingScreen.swift`.
-4. **Opponent play hints** — Original shows simplified AI play type hints ("Run left", "Goal line run") in red text across ~4 opponent grid slots. We show empty slots. Requires pre-selecting AI play on phase entry. Files: `GameViewModel.swift`, `FPSPlayCallingScreen.swift`.
-
-### Medium Priority
-5. **Scoreboard label layout** — Original right section is a 2-row x 3-column grid (TIME OUTS/DOWN/TO GO top, TIME OUTS/BALL ON/PLAY CLOCK bottom). Our layout differs in spacing/arrangement. File: `FPSScoreboardBar.swift`.
-6. **Field yard line numbers** — Original renders vertically-stacked digits with perspective squash, positioned at ~92% sideline width, with directional triangles. Our numbers are horizontal and at 80%. File: `FPSFieldView.swift`.
-7. **Play result text format** — Original uses continuous prose: "Buffalo's ball on their 49 yard line. First and 10 to go. 4:50 left in the first quarter. The score is Buffalo 0, Dallas 0." with colored team names. Need `generateProseResult()` method. Files: `FPSPlayResultOverlay.swift`, `GameViewModel.swift`.
+### Fixes Implemented
+1. **Play result overlay** — Flat dark rectangle, continuous prose via `generateProseResult()`, buttons outside text box
+2. **VCR replay bar** — Compact 24×18 buttons, green/red split, shown during presnap/playResult/refereeCall
+3. **Play calling buttons** — 3 buttons only (TIME OUT, SPECIAL TEAMS, READY-BREAK!), keyboard arrows for page nav
+4. **Opponent play hints** — AI hint text in red across opponent grid slots via `aiPlayHintText` computed property
+5. **Scoreboard layout** — 2-row × 3-column grid (TIME OUTS/DOWN/TO GO, TIME OUTS/BALL ON/PLAY CLK)
+6. **Yard line numbers** — Vertically stacked digits with perspective squash at 92% sideline width
+7. **Play result text** — `generateProseResult()` in GameViewModel produces continuous prose with colored team names
+8. **Static sprite team colors** — `authenticSpriteFrame()` now passes colorTable for proper team color distinction in presnap
+9. **Screenshot harness** — Calls `applyTeamColors()` + `loadAuthenticPlaybooks()` for accurate harness screenshots
 
 ## Fallback Strategy
 

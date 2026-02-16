@@ -164,7 +164,7 @@ public class GameViewModel: ObservableObject { // Made public
     }
 
     /// Apply team colors to sprite cache (home = color table 1, away = color table 2)
-    private func applyTeamColors() {
+    func applyTeamColors() {
         guard let home = homeTeam, let away = awayTeam else { return }
 
         func rgb(_ hex: String) -> (UInt8, UInt8, UInt8) {
