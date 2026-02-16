@@ -76,14 +76,16 @@ struct VGA {
 // MARK: - Retro Font Helpers
 
 struct RetroFont {
-    static func tiny() -> Font { .system(size: 9, weight: .regular, design: .monospaced) }
-    static func small() -> Font { .system(size: 10, weight: .regular, design: .monospaced) }
-    static func body() -> Font { .system(size: 12, weight: .regular, design: .monospaced) }
-    static func bodyBold() -> Font { .system(size: 12, weight: .bold, design: .monospaced) }
-    static func header() -> Font { .system(size: 14, weight: .bold, design: .monospaced) }
-    static func title() -> Font { .system(size: 18, weight: .bold, design: .monospaced) }
-    static func large() -> Font { .system(size: 24, weight: .bold, design: .monospaced) }
-    static func huge() -> Font { .system(size: 36, weight: .bold, design: .monospaced) }
+    // Proportional fonts for general UI text (matches DOS game UI feel)
+    static func tiny() -> Font { .system(size: 9, weight: .regular, design: .default) }
+    static func small() -> Font { .system(size: 10, weight: .regular, design: .default) }
+    static func body() -> Font { .system(size: 12, weight: .regular, design: .default) }
+    static func bodyBold() -> Font { .system(size: 12, weight: .bold, design: .default) }
+    static func header() -> Font { .system(size: 14, weight: .bold, design: .default) }
+    static func title() -> Font { .system(size: 18, weight: .bold, design: .default) }
+    static func large() -> Font { .system(size: 24, weight: .bold, design: .default) }
+    static func huge() -> Font { .system(size: 36, weight: .bold, design: .default) }
+    // Monospaced fonts for numeric/clock/score displays only
     static func score() -> Font { .system(size: 48, weight: .bold, design: .monospaced) }
 }
 

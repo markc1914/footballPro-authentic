@@ -9,6 +9,26 @@ import Foundation
 
 class PlayResolver {
 
+    /// Fatigue context passed from the game state for rating adjustments
+    struct FatigueContext {
+        let snapCounts: [UUID: Int]
+
+        /// Calculate fatigue penalty for a player: 0 (fresh) to -10 (exhausted)
+        func penalty(for player: Player) -> Int {
+            let snaps = snapCounts[player.id] ?? 0
+            let threshold = 15 + (player.ratings.stamina - 60) / 10
+            guard snaps > threshold else { return 0 }
+            return min(10, 3 + (snaps - threshold))
+        }
+
+        /// Apply fatigue to a physical rating value
+        func adjustedRating(_ rating: Int, for player: Player) -> Int {
+            return max(1, rating - penalty(for: player))
+        }
+
+        static let none = FatigueContext(snapCounts: [:])
+    }
+
     // MARK: - Main Resolution
 
     func resolvePlay(
@@ -18,7 +38,9 @@ class PlayResolver {
         defensiveTeam: Team,
         fieldPosition: FieldPosition,
         downAndDistance: DownAndDistance,
-        weather: Weather
+        weather: Weather,
+        isHomePossession: Bool = false,
+        fatigue: FatigueContext = .none
     ) -> PlayOutcome {
 
         // Check for penalty first (5% chance)
@@ -39,7 +61,9 @@ class PlayResolver {
                 offensiveTeam: offensiveTeam,
                 defensiveTeam: defensiveTeam,
                 defensiveFormation: defensiveCall.formation,
-                fieldPosition: fieldPosition
+                fieldPosition: fieldPosition,
+                isHomePossession: isHomePossession,
+                fatigue: fatigue
             )
 
         case _ where offensiveCall.playType.isPass:
@@ -49,7 +73,9 @@ class PlayResolver {
                 defensiveTeam: defensiveTeam,
                 defensiveCall: defensiveCall,
                 fieldPosition: fieldPosition,
-                weather: weather
+                weather: weather,
+                isHomePossession: isHomePossession,
+                fatigue: fatigue
             )
 
         default:
@@ -64,7 +90,9 @@ class PlayResolver {
         offensiveTeam: Team,
         defensiveTeam: Team,
         defensiveFormation: DefensiveFormation,
-        fieldPosition: FieldPosition
+        fieldPosition: FieldPosition,
+        isHomePossession: Bool = false,
+        fatigue: FatigueContext = .none
     ) -> PlayOutcome {
 
         // Get key players
@@ -84,26 +112,39 @@ class PlayResolver {
         let allDefenders = [dt1, dt2, mlb, olb1].compactMap { $0 }
         let tackler = allDefenders.randomElement()
 
-        // Calculate offensive line rating
+        // Calculate offensive line rating (with fatigue applied to physical ratings)
         let oLineRating = [lt, lg, c, rg, rt]
-            .compactMap { $0?.ratings.runBlock }
+            .compactMap { player -> Int? in
+                guard let p = player else { return nil }
+                return fatigue.adjustedRating(p.ratings.runBlock, for: p)
+            }
             .reduce(0, +) / 5
 
-        // Calculate defensive front rating (weighted more heavily)
+        // Calculate defensive front rating (with fatigue)
         let defenders = allDefenders
         var dLineRating = defenders.isEmpty ? 70 : defenders
-            .map { ($0.ratings.tackle + $0.ratings.blockShedding + $0.ratings.pursuit) / 3 }
+            .map { p in
+                let t = fatigue.adjustedRating(p.ratings.tackle, for: p)
+                let bs = fatigue.adjustedRating(p.ratings.blockShedding, for: p)
+                let pu = fatigue.adjustedRating(p.ratings.pursuit, for: p)
+                return (t + bs + pu) / 3
+            }
             .reduce(0, +) / defenders.count
 
         // Linebacker play recognition improves run defense reads
         let linebackers = [mlb, olb1].compactMap { $0 }
         if !linebackers.isEmpty {
-            let lbRecognition = Double(linebackers.map { $0.ratings.playRecognition }.reduce(0, +)) / Double(linebackers.count)
+            let lbRecognition = Double(linebackers.map { fatigue.adjustedRating($0.ratings.playRecognition, for: $0) }.reduce(0, +)) / Double(linebackers.count)
             dLineRating += Int(lbRecognition * 0.3)
         }
 
-        // Running back contribution
-        let rbRating = rb.map { ($0.ratings.speed + $0.ratings.elusiveness + $0.ratings.ballCarrierVision) / 3 } ?? 60
+        // Running back contribution (with fatigue on physical ratings)
+        let rbRating = rb.map { p in
+            let spd = fatigue.adjustedRating(p.ratings.speed, for: p)
+            let elu = fatigue.adjustedRating(p.ratings.elusiveness, for: p)
+            let bcv = fatigue.adjustedRating(p.ratings.ballCarrierVision, for: p)
+            return (spd + elu + bcv) / 3
+        } ?? 60
 
         // Formation matchup - defense gets more credit for run-stopping formations
         let formationModifier: Double
@@ -117,6 +158,9 @@ class PlayResolver {
         // Calculate base yards - defense is now more impactful
         let matchupDiff = Double(oLineRating + rbRating/2 - dLineRating) / 150.0
         let baseYards = playType.averageYards * (0.8 + matchupDiff) * formationModifier
+
+        // Home field advantage: +0.3 yards for the home team
+        let homeFieldRushBonus = isHomePossession ? 0.3 : 0.0
 
         // NFL-realistic right-skewed rushing distribution
         let roll = Double.random(in: 0...1)
@@ -132,7 +176,7 @@ class PlayResolver {
         } else {
             variance = Double.random(in: 18...45)      // 3%: breakaway (20+ yds)
         }
-        var yards = Int(baseYards + variance)
+        var yards = Int(baseYards + variance + homeFieldRushBonus)
 
         // Break tackle check: RB's breakTackle + trucking can add extra yards
         if let runner = rb {
@@ -248,7 +292,9 @@ class PlayResolver {
         defensiveTeam: Team,
         defensiveCall: any DefensiveCall, // Changed to any DefensiveCall
         fieldPosition: FieldPosition,
-        weather: Weather
+        weather: Weather,
+        isHomePossession: Bool = false,
+        fatigue: FatigueContext = .none
     ) -> PlayOutcome {
 
         let qb = offensiveTeam.starter(at: .quarterback)
@@ -273,17 +319,22 @@ class PlayResolver {
         let ss = defensiveTeam.starter(at: .strongSafety)
         let de1 = defensiveTeam.starter(at: .defensiveEnd)
 
-        // QB accuracy based on pass depth
+        // QB accuracy based on pass depth (fatigue degrades accuracy via stamina drain)
         let qbAccuracy: Int
-        switch playType {
-        case .shortPass, .screen:
-            qbAccuracy = qb?.ratings.throwAccuracyShort ?? 70
-        case .mediumPass, .playAction, .rollout:
-            qbAccuracy = qb?.ratings.throwAccuracyMid ?? 70
-        case .deepPass:
-            qbAccuracy = qb?.ratings.throwAccuracyDeep ?? 70
-        default:
-            qbAccuracy = qb?.ratings.throwAccuracyMid ?? 70
+        if let q = qb {
+            let fatPen = fatigue.penalty(for: q)
+            switch playType {
+            case .shortPass, .screen:
+                qbAccuracy = max(1, q.ratings.throwAccuracyShort - fatPen)
+            case .mediumPass, .playAction, .rollout:
+                qbAccuracy = max(1, q.ratings.throwAccuracyMid - fatPen)
+            case .deepPass:
+                qbAccuracy = max(1, q.ratings.throwAccuracyDeep - fatPen)
+            default:
+                qbAccuracy = max(1, q.ratings.throwAccuracyMid - fatPen)
+            }
+        } else {
+            qbAccuracy = 70
         }
 
         // Receiver rating
@@ -308,15 +359,25 @@ class PlayResolver {
             coverageRating = 70
         }
 
-        // Pass rush pressure affects everything
-        let passRushRating = de1?.ratings.passRush ?? 70
-        let oLinePassBlock = [
-            offensiveTeam.starter(at: .leftTackle)?.ratings.passBlock ?? 70,
-            offensiveTeam.starter(at: .leftGuard)?.ratings.passBlock ?? 70,
-            offensiveTeam.starter(at: .center)?.ratings.passBlock ?? 70,
-            offensiveTeam.starter(at: .rightGuard)?.ratings.passBlock ?? 70,
-            offensiveTeam.starter(at: .rightTackle)?.ratings.passBlock ?? 70
-        ].reduce(0, +) / 5
+        // Pass rush pressure affects everything (with fatigue applied)
+        let passRushRating: Int = {
+            guard let de = de1 else { return 70 }
+            return fatigue.adjustedRating(de.ratings.passRush, for: de)
+        }()
+        let oLinePassBlock: Int = {
+            let linemen: [Player?] = [
+                offensiveTeam.starter(at: .leftTackle),
+                offensiveTeam.starter(at: .leftGuard),
+                offensiveTeam.starter(at: .center),
+                offensiveTeam.starter(at: .rightGuard),
+                offensiveTeam.starter(at: .rightTackle)
+            ]
+            let ratings = linemen.compactMap { p -> Int? in
+                guard let p = p else { return nil }
+                return fatigue.adjustedRating(p.ratings.passBlock, for: p)
+            }
+            return ratings.isEmpty ? 70 : ratings.reduce(0, +) / ratings.count
+        }()
 
         // Sack chance - more realistic (NFL average ~6-7%)
         var sackChance = 0.07
@@ -381,8 +442,44 @@ class PlayResolver {
             )
         }
 
+        // QB scramble check: if sack didn't happen but protection was pressured, QB may scramble
+        let pressureChance = sackChance * 2.5
+        let isPressured = Double.random(in: 0...1) < pressureChance
+        if isPressured && Double.random(in: 0...1) < 0.10 {
+            // QB scrambles out of the pocket
+            let qbSpeed = qb?.ratings.speed ?? 60
+            let qbAgility = qb?.ratings.agility ?? 60
+            let scrambleBonus = Double(qbSpeed + qbAgility - 120) / 80.0  // -0.5 to +1.0 for typical range
+            var scrambleYards = Int(Double.random(in: 2...8) + scrambleBonus)
+            scrambleYards = max(0, min(scrambleYards, fieldPosition.yardsToEndZone))
+            let isTD = fieldPosition.yardLine + scrambleYards >= 100
+
+            // Out-of-bounds chance on scrambles (~25%)
+            let scrambleOOB = Double.random(in: 0...1) < 0.25
+
+            let scrambleInjury = checkForInjury(ballCarrierId: qb?.id, tacklerId: de1?.id, isBigHit: false)
+
+            return PlayOutcome(
+                yardsGained: scrambleYards,
+                timeElapsed: Int.random(in: 5...12),
+                isComplete: true,
+                isTouchdown: isTD,
+                isTurnover: false,
+                turnoverType: nil,
+                isPenalty: false,
+                penalty: nil,
+                isInjury: scrambleInjury.isInjury,
+                injuredPlayerId: scrambleInjury.injuredPlayerId,
+                wentOutOfBounds: scrambleOOB,
+                passerId: nil,
+                rusherId: qb?.id,
+                receiverId: nil,
+                primaryTacklerId: de1?.id,
+                description: "\(qb?.fullName ?? "QB") scrambles for \(scrambleYards) yards\(isTD ? " TOUCHDOWN!" : "")"
+            )
+        }
+
         // Pressure affects accuracy even without sack (hurried throws)
-        let isPressured = Double.random(in: 0...1) < (sackChance * 2.5)
         let pressurePenalty = isPressured ? 15 : 0
 
         // Calculate completion chance - more realistic (NFL average ~65%)
@@ -393,6 +490,11 @@ class PlayResolver {
         // Weather affects passing
         if weather.affectsPassing {
             completionChance *= 0.80
+        }
+
+        // Home field advantage: +3% completion chance for the home team
+        if isHomePossession {
+            completionChance += 0.03
         }
 
         // Catch in traffic: when coverage is tight, receiver's catchInTraffic helps
@@ -464,11 +566,40 @@ class PlayResolver {
             if qbAwareness < 70 { intChance += 0.02 }
 
             if Double.random(in: 0...1) < intChance {
+                // Calculate interception return yardage
+                // Average ~12 yards, range 0-30 normally, 3% pick-six chance
+                let interceptor = [cb1, cb2, fs, ss].compactMap { $0 }.randomElement() ?? cb1
+                let interceptorSpeed = Double(interceptor?.ratings.speed ?? 70)
+                let speedFactor = interceptorSpeed / 80.0  // ~0.75 to ~1.125 for typical range
+
+                let pickSixRoll = Double.random(in: 0...1)
+                let returnYards: Int
+                let isPickSix: Bool
+                if pickSixRoll < 0.03 {
+                    // Pick-six: return for touchdown
+                    returnYards = fieldPosition.yardsToEndZone
+                    isPickSix = true
+                } else {
+                    // Normal return: 0-30 yards, averaged ~12, influenced by defender speed
+                    let baseReturn = Double.random(in: 0...30) * speedFactor
+                    returnYards = min(Int(baseReturn), fieldPosition.yardsToEndZone)
+                    isPickSix = (fieldPosition.yardLine + returnYards) >= 100
+                }
+
+                let intDesc: String
+                if isPickSix {
+                    intDesc = "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(interceptor?.fullName ?? "defender")! Returned for a TOUCHDOWN!"
+                } else if returnYards > 0 {
+                    intDesc = "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(interceptor?.fullName ?? "defender")! Returned \(returnYards) yards."
+                } else {
+                    intDesc = "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(interceptor?.fullName ?? "defender")!"
+                }
+
                 return PlayOutcome(
-                    yardsGained: 0,
+                    yardsGained: returnYards,
                     timeElapsed: Int.random(in: 4...8),
                     isComplete: false,
-                    isTouchdown: false,
+                    isTouchdown: isPickSix,
                     isTurnover: true,
                     turnoverType: .interception,
                     isPenalty: false,
@@ -479,8 +610,8 @@ class PlayResolver {
                     passerId: qb?.id,
                     rusherId: nil,
                     receiverId: targetReceiver?.id,
-                    primaryTacklerId: cb1?.id,
-                    description: "\(qb?.fullName ?? "QB") pass INTERCEPTED by \(cb1?.fullName ?? "defender")!"
+                    primaryTacklerId: interceptor?.id,
+                    description: intDesc
                 )
             }
 
@@ -550,8 +681,35 @@ class PlayResolver {
 
     // MARK: - Penalty Resolution
 
+    /// Weighted penalty type selection matching approximate NFL frequency
+    private func weightedRandomPenalty() -> PenaltyType {
+        // Weights summing to 100 for clarity
+        let weightedPenalties: [(PenaltyType, Double)] = [
+            (.holding, 25),              // Offensive holding: most common NFL penalty
+            (.falseStart, 20),           // False start: second most common
+            (.offside, 15),              // Offside/encroachment
+            (.passInterference, 10),     // Defensive pass interference
+            (.illegalBlock, 4),          // Illegal block in the back
+            (.roughingThePasser, 5),     // Roughing the passer
+            (.facemask, 5),              // Facemask
+            (.delay, 4),                 // Delay of game
+            (.illegalMotion, 3),         // Illegal motion/shift
+            (.unsportsmanlike, 3),       // Unsportsmanlike conduct
+            (.intentionalGrounding, 3),  // Intentional grounding
+            (.horseCollar, 3),           // Horse collar tackle
+        ]
+
+        let totalWeight = weightedPenalties.reduce(0.0) { $0 + $1.1 }
+        var pick = Double.random(in: 0..<totalWeight)
+        for (penalty, weight) in weightedPenalties {
+            pick -= weight
+            if pick <= 0 { return penalty }
+        }
+        return weightedPenalties.last!.0
+    }
+
     private func resolvePenalty() -> PlayOutcome {
-        let penaltyType = PenaltyType.allCases.randomElement()!
+        let penaltyType = weightedRandomPenalty()
 
         // Assign penalty to the CORRECT side based on penalty type
         let isOnOffense: Bool
@@ -559,8 +717,11 @@ class PlayResolver {
             isOnOffense = true
         } else if penaltyType.isAlwaysDefense {
             isOnOffense = false
+        } else if penaltyType == .holding {
+            // Holding is overwhelmingly offensive in the NFL (~80%)
+            isOnOffense = Double.random(in: 0...1) < 0.80
         } else {
-            // Ambiguous penalties (holding, facemask, etc.): random side
+            // Other ambiguous penalties (facemask, etc.): random side
             isOnOffense = Bool.random()
         }
 

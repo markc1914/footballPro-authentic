@@ -324,6 +324,28 @@ class AICoach {
         return false
     }
 
+    // MARK: - Onside Kick Decision
+
+    /// AI should attempt onside kick when trailing significantly in Q4
+    func shouldAttemptOnsideKick(situation: GameSituation) -> Bool {
+        guard situation.quarter == 4 else { return false }
+        guard situation.scoreDifferential < 0 else { return false }
+
+        let deficit = -situation.scoreDifferential
+
+        // Trailing by 8+ points in Q4 with <5:00 remaining
+        if deficit >= 8 && situation.timeRemaining < 300 {
+            return true
+        }
+
+        // Trailing by 15+ at any point in Q4
+        if deficit >= 15 {
+            return true
+        }
+
+        return false
+    }
+
     // MARK: - Challenge Decision
 
     func shouldChallenge(playWasGood: Bool, challengesRemaining: Int, situation: GameSituation) -> Bool {

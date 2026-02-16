@@ -12,6 +12,8 @@ struct GameDayView: View {
     @EnvironmentObject var gameState: GameState
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = GameViewModel()
+    @State private var ballImage: CGImage?   // BALL.SCR — football graphic for FG/PAT
+    @State private var kickImage: CGImage?   // KICK.SCR — kicking scene for punt/kickoff
 
     var body: some View {
         ZStack {
@@ -57,6 +59,23 @@ struct GameDayView: View {
                 case .specialResult(let text):
                     ZStack {
                         Color.black.ignoresSafeArea()
+
+                        // BALL.SCR background for field goal / extra point results
+                        if isKickingResult(text), let bg = ballImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.4)
+                        }
+
+                        // KICK.SCR background for punt results
+                        if isPuntResult(text), let bg = kickImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.4)
+                        }
+
                         Text(text)
                             .font(RetroFont.score())
                             .foregroundColor(VGA.digitalAmber)
@@ -66,6 +85,15 @@ struct GameDayView: View {
                 case .extraPointChoice:
                     ZStack {
                         Color.black.ignoresSafeArea()
+
+                        // BALL.SCR background for extra point choice
+                        if let bg = ballImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.35)
+                        }
+
                         FPSDialog("TOUCHDOWN!") {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 8)
@@ -168,6 +196,7 @@ struct GameDayView: View {
         }
         .onAppear {
             setupGame()
+            loadKickingScreens()
         }
     }
 
@@ -214,6 +243,41 @@ struct GameDayView: View {
         gameState.currentSeason = season
         gameState.userTeam = gameState.currentLeague?.teams.first { $0.id == userTeam.id }
         gameState.autoSave(modelContext: modelContext)
+    }
+
+    /// Check if specialResult text relates to a field goal or extra point attempt.
+    private func isKickingResult(_ text: String) -> Bool {
+        let upper = text.uppercased()
+        return upper.contains("FIELD GOAL") || upper.contains("EXTRA POINT")
+    }
+
+    /// Check if specialResult text relates to a punt.
+    private func isPuntResult(_ text: String) -> Bool {
+        let upper = text.uppercased()
+        return upper.contains("PUNT")
+    }
+
+    /// Load BALL.SCR and KICK.SCR from game files (TTM subdirectory).
+    private func loadKickingScreens() {
+        let gameDir = SCRDecoder.defaultDirectory
+
+        // BALL.SCR — try TTM subdirectory first, then main directory
+        if let scr = try? SCRDecoder.decode(at: gameDir.appendingPathComponent("TTM/BALL.SCR")),
+           let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            ballImage = scr.cgImage(palette: pal)
+        } else if let scr = SCRDecoder.load(named: "BALL.SCR"),
+                  let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            ballImage = scr.cgImage(palette: pal)
+        }
+
+        // KICK.SCR — try TTM subdirectory first, then main directory
+        if let scr = try? SCRDecoder.decode(at: gameDir.appendingPathComponent("TTM/KICK.SCR")),
+           let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            kickImage = scr.cgImage(palette: pal)
+        } else if let scr = SCRDecoder.load(named: "KICK.SCR"),
+                  let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            kickImage = scr.cgImage(palette: pal)
+        }
     }
 
     private func setupGame() {

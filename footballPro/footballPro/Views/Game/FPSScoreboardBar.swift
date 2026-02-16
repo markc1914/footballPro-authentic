@@ -180,11 +180,12 @@ struct FPSScoreboardBar: View {
                     .foregroundColor(VGA.white)
                     .lineLimit(1)
 
-                // Possession indicator (small football shape)
+                // Possession indicator (tiny football silhouette)
                 if hasPossession {
                     Ellipse()
                         .fill(VGA.digitalAmber)
-                        .frame(width: 8, height: 5)
+                        .frame(width: 10, height: 6)
+                        .rotationEffect(.degrees(45))
                 }
 
                 if let rating = rating {

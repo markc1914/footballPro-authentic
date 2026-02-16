@@ -78,6 +78,12 @@ public struct AuthenticPlayDefinition: Identifiable, Codable, Equatable { // Mad
     // A compact signature of the resolved PRF page so callers can detect page reuse.
     public let pageSignature: String
 
+    /// Human-readable name translated from FPS '93 8-char PLN codes.
+    /// Decodes formation prefix, play pattern, and direction suffix into readable text.
+    public var humanReadableName: String {
+        return AuthenticPlayNameTranslator.translate(name)
+    }
+
     /// Category inferred from FPS '93 play naming conventions
     public var category: AuthenticPlayCategory {
         if isSpecialTeams { return .specialTeams }
@@ -228,5 +234,206 @@ public struct AuthenticPlaybookLoader { // Made public
         }
 
         return String(hasher.finalize(), radix: 16, uppercase: false)
+    }
+}
+
+// MARK: - Play Name Translator
+
+/// Translates FPS '93 8-char PLN codes into human-readable play names.
+/// Codes follow the pattern: [Formation][PlayType][Direction][Variant]
+/// Example: "DWSLRL1" -> "DW Slot Run L" (Double Wing, Slot, Run Left, variant 1)
+public enum AuthenticPlayNameTranslator {
+
+    // Formation prefixes (1-3 chars at start of name)
+    private static let formationPrefixes: [(code: String, label: String)] = [
+        ("DW", "DW"),           // Double Wing
+        ("FO", "Far"),          // Far Out
+        ("FS", "Far Spt"),      // Far Split
+        ("FI", "Flx I"),        // Flex I
+        ("FL", "Flex"),         // Flex
+        ("SG", "Shot"),         // Shotgun
+        ("SH", "Shot"),         // Shotgun alt
+        ("SP", "Spt"),          // Split
+        ("PR", "Pro"),          // Pro Set
+        ("NR", "Near"),         // Near
+        ("NE", "Near"),         // Near alt
+        ("WK", "Weak"),         // Weak
+        ("ST", "Str"),          // Strong
+        ("IF", "I Fm"),         // I Formation
+        ("IS", "I Slt"),        // I Slot
+        ("IW", "I Wng"),        // I Wing
+        ("I",  "I"),            // I Formation (single char)
+        ("TR", "Trips"),        // Trips
+        ("SA", "Scrn"),         // Screen
+        ("DR", "Draw"),         // Draw
+        ("FB", "FB"),           // Fullback
+        ("HB", "HB"),           // Halfback
+        ("WR", "WR"),           // Wide Receiver
+        ("TE", "TE"),           // Tight End
+        ("PA", "PA"),           // Play Action
+        ("FA", "Fake"),         // Fake
+    ]
+
+    // Direction/action suffixes
+    private static let directionSuffixes: [(code: String, label: String)] = [
+        ("RL", "Run L"),
+        ("RR", "Run R"),
+        ("RM", "Run M"),
+        ("PL", "Pass L"),
+        ("PR", "Pass R"),
+        ("PM", "Pass M"),
+        ("PS", "Pass S"),
+        ("SL", "Sweep L"),
+        ("SR", "Sweep R"),
+    ]
+
+    // Middle play-type fragments
+    private static let middleFragments: [(code: String, label: String)] = [
+        ("SL", "Slot"),
+        ("OPS", "Opt S"),
+        ("OP", "Opt"),
+        ("SW", "Sweep"),
+        ("CT", "Cnt"),
+        ("TR", "Trap"),
+        ("DV", "Dive"),
+        ("PI", "Pitch"),
+        ("PW", "Power"),
+        ("IW", "In Wide"),
+        ("OW", "Out Wide"),
+        ("CR", "Cross"),
+        ("CU", "Curl"),
+        ("ST", "Str"),
+        ("FL", "Flat"),
+        ("DP", "Deep"),
+        ("QK", "Quick"),
+        ("SC", "Scrn"),
+        ("BL", "Blitz"),
+        ("ZN", "Zone"),
+        ("MN", "Man"),
+    ]
+
+    public static func translate(_ code: String) -> String {
+        let upper = code.uppercased().trimmingCharacters(in: .whitespaces)
+        guard !upper.isEmpty else { return code }
+
+        // Special teams plays — return as-is with spaces
+        let stKeywords = ["FG", "PAT", "KICK", "PUNT", "ONSID", "SQUIB", "FREE"]
+        for kw in stKeywords {
+            if upper.contains(kw) {
+                return formatSpecialTeams(upper)
+            }
+        }
+
+        var remaining = upper
+        var parts: [String] = []
+
+        // 1. Strip trailing variant number(s)
+        while remaining.last?.isNumber == true {
+            remaining = String(remaining.dropLast())
+        }
+
+        // 2. Match formation prefix (longest match first — prefixes sorted by length desc)
+        let sortedPrefixes = formationPrefixes.sorted { $0.code.count > $1.code.count }
+        var foundFormation = false
+        for prefix in sortedPrefixes {
+            if remaining.hasPrefix(prefix.code) {
+                parts.append(prefix.label)
+                remaining = String(remaining.dropFirst(prefix.code.count))
+                foundFormation = true
+                break
+            }
+        }
+
+        // 3. Match direction suffix (check end of remaining)
+        let sortedSuffixes = directionSuffixes.sorted { $0.code.count > $1.code.count }
+        var foundDirection = false
+        for suffix in sortedSuffixes {
+            if remaining.hasSuffix(suffix.code) {
+                // Don't consume yet — save for later
+                remaining = String(remaining.dropLast(suffix.code.count))
+                // Try to match middle fragments from what's left
+                let middlePart = decodeMiddle(remaining)
+                if !middlePart.isEmpty {
+                    parts.append(middlePart)
+                } else if !remaining.isEmpty {
+                    parts.append(remaining)
+                }
+                parts.append(suffix.label)
+                foundDirection = true
+                break
+            }
+        }
+
+        // 4. If no direction suffix found, try middle decode on whatever's left
+        if !foundDirection && !remaining.isEmpty {
+            let middlePart = decodeMiddle(remaining)
+            if !middlePart.isEmpty {
+                parts.append(middlePart)
+            } else {
+                parts.append(remaining)
+            }
+        }
+
+        // 5. If we got nothing useful, just space out the original code
+        if parts.isEmpty {
+            return code
+        }
+
+        return parts.joined(separator: " ")
+    }
+
+    private static func decodeMiddle(_ s: String) -> String {
+        guard !s.isEmpty else { return "" }
+        var remaining = s
+        var decoded: [String] = []
+
+        let sortedFragments = middleFragments.sorted { $0.code.count > $1.code.count }
+
+        var iterations = 0
+        while !remaining.isEmpty && iterations < 5 {
+            iterations += 1
+            var matched = false
+            for frag in sortedFragments {
+                if remaining.hasPrefix(frag.code) {
+                    decoded.append(frag.label)
+                    remaining = String(remaining.dropFirst(frag.code.count))
+                    matched = true
+                    break
+                }
+            }
+            if !matched {
+                // Take one char and move on
+                decoded.append(String(remaining.prefix(1)))
+                remaining = String(remaining.dropFirst())
+            }
+        }
+
+        return decoded.joined(separator: " ")
+    }
+
+    private static func formatSpecialTeams(_ code: String) -> String {
+        // Insert spaces around known keywords for readability
+        var result = code
+        let keywords = [
+            ("FAKEPUNT", "Fake punt"),
+            ("FAKEKICK", "Fake kick"),
+            ("FKPNTPS", "Fake punt pass"),
+            ("FKPNTRN", "Fake punt run"),
+            ("ONSIDE", "Onside kick"),
+            ("SQUIB", "Squib kick"),
+            ("KICKOFF", "Kickoff"),
+            ("KICKRET", "Kick return"),
+            ("PUNTRET", "Punt return"),
+            ("PUNT", "Punt"),
+            ("PAT", "PAT"),
+            ("FG", "Field goal"),
+        ]
+        let upper = result.uppercased()
+        for (kw, readable) in keywords {
+            if upper.contains(kw) {
+                return readable
+            }
+        }
+        return result
     }
 }

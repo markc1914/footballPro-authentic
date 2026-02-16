@@ -321,6 +321,13 @@ struct FPSFieldView: View {
 
                             // Amber LED clocks
                             animationClockOverlay
+
+                            // Player control indicator — ball carrier silhouette + jersey number
+                            if let c = carrier {
+                                let carrierPlayers = c.isOffense ? offensePlayers : defensePlayers
+                                let jerseyNum = c.playerIndex < carrierPlayers.count ? carrierPlayers[c.playerIndex].number : 0
+                                PlayerControlIndicator(jerseyNumber: jerseyNum)
+                            }
                         }
                         .onChange(of: progress >= 1.0) { _, finished in
                             if finished { endAnimation() }
@@ -1746,6 +1753,48 @@ struct FootballSprite: View {
             context.stroke(lacePath, with: .color(.white), lineWidth: 1)
         }
         .frame(width: 16, height: 12)
+    }
+}
+
+// MARK: - Player Control Indicator (ball carrier silhouette during play animation)
+
+struct PlayerControlIndicator: View {
+    let jerseyNumber: Int
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                VStack(spacing: 2) {
+                    // Simple human silhouette in amber
+                    Canvas { context, size in
+                        let cx = size.width / 2
+                        // Head
+                        let headRect = CGRect(x: cx - 4, y: 1, width: 8, height: 8)
+                        context.fill(Ellipse().path(in: headRect), with: .color(VGA.digitalAmber))
+                        // Body
+                        let bodyRect = CGRect(x: cx - 5, y: 10, width: 10, height: 12)
+                        context.fill(Path(bodyRect), with: .color(VGA.digitalAmber))
+                        // Left leg
+                        let leftLeg = CGRect(x: cx - 5, y: 22, width: 4, height: 8)
+                        context.fill(Path(leftLeg), with: .color(VGA.digitalAmber))
+                        // Right leg
+                        let rightLeg = CGRect(x: cx + 1, y: 22, width: 4, height: 8)
+                        context.fill(Path(rightLeg), with: .color(VGA.digitalAmber))
+                    }
+                    .frame(width: 20, height: 30)
+
+                    Text("\(jerseyNumber)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(VGA.digitalAmber)
+                }
+                .padding(6)
+                .background(Color.black.opacity(0.5))
+                .padding(.trailing, 8)
+                .padding(.bottom, 40)
+            }
+        }
     }
 }
 

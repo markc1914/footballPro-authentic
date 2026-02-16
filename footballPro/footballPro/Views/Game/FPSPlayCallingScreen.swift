@@ -3,7 +3,7 @@
 //  footballPro
 //
 //  FPS Football Pro '93 play calling interface — matched from actual gameplay video
-//  Gray frame, green slot grid (1-8 left, 9-16 right), red 3D buttons,
+//  Gray frame, green slot grid (2 columns x 8 rows), red 3D buttons,
 //  scoreboard bar in center, mirror layout for opponent
 //
 
@@ -22,20 +22,20 @@ struct FPSPlayCallingScreen: View {
                     .padding(.horizontal, 4)
                     .padding(.top, 4)
 
-                // Status message
-                statusMessageBox
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 2)
+                // User play slot grid (2 cols x 8 rows) with status overlay
+                ZStack {
+                    playSlotGrid
 
-                // User play slot grid (8 rows)
-                playSlotGrid
-                    .padding(.horizontal, 4)
-                    .frame(maxHeight: .infinity)
+                    // Status message overlaid in CENTER of user's grid (like original)
+                    statusMessageOverlay
+                }
+                .padding(.horizontal, 4)
+                .frame(maxHeight: .infinity)
 
                 // MIDDLE BAND: Scoreboard
                 FPSScoreboardBar(viewModel: viewModel)
 
-                // BOTTOM BAND: Opponent play grid (8 rows)
+                // BOTTOM BAND: Opponent play grid (2 cols x 8 rows) with notification overlay
                 opponentSlotGrid
                     .padding(.horizontal, 4)
                     .frame(maxHeight: .infinity)
@@ -96,9 +96,9 @@ struct FPSPlayCallingScreen: View {
         }
     }
 
-    // MARK: - Status Message (raised gray box with black text, like original)
+    // MARK: - Status Message Overlay (centered over user's play grid, like original FPS '93)
 
-    private var statusMessageBox: some View {
+    private var statusMessageOverlay: some View {
         Text(statusText)
             .font(RetroFont.body())
             .foregroundColor(.black)
@@ -110,6 +110,10 @@ struct FPSPlayCallingScreen: View {
 
     private var statusText: String {
         let teamName = viewModel.possessionTeamName
+        // Show selected play info when a slot is selected
+        if let slot = selectedSlot, let playInfo = selectedPlayInfo(slot) {
+            return playInfo
+        }
         if showSpecialTeams {
             return "\(teamName) is in a special teams formation"
         }
@@ -122,6 +126,23 @@ struct FPSPlayCallingScreen: View {
         return "\(teamName) has called a regular play"
     }
 
+    private func selectedPlayInfo(_ slot: Int) -> String? {
+        let globalIndex = globalIndexForSlot(slot)
+        if viewModel.isUserPossession {
+            let plays = showSpecialTeams ? viewModel.availableSpecialTeamsPlays : viewModel.availableOffensivePlays
+            guard globalIndex >= 0 && globalIndex < plays.count else { return nil }
+            let play = plays[globalIndex]
+            let formation = play.formationDisplayName
+            let category = play.displayName
+            return "\(category)  [\(formation)]"
+        } else {
+            let plays = viewModel.availableDefensivePlays
+            guard globalIndex >= 0 && globalIndex < plays.count else { return nil }
+            let play = plays[globalIndex]
+            return "\(play.displayName)  [\(play.play.formationName)]"
+        }
+    }
+
     private func downOrdinal(_ down: Int) -> String {
         switch down {
         case 1: return "1st"
@@ -132,30 +153,34 @@ struct FPSPlayCallingScreen: View {
         }
     }
 
-    // MARK: - Play Slot Grid (4 columns x 4 rows = 16 slots, matching original FPS '93)
+    // MARK: - Play Slot Grid (2 columns x 8 rows = 16 slots, matching original FPS '93)
+    // Left column = slots 1-8, right column = slots 9-16
+    // Row numbers 1-8 on far left, 9-16 on far right
 
     private var playSlotGrid: some View {
         VStack(spacing: 1) {
-            ForEach(0..<4, id: \.self) { row in
+            ForEach(0..<8, id: \.self) { row in
                 HStack(spacing: 0) {
-                    // Row number on left
-                    Text("\(row * 4 + 1)")
+                    // Row number on far left (1-8)
+                    Text("\(row + 1)")
                         .font(RetroFont.bodyBold())
                         .foregroundColor(.white)
-                        .frame(width: 18, alignment: .trailing)
+                        .frame(width: 16, alignment: .trailing)
                         .padding(.trailing, 2)
 
-                    // 4 play slots per row
-                    ForEach(0..<4, id: \.self) { col in
-                        let slotNum = row * 4 + col + 1
-                        greenSlot(number: slotNum, name: playNameForSlot(slotNum))
-                    }
+                    // Left column slot (slots 1-8)
+                    let leftSlot = row + 1
+                    greenSlot(number: leftSlot, name: playNameForSlot(leftSlot))
 
-                    // Row number on right
-                    Text("\(row * 4 + 4)")
+                    // Right column slot (slots 9-16)
+                    let rightSlot = row + 9
+                    greenSlot(number: rightSlot, name: playNameForSlot(rightSlot))
+
+                    // Row number on far right (9-16)
+                    Text("\(row + 9)")
                         .font(RetroFont.bodyBold())
                         .foregroundColor(.white)
-                        .frame(width: 18, alignment: .leading)
+                        .frame(width: 16, alignment: .leading)
                         .padding(.leading, 2)
                 }
             }
@@ -187,30 +212,35 @@ struct FPSPlayCallingScreen: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Opponent Slot Grid (hidden plays with notification overlay)
+    // MARK: - Opponent Slot Grid (2 columns x 8 rows with notification overlay)
 
     private var opponentSlotGrid: some View {
         ZStack {
             VStack(spacing: 1) {
-                ForEach(0..<4, id: \.self) { row in
+                ForEach(0..<8, id: \.self) { row in
                     HStack(spacing: 0) {
-                        Text("\(row * 4 + 1)")
+                        // Row number on far left (1-8)
+                        Text("\(row + 1)")
                             .font(RetroFont.bodyBold())
                             .foregroundColor(.white)
-                            .frame(width: 18, alignment: .trailing)
+                            .frame(width: 16, alignment: .trailing)
                             .padding(.trailing, 2)
 
-                        // Empty green slots for opponent (4 columns)
-                        ForEach(0..<4, id: \.self) { _ in
-                            Rectangle()
-                                .fill(VGA.playSlotGreen)
-                                .border(VGA.playSlotDark, width: 1)
-                        }
+                        // Left column empty green slot
+                        Rectangle()
+                            .fill(VGA.playSlotGreen)
+                            .border(VGA.playSlotDark, width: 1)
 
-                        Text("\(row * 4 + 4)")
+                        // Right column empty green slot
+                        Rectangle()
+                            .fill(VGA.playSlotGreen)
+                            .border(VGA.playSlotDark, width: 1)
+
+                        // Row number on far right (9-16)
+                        Text("\(row + 9)")
                             .font(RetroFont.bodyBold())
                             .foregroundColor(.white)
-                            .frame(width: 18, alignment: .leading)
+                            .frame(width: 16, alignment: .leading)
                             .padding(.leading, 2)
                     }
                 }
@@ -283,6 +313,8 @@ struct FPSPlayCallingScreen: View {
                     Task { await viewModel.punt() }
                 } else if upper.contains("FG") || upper.contains("PAT") {
                     Task { await viewModel.attemptFieldGoal() }
+                } else if upper.contains("ONSIDE") {
+                    Task { await viewModel.executeOnsideKick() }
                 } else if upper.contains("KICK") {
                     // Kickoff — run as regular play for now
                     viewModel.selectedOffensivePlay = play

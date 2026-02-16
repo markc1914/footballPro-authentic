@@ -471,10 +471,18 @@ public class GameViewModel: ObservableObject { // Made public
         }
 
         if self.game?.isKickoff == true {
-            let result = await simulationEngine.executeKickoff()
+            // Check if AI kicking team should attempt onside kick
+            let kickSituation = currentSituation()
+            let aiIsKicking = !isUserPossession
+            let kickResult: PlayResult
+            if aiIsKicking && aiCoach.shouldAttemptOnsideKick(situation: kickSituation) {
+                kickResult = await simulationEngine.executeOnsideKick()
+            } else {
+                kickResult = await simulationEngine.executeKickoff()
+            }
             self.game = simulationEngine.currentGame
-            lastPlayResult = result
-            playByPlay.append(result)
+            lastPlayResult = kickResult
+            playByPlay.append(kickResult)
         }
 
         // Show injury notification if the last play had one
@@ -556,6 +564,18 @@ public class GameViewModel: ObservableObject { // Made public
         lastPlayResult = result
         playByPlay.append(result)
         showDriveResult(text: "Punt: \(result.description)")
+        self.game = simulationEngine.currentGame
+        updatePossessionStatus()
+    }
+
+    public func executeOnsideKick() async {
+        isSimulating = true
+        defer { isSimulating = false }
+
+        let result = await simulationEngine.executeOnsideKick()
+        lastPlayResult = result
+        playByPlay.append(result)
+        showDriveResult(text: result.description)
         self.game = simulationEngine.currentGame
         updatePossessionStatus()
     }
@@ -656,7 +676,22 @@ public class GameViewModel: ObservableObject { // Made public
             }
 
             if game.isKickoff {
-                _ = await simulationEngine.executeKickoff()
+                // Check if kicking team should attempt onside kick
+                let kickScoreDiff = game.isHomeTeamPossession ?
+                    game.score.homeScore - game.score.awayScore :
+                    game.score.awayScore - game.score.homeScore
+                let kickSit = GameSituation(
+                    down: 1, yardsToGo: 10, fieldPosition: 35,
+                    quarter: game.clock.quarter,
+                    timeRemaining: game.clock.timeRemaining,
+                    scoreDifferential: kickScoreDiff,
+                    isRedZone: false
+                )
+                if aiCoach.shouldAttemptOnsideKick(situation: kickSit) {
+                    _ = await simulationEngine.executeOnsideKick()
+                } else {
+                    _ = await simulationEngine.executeKickoff()
+                }
             } else if game.isExtraPoint {
                 _ = await simulationEngine.executeExtraPoint()
             } else {
@@ -668,7 +703,7 @@ public class GameViewModel: ObservableObject { // Made public
                 let situation = currentSituation()
 
                 if game.downAndDistance.down == 4 {
-                    let kicker = offTeam.starter(at: .kicker) // Still using .kicker, fix this
+                    let kicker = offTeam.starter(at: .kicker)
                     let decision = aiCoach.fourthDownDecision(situation: situation, kicker: kicker)
 
                     switch decision {
@@ -997,7 +1032,10 @@ public struct AuthenticPlayCall: PlayCall { // Made public, conforms to new Play
         return OffensiveFormation.fromPrfFormationCode(play.formationCode) // Now static
     }
     public var isAudible: Bool { return false } // Authentic plays are not audibles
-    public var displayName: String { return play.name }
+    public var displayName: String {
+        return play.humanReadableName
+    }
+    public var formationDisplayName: String { play.formationName }
 }
 
 // Helper struct to wrap an AuthenticPlay as a DefensiveCall
@@ -1020,5 +1058,8 @@ public struct AuthenticDefensiveCall: DefensiveCall {
         return upper.contains("BL") || upper.contains("BLITZ") || upper.contains("FIRE")
     }
     public var blitzTarget: Position? { nil }
-    public var displayName: String { play.name }
+    public var displayName: String {
+        let formationLabel = formation.rawValue
+        return "\(formationLabel): \(play.humanReadableName)"
+    }
 }

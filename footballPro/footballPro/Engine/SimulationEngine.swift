@@ -63,7 +63,8 @@ class SimulationEngine: ObservableObject {
         let offensiveTeam = game.isHomeTeamPossession ? homeTeam : awayTeam
         let defensiveTeam = game.isHomeTeamPossession ? awayTeam : homeTeam
 
-        // Resolve the play
+        // Resolve the play (pass home field status and fatigue context)
+        let fatigueCtx = PlayResolver.FatigueContext(snapCounts: game.gameSnapCounts)
         let outcome = playResolver.resolvePlay(
             offensiveCall: offensiveCall,
             defensiveCall: defensiveCall,
@@ -71,7 +72,9 @@ class SimulationEngine: ObservableObject {
             defensiveTeam: defensiveTeam,
             fieldPosition: game.fieldPosition,
             downAndDistance: game.downAndDistance,
-            weather: game.weather
+            weather: game.weather,
+            isHomePossession: game.isHomeTeamPossession,
+            fatigue: fatigueCtx
         )
 
         // Create play result
@@ -139,6 +142,9 @@ class SimulationEngine: ObservableObject {
             updateStats(for: &game, outcome: outcome, offensiveCall: offensiveCall)
         }
 
+        // Increment snap counts for fatigue tracking
+        incrementSnapCounts(game: &game)
+
         // Handle injury
         if outcome.isInjury, let injuredId = outcome.injuredPlayerId {
             let injuryMsg = handleInjury(playerId: injuredId, game: &game)
@@ -183,12 +189,35 @@ class SimulationEngine: ObservableObject {
                 game.awayTeamStats.turnovers += 1
             }
 
+            // Check for pick-six (interception returned for TD)
+            if outcome.isTouchdown && outcome.turnoverType == .interception {
+                // Score the defensive touchdown BEFORE switching possession
+                // The defense (non-possessing team) scores
+                game.score.addScore(points: 6, isHome: !game.isHomeTeamPossession, quarter: game.clock.quarter)
+
+                game.currentDrive?.plays.append(result)
+                game.endDrive(result: driveResult)
+
+                // Switch to the team that scored (defense) for the extra point
+                game.switchPossession()
+                game.isExtraPoint = true
+
+                currentGame = game
+                return result
+            }
+
             // Add play to drive BEFORE ending it
             game.currentDrive?.plays.append(result)
             game.endDrive(result: driveResult)
 
             // switchPossession() already calls fieldPosition.flip() — don't double-flip
             game.switchPossession()
+
+            // Apply interception return yardage to field position
+            if outcome.turnoverType == .interception && outcome.yardsGained > 0 {
+                game.fieldPosition.advance(yards: outcome.yardsGained)
+            }
+
             game.downAndDistance = .firstDown(at: game.fieldPosition.yardLine)
             game.startDrive()
 
@@ -469,6 +498,71 @@ class SimulationEngine: ObservableObject {
         )
     }
 
+    func executeOnsideKick() async -> PlayResult {
+        guard var game = currentGame else {
+            return PlayResult(
+                playType: .onsideKick,
+                description: "Onside kick error",
+                yardsGained: 0,
+                timeElapsed: 5,
+                quarter: 1,
+                timeRemaining: 900,
+                isFirstDown: false,
+                isTouchdown: false,
+                isTurnover: false
+            )
+        }
+
+        let kickingTeamName = game.isHomeTeamPossession ? (homeTeam?.name ?? "Home") : (awayTeam?.name ?? "Away")
+        let receivingTeamName = game.isHomeTeamPossession ? (awayTeam?.name ?? "Away") : (homeTeam?.name ?? "Home")
+
+        // Onside kick success rate: ~10-15% (NFL average ~10%)
+        let successChance = Double.random(in: 0.10...0.15)
+        let success = Double.random(in: 0...1) < successChance
+
+        game.clock.tick(seconds: 5)
+        game.isKickoff = false
+
+        let description: String
+        let startingYardLine: Int
+
+        if success {
+            // Kicking team recovers at ~45-50 yard line
+            startingYardLine = Int.random(in: 45...50)
+            description = "\(kickingTeamName) tries an onside kick... RECOVERED by \(kickingTeamName)! They get the ball at the \(startingYardLine)!"
+
+            // Kicking team keeps possession (no switch needed)
+            game.fieldPosition = FieldPosition(yardLine: startingYardLine)
+            game.downAndDistance = .firstDown(at: startingYardLine)
+            game.startDrive()
+        } else {
+            // Receiving team gets ball at ~45-50 (better field position than normal kickoff)
+            let receiverYardLine = Int.random(in: 45...55)
+            description = "\(kickingTeamName) tries an onside kick... \(receivingTeamName) recovers at the \(receiverYardLine)!"
+
+            // Switch to receiving team
+            game.switchPossession()
+            game.fieldPosition = FieldPosition(yardLine: receiverYardLine)
+            game.downAndDistance = .firstDown(at: receiverYardLine)
+            game.startDrive()
+            startingYardLine = receiverYardLine
+        }
+
+        currentGame = game
+
+        return PlayResult(
+            playType: .onsideKick,
+            description: description,
+            yardsGained: startingYardLine,
+            timeElapsed: 5,
+            quarter: game.clock.quarter,
+            timeRemaining: game.clock.timeRemaining,
+            isFirstDown: true,
+            isTouchdown: false,
+            isTurnover: !success
+        )
+    }
+
     func executeExtraPoint() async -> Bool {
         guard var game = currentGame,
               let kickingTeam = game.isHomeTeamPossession ? homeTeam : awayTeam else { return false }
@@ -697,10 +791,11 @@ class SimulationEngine: ObservableObject {
 
     private func handleEndOfQuarter(game: inout Game) {
         if game.clock.quarter == 2 {
-            // Halftime — reset timeouts
+            // Halftime — reset timeouts and fatigue
             game.gameStatus = .halftime
             game.homeTimeouts = 3
             game.awayTimeouts = 3
+            game.resetSnapCounts()
             game.clock.nextQuarter()
         } else if game.clock.quarter == 4 {
             // End of regulation
@@ -900,6 +995,46 @@ class SimulationEngine: ObservableObject {
         }
     }
 
+    // MARK: - Fatigue Tracking
+
+    /// Increment snap counts for all starters on the field after each play
+    private func incrementSnapCounts(game: inout Game) {
+        let offensiveTeam = game.isHomeTeamPossession ? homeTeam : awayTeam
+        let defensiveTeam = game.isHomeTeamPossession ? awayTeam : homeTeam
+
+        var onFieldIds: [UUID] = []
+
+        // Offensive starters
+        if let team = offensiveTeam {
+            let offPositions: [Position] = [.quarterback, .runningBack, .fullback, .wideReceiver, .tightEnd,
+                                             .leftTackle, .leftGuard, .center, .rightGuard, .rightTackle]
+            for pos in offPositions {
+                if let player = team.starter(at: pos) {
+                    onFieldIds.append(player.id)
+                }
+            }
+        }
+
+        // Defensive starters
+        if let team = defensiveTeam {
+            let defPositions: [Position] = [.defensiveEnd, .defensiveTackle, .outsideLinebacker, .middleLinebacker,
+                                             .cornerback, .freeSafety, .strongSafety]
+            for pos in defPositions {
+                if let player = team.starter(at: pos) {
+                    onFieldIds.append(player.id)
+                }
+            }
+        }
+
+        game.incrementSnapCounts(playerIds: onFieldIds)
+    }
+
+    /// Get fatigue penalty for a specific player from the current game state
+    func fatiguePenalty(for player: Player) -> Int {
+        guard let game = currentGame else { return 0 }
+        return game.fatiguePenalty(for: player.id, stamina: player.ratings.stamina)
+    }
+
     // MARK: - CPU Play Calling
 
     func getCPUOffensiveCall(for team: Team, situation: GameSituation) -> any PlayCall { // Changed to any PlayCall
@@ -936,7 +1071,22 @@ class SimulationEngine: ObservableObject {
 
             // Simulate one play at a time
             if game.isKickoff {
-                _ = await executeKickoff()
+                // Check if AI should attempt onside kick
+                let kickingScoreDiff = game.isHomeTeamPossession ?
+                    game.score.homeScore - game.score.awayScore :
+                    game.score.awayScore - game.score.homeScore
+                let kickSituation = GameSituation(
+                    down: 1, yardsToGo: 10, fieldPosition: 35,
+                    quarter: game.clock.quarter,
+                    timeRemaining: game.clock.timeRemaining,
+                    scoreDifferential: kickingScoreDiff,
+                    isRedZone: false
+                )
+                if aiCoach.shouldAttemptOnsideKick(situation: kickSituation) {
+                    _ = await executeOnsideKick()
+                } else {
+                    _ = await executeKickoff()
+                }
             } else if game.isExtraPoint {
                 _ = await executeExtraPoint()
             } else {

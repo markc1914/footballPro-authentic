@@ -324,6 +324,9 @@ public struct Game: Identifiable, Codable, Equatable {
     public var twoMinuteWarningQ2Triggered: Bool
     public var twoMinuteWarningQ4Triggered: Bool
 
+    // Fatigue tracking: snap counts per player UUID during the game
+    public var gameSnapCounts: [UUID: Int]
+
     public var drives: [Drive]
     public var currentDrive: Drive?
 
@@ -357,6 +360,7 @@ public struct Game: Identifiable, Codable, Equatable {
         self.overtimePossessions = 0
         self.twoMinuteWarningQ2Triggered = false
         self.twoMinuteWarningQ4Triggered = false
+        self.gameSnapCounts = [:]
 
         self.drives = []
         self.currentDrive = nil
@@ -400,6 +404,30 @@ public struct Game: Identifiable, Codable, Equatable {
 
     public func teamStats(for teamId: UUID) -> TeamGameStats {
         teamId == homeTeamId ? homeTeamStats : awayTeamStats
+    }
+
+    /// Calculate fatigue penalty for a player based on consecutive snaps and stamina.
+    /// Returns 0 (no penalty) to -10 (max penalty) on physical ratings.
+    public func fatiguePenalty(for playerId: UUID, stamina: Int) -> Int {
+        let snaps = gameSnapCounts[playerId] ?? 0
+        // Threshold: 15 + (stamina - 60) / 10 snaps before fatigue starts
+        let threshold = 15 + (stamina - 60) / 10
+        guard snaps > threshold else { return 0 }
+        let snapsOverThreshold = snaps - threshold
+        // -3 penalty at 1 snap over, scaling up to -10 max
+        return min(10, 3 + snapsOverThreshold)
+    }
+
+    /// Increment snap counts for all players on the field (by their IDs)
+    public mutating func incrementSnapCounts(playerIds: [UUID]) {
+        for id in playerIds {
+            gameSnapCounts[id, default: 0] += 1
+        }
+    }
+
+    /// Reset all snap counts (called at halftime)
+    public mutating func resetSnapCounts() {
+        gameSnapCounts.removeAll()
     }
 }
 

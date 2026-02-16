@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreGraphics
 
 struct MainMenuView: View {
     @EnvironmentObject var gameState: GameState
@@ -15,50 +16,57 @@ struct MainMenuView: View {
     @State private var showNewGameSheet = false
     @State private var showLoadGameSheet = false
     @State private var showSettingsSheet = false
+    @State private var backgroundImage: CGImage?
 
     private let menuItems = ["New Game", "Load Game", "Settings", "Quit"]
 
     var body: some View {
         ZStack {
-            // Pure black background
+            // Pure black background (fallback)
             Color.black.ignoresSafeArea()
 
-            // Scanline CRT effect
-            Canvas { context, size in
-                for y in stride(from: 0, to: size.height, by: 3) {
-                    let line = Path(CGRect(x: 0, y: y, width: size.width, height: 1))
-                    context.fill(line, with: .color(Color.white.opacity(0.03)))
+            // CREDIT.SCR background from original game files
+            if let bgImage = backgroundImage {
+                Image(decorative: bgImage, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            } else {
+                // Fallback: text-rendered title when SCR unavailable
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    VStack(spacing: 8) {
+                        Text("FRONT PAGE SPORTS")
+                            .font(RetroFont.header())
+                            .foregroundColor(VGA.lightGray)
+                            .tracking(4)
+
+                        HStack(spacing: 0) {
+                            Text("FOOTBALL ")
+                                .font(RetroFont.huge())
+                                .foregroundColor(VGA.white)
+                            Text("PRO")
+                                .font(RetroFont.huge())
+                                .foregroundColor(VGA.brightRed)
+                        }
+                        .shadow(color: .black, radius: 0, x: 2, y: 2)
+
+                        Text("'93 SEASON")
+                            .font(RetroFont.body())
+                            .foregroundColor(VGA.digitalAmber)
+                            .tracking(2)
+                    }
+
+                    Spacer()
+                    Spacer()
+                    Spacer()
                 }
             }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 Spacer()
-
-                // Title block
-                VStack(spacing: 8) {
-                    Text("FRONT PAGE SPORTS")
-                        .font(RetroFont.header())
-                        .foregroundColor(VGA.lightGray)
-                        .tracking(4)
-
-                    HStack(spacing: 0) {
-                        Text("FOOTBALL ")
-                            .font(RetroFont.huge())
-                            .foregroundColor(VGA.white)
-                        Text("PRO")
-                            .font(RetroFont.huge())
-                            .foregroundColor(VGA.brightRed)
-                    }
-                    .shadow(color: .black, radius: 0, x: 2, y: 2)
-
-                    Text("'93 SEASON")
-                        .font(RetroFont.body())
-                        .foregroundColor(VGA.digitalAmber)
-                        .tracking(2)
-                }
-                .padding(.bottom, 50)
 
                 // Menu dialog — charcoal frame with red buttons
                 FPSDialog {
@@ -80,6 +88,7 @@ struct MainMenuView: View {
                 .frame(width: 300)
 
                 Spacer()
+                    .frame(height: 60)
 
                 // Footer
                 HStack {
@@ -103,6 +112,9 @@ struct MainMenuView: View {
                 .padding(.bottom, 8)
             }
         }
+        .onAppear {
+            loadBackgroundImage()
+        }
         .handleKeyboardInput()
         .sheet(isPresented: $showNewGameSheet) {
             NewGameView()
@@ -112,6 +124,22 @@ struct MainMenuView: View {
         }
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView()
+        }
+    }
+
+    private func loadBackgroundImage() {
+        // Try loading CREDIT.SCR from the same path as AuthenticSplashScreen
+        let gameDir = SCRDecoder.defaultDirectory
+        let directories = [
+            gameDir,
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO")
+        ]
+        for dir in directories {
+            if let scr = try? SCRDecoder.decode(at: dir.appendingPathComponent("TTM/CREDIT.SCR")),
+               let pal = PALDecoder.loadPalette(at: dir.appendingPathComponent("TTM/CREDIT.PAL")) {
+                backgroundImage = scr.cgImage(palette: pal)
+                return
+            }
         }
     }
 
