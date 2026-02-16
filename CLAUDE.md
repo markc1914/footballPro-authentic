@@ -9,13 +9,22 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - **Original game files:** `~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/`
 - **Reference frames:** `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
 
+## Automation
+- `tools/test_agent.sh` — Background Swift test runner; writes to `/tmp/footballpro_test_agent.log`. Launch with `nohup tools/test_agent.sh &`. Exports `DISABLE_AUDIO=1` to avoid CoreAudio failures.
+- `tools/agent_full_stack.sh` — Runs swift tests, captures all reference screens via `ScreenshotHarnessTests`, stitches `/tmp/fps_screenshots/*.png` into MP4 if `ffmpeg` available.
+- DDA helpers: `tools/dda_bruteforce.py`, `tools/dda_inspect_agent.py`, `tools/dda_rank_agent.py`, `tools/dda_sweep_agent.sh`, `tools/dda_extended_sweep_agent.sh`, `tools/dda_marker_burst_agent.sh`, `tools/dda_monitor_agent.sh`, `tools/dda_review_agent.sh`, `tools/agent_dda_finish.sh`.
+- Coverage agents: `tools/agent_anim_parity.sh`, `tools/agent_playbook_coverage.sh`, `tools/agent_audio_check.sh`, `tools/agent_audio_map.sh`, `tools/agent_anim_capture.sh`.
+- Audio auto-disabled in tests/CI via `SoundManager` (checks `DISABLE_AUDIO`, `CI`, XCTest bundle).
+- Latest tests: `swift test --disable-sandbox --parallel` passing (193 tests, 25 suites).
+- Field animation uses periodic 30fps `TimelineView`. Optional frame logger: `FPS_FRAME_LOG=/tmp/fps_frame_log.jsonl`.
+
 ## Architecture & Key Files
 
 | File | Purpose |
 |------|---------|
 | `Views/GameDayView.swift` | ZStack state machine — `GamePhase` enum drives which screen shows |
 | `Views/FPSFieldView.swift` | Full-screen perspective field (640x360 blueprint space, PerspectiveProjection) |
-| `Views/FPSPlayCallingScreen.swift` | 4×4 green grid, 3-button bar (TIME OUT, SPECIAL TEAMS, READY-BREAK), scoreboard |
+| `Views/FPSPlayCallingScreen.swift` | 2×8 green grid (slots 1-8 left, 9-16 right), 3-button bar, scoreboard |
 | `Views/FPSScoreboardBar.swift` | Two-row layout (away top, home bottom), QTR grid, amber LED clock, situation block |
 | `Views/FPSPlayResultOverlay.swift` | Dark charcoal result box on field, team names in cyan/red |
 | `Views/FPSRefereeOverlay.swift` | Referee signal overlay on field |
@@ -54,19 +63,13 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 **Always use FPS component library:** FPSButton, FPSDialog, FPSDigitalClock
 
 **Field rendering rules:**
-- Alternating grass stripes every 5 yards (#248024 dark / #2D8A2D light), perspective-projected
+- Solid green field (#248024), no grass stripes, no stadium backdrop during gameplay
 - Single perspective camera, ~25 yard visible window (8 behind LOS + 17 ahead)
 - No sideline figures, officials, chain gang, or coaches (clean like original)
 - AuthenticPlayerSprite renders original ANIM.DAT sprites (falls back to RetroPlayerSprite if files missing)
 - Green number box overlay on ball carrier (matching original FPS '93 style)
 - Team color remapping via SpriteCache.setTeamColors() (CT1=home, CT2=away palette overrides)
 - Amber LED clocks at bottom corners only (play clock wired to viewModel.playClockSeconds)
-- Yellow goalposts with blue base padding
-- Horizontal hash mark dashes (parallel to yard lines)
-- LOS "X" marker at center during pre-snap
-- Ball carrier green number box with alternating blue/orange border
-- VCR toolbar (11 red buttons) during play animation phase
-- Pre-snap situation text box centered vertically with narrative (team, yard line, down/distance, time)
 
 ## Important Patterns & Rules
 
@@ -85,6 +88,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - Kick return TD: 0.3% (NFL average)
 - AI play calling: tracks last 5 calls, reduces repeat weight by 50%
 - AI timeouts: wired into post-play loop for defensive team
+- AI short yardage: forces run/short-pass on 3rd/4th-and-2-or-less
 - Player ratings wired: breakTackle/trucking (extra rush yards), catchInTraffic/spectacularCatch (completion%), hitPower (fumble forcing), playRecognition (run defense), playAction (PA bonus), press/release (route matchup)
 - Clock management: out-of-bounds stops (25% outside runs, 5% inside), two-minute warning Q2/Q4, kneel-down and spike plays with AI logic
 - Field visuals: sideline gray/track borders, stadium backdrop near end zones, authentic RCSTAND referee sprite
@@ -123,9 +127,16 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 
 | File | Size | Status | Content |
 |------|------|--------|---------|
-| `*.DDA` | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table decoded, RLE encoding in progress) |
+| `*.DDA` | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table known, RLE encoding pending) |
 
-All game data formats are fully decoded: ANIM.DAT (sprites), SCR (screens), SAMPLE.DAT (audio), PAL (palettes), LGE/PYR (teams/players), PRF/PLN (playbooks), STOCK.DAT/MAP (play routes), 1992.DAT (season stats), and 10+ supporting data files.
+### DDA Decoding Status
+- `Services/DDAAnimationDecoder.swift` supports multi-frame heuristics: offset tables, length-prefixed frames, first-frame fallback
+- RLE grammars: nibble-control (ctrl mask 0x80/0xC0) and marker RLE (0xFE/0xC9)
+- Best hits: LOGOSPIN via nibble_ctrl grammars. LOGOEND/DYNAMIX/CHAMP still unresolved
+- Reviewable PNGs in `/tmp/dda_review`; shortlist `/tmp/dda_top_candidates.txt`
+- Tools: `tools/dda_bruteforce.py`, `tools/dda_marker_burst_agent.sh`, `tools/dda_monitor_agent.sh`
+
+All other game data formats are fully decoded: ANIM.DAT (sprites), SCR (screens + VQT tiles), SAMPLE.DAT (audio), PAL (palettes), LGE/PYR (teams/players), PRF/PLN (playbooks), STOCK.DAT/MAP (play routes), 1992.DAT (season stats), and 10+ supporting data files.
 
 ---
 
@@ -332,17 +343,8 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 ```
 
 ### Phase E: Animation State Machine (COMPLETE)
-**Goal:** Frame-by-frame animation during play execution.
-**Status:** COMPLETE. Per-player animation states at ~15fps, independent of play progress.
-**Files:**
-- `Engine/PlayerAnimationState.swift`: Per-player state (animationName, elapsedTime, looping/one-shot)
-- `Views/Game/FPSFieldView.swift`: `animatedSpriteFrame()` replaces progress-based frame cycling
-**Key design:**
-- Each player tracks when their current animation started (as play elapsed time)
-- Frame = `(elapsed - animStartTime) * 15fps`, looping or clamped for one-shot
-- Pre-snap phase freezes all animations at frame 0
-- Instant animation switches on pose transitions (no interpolation, matches original)
-- L2* two-player sync deferred to future enhancement
+**Goal:** Frame-by-frame animation during play execution at ~15 fps.
+**Status:** COMPLETE. `PlayerAnimationState` tracks animation names and start times in `GameViewModel` (not @State). FPSFieldView derives frame index from play elapsed time, clamping one-shots and looping run cycles. Pre-snap freezes frame 0; view mapping preserves mirror flags; green number box highlight stays. Two-player (L2*) sync deferred.
 
 ### Phase F: Screen Graphics (SCR/DDA) — COMPLETE
 **Goal:** Use original title screens, intro, and championship graphics.
@@ -372,12 +374,13 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - `GameDayView.swift`: CHAMP.SCR as championship game-over background
 
 **VQT format (DECODED):**
-- Recursive quadtree decomposition with adaptive local color tables (not traditional VQ)
-- LSB-first bitstream, 4-bit quadrant mask per node, variable-width color indices at leaves
+- Vector-quantized tiles: 256×16-byte codebook of 4×4 tiles, frames of 64×76 tile indices → 256×304 px
+- Decoder picks minimal-header heuristic (0/32/64 bytes), renders first frame
 - BALL.SCR (football) and KICK.SCR (kicking scene) both decode perfectly
 
 **Deferred (low priority):**
 - DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA) — frame table decoded, RLE in progress
+- Best DDA hits: LOGOSPIN via nibble_ctrl grammars. LOGOEND/DYNAMIX/CHAMP still unresolved.
 
 ### Phase G: Audio (SAMPLE.DAT) — COMPLETE
 **Goal:** Add original game sound effects.
@@ -423,11 +426,12 @@ Phase E (animation state machine) ────────→ COMPLETE (PlayerAn
 Phase F (screen graphics) ────────────────→ COMPLETE (SCRDecoder + splash/intro/champ screens)
 Phase G (audio) ──────────────────────────→ COMPLETE (SampleDecoder + SoundManager)
 Phase H (franchise mode) ────────────────→ COMPLETE (9 franchise views + ManagementHubView)
-Phase T (test automation) ────────────────→ COMPLETE (7 test suites, all passing)
+Phase T (test automation) ────────────────→ COMPLETE (193 tests, 25 suites)
 Gameplay polish ──────────────────────────→ COMPLETE (celebrations, play clock, team colors, replay, progression)
+Animation fixes ─────────────────────────→ COMPLETE (state in ViewModel, team colors, facing, durations)
 ```
 
-**All core phases complete.** Remaining work: visual/gameplay accuracy refinement to match original game more closely.
+**All core phases complete.** Remaining work: DDA intro cutscenes; visual/gameplay accuracy refinement.
 
 ## Fallback Strategy
 
@@ -521,8 +525,21 @@ python3 tools/generate_test_fixtures.py         # One-time fixture generation
 
 ## Validation
 
-- `swift test` passes all suites (0 failures)
+- `swift test` passes all suites (0 failures, 193 tests, 25 suites)
 - Visual comparison tests confirm pixel-perfect match with Python decoder
 - Game flow test completes 10+ plays without crashes
 - Screenshot harness captures 32 images to `/tmp/fps_screenshots/`
 - Compare rendered sprites against reference frames at `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
+
+---
+
+## Animation Fix Plan — COMPLETE
+
+All 7 animation bugs identified and fixed (per CODEX.md progress):
+- Animation state moved to `GameViewModel` (no @State mutation in `FPSFieldView` body); frame persistence fixed
+- Team colors now applied via `SpriteCache.setTeamColors`; sprites fetch with color tables 1/2 based on possession
+- Stationary facing defaults: offense east, defense west (including pre-snap)
+- Play duration mapping improved (inside/outside/deep/medium/short subtypes)
+- Dead `PlayerAnimationState.tick/currentFrame/isComplete` removed; camera smoothing now stored in ViewModel
+
+Remaining polish: clear remaining warnings in `FPSFieldView` pose switch; DDA cutscenes still pending.

@@ -46,6 +46,11 @@ struct FPSPlayCallingScreen: View {
                     .padding(.bottom, 4)
             }
             .background(VGA.panelBg)
+            .onAppear {
+                if viewModel.game?.isKickoff == true || viewModel.game?.isExtraPoint == true {
+                    showSpecialTeams = true
+                }
+            }
         }
     }
 
@@ -60,6 +65,18 @@ struct FPSPlayCallingScreen: View {
             .disabled(viewModel.possessingTeamTimeouts <= 0)
 
             Spacer()
+
+            FPSButton("PAGE -") {
+                viewModel.previousPage(isSpecialTeams: showSpecialTeams)
+                selectedSlot = nil
+            }
+            .padding(.horizontal, 4)
+
+            FPSButton("PAGE +") {
+                viewModel.nextPage(isSpecialTeams: showSpecialTeams)
+                selectedSlot = nil
+            }
+            .padding(.horizontal, 4)
 
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") {
                 showSpecialTeams.toggle()
@@ -85,6 +102,14 @@ struct FPSPlayCallingScreen: View {
                 .disabled(true)
 
             Spacer()
+
+            FPSButton("PAGE -") { }
+                .disabled(true)
+                .padding(.horizontal, 4)
+
+            FPSButton("PAGE +") { }
+                .disabled(true)
+                .padding(.horizontal, 4)
 
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") { }
                 .disabled(true)
@@ -276,7 +301,9 @@ struct FPSPlayCallingScreen: View {
         if showSpecialTeams {
             return "\(opponentName) is in a special teams formation"
         }
-        return "\(opponentName) has called a regular play"
+        let page = viewModel.currentPlaybookPage + 1
+        let total = viewModel.totalPages(isSpecialTeams: showSpecialTeams)
+        return "\(opponentName) has called a regular play — page \(page)/\(total)"
     }
 
     // MARK: - Play Data (reads from viewModel's authentic playbook)

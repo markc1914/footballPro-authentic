@@ -9,6 +9,21 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - **Original game files:** `~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/`
 - **Reference frames:** `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
 
+## Automation
+- `tools/test_agent.sh` — Background Swift test runner; writes to `/tmp/footballpro_test_agent.log`. Launch with `nohup tools/test_agent.sh &` (extra `swift test` flags supported).
+- Audio is auto-disabled in tests/CI via `SoundManager` (checks `DISABLE_AUDIO`, `CI`, XCTest bundle). `tools/test_agent.sh` exports `DISABLE_AUDIO=1` to avoid CoreAudio failures.
+- DDA helpers: `tools/dda_bruteforce.py` (bruteforce grammars), `tools/dda_inspect_agent.py` (score candidates), `tools/dda_rank_agent.py` (top-N shortlist), `tools/dda_sweep_agent.sh` (multi-offset sweep), `tools/dda_extended_sweep_agent.sh` (dense sweep), `tools/dda_marker_burst_agent.sh` (quick header/1F10 sweep), `tools/dda_monitor_agent.sh` (tails sweep log, rescoring, copies review set), `tools/dda_review_agent.sh` (copy top PNGs), `tools/agent_dda_finish.sh` (burst + rescore refresh).
+- Coverage/verification agents: `tools/agent_anim_parity.sh` (runs full test suite; logs timing/warnings), `tools/agent_playbook_coverage.sh` (compares OFF/DEF PRF/PLN counts to app JSON), `tools/agent_playbook_gaps.sh` (estimates missing exposed plays vs original PRF banks and lists banks), `tools/agent_audio_check.sh` (lists all 115 SAMPLE.DAT entries), `tools/agent_audio_map.sh` (reports SoundEffect mappings vs SAMPLE.DAT and code usage), `tools/agent_field_warning.sh` (shows offending lines near FPSFieldView.swift:527), `tools/agent_anim_capture.sh` (renders all ANIM.DAT animations plus catalog to /tmp spritesheets; uses repo GameData via temp HOME + PYTHONPATH), `tools/agent_field_timing.sh` (summarizes frame logs for timing alignment; expects JSONL from FPS_FRAME_LOG env), `tools/agent_phase12.sh` (orchestrates DDA finish sweep + field timing summary; optional FPS_FRAME_LOG path param).
+- Full-stack automation: `tools/agent_full_stack.sh` runs swift tests, captures all reference screens via `ScreenshotHarnessTests`, and if `ffmpeg` is available stitches `/tmp/fps_screenshots/*.png` into `/tmp/fps_screenshots.mp4`.
+- Outputs land in `/tmp` with timestamped `_agent_*.log` files plus existing `/tmp/dda_*` assets.
+- Latest tests: `swift test --disable-sandbox --parallel` passing (191 tests) on 2026-02-16 after frame logging additions; see `/tmp/anim_parity_agent_20260216_152910.log` for prior run.
+- Field animation loop uses a periodic 30fps `TimelineView` so play animations advance even without implicit SwiftUI animations. Optional frame logger: launch app with `FPS_FRAME_LOG=/tmp/fps_frame_log.jsonl` to emit per-frame JSON; summarize with `tools/agent_field_timing.sh`. Removed unreachable default in `determinePose` to clear the Swift warning.
+- Screenshot harness: `ScreenshotHarness.captureAll()` drives 32 reference screens to `/tmp/fps_screenshots/` (see `ScreenshotHarnessTests`). `tools/agent_full_stack.sh` runs tests, captures these screenshots, and stitches them to `/tmp/fps_screenshots.mp4` if `ffmpeg` is available.
+
+## DDA Decoding
+- `Services/DDAAnimationDecoder.swift` now supports multi-frame heuristics: tries to detect offset tables before the payload, then length-prefixed frames, finally falls back to first-frame decode. Palette assumed at offset 0; payload offset from `DDA:` header or 0x1F10 fallback. RLE grammars: nibble-control (ctrl mask 0x80/0xC0) and marker RLE (0xFE/0xC9).
+- Latest sweep status: extended sweep finished; best hits remain LOGOSPIN (nibble_ctrl_1_1_0x80, etc.). LOGOEND/DYNAMIX/CHAMP still unresolved. Reviewable PNGs live in `/tmp/dda_review`; shortlist `/tmp/dda_top_candidates.txt`. Quick bursts can be rerun with `tools/dda_marker_burst_agent.sh`; monitor state with `tools/dda_monitor_agent.sh`.
+
 ## Architecture & Key Files
 
 | File | Purpose |
@@ -331,6 +346,14 @@ Remaining: VQT tiles for BALL/KICK SCR, DDA intro cutscenes
 ```
 
 **Remaining work:** Decode DDA intro cutscenes; otherwise all core phases are done.
+
+## Animation Fix Plan (progress)
+- Animation state moved to `GameViewModel` (no @State mutation in `FPSFieldView` body); frame persistence fixed.
+- Team colors now applied via `SpriteCache.setTeamColors`; sprites fetch with color tables 1/2 based on possession.
+- Stationary facing defaults: offense east, defense west (including pre-snap).
+- Play duration mapping improved (inside/outside/deep/medium/short).
+- Dead `PlayerAnimationState.tick/currentFrame/isComplete` removed; camera smoothing now stored in ViewModel.
+Remaining polish: clear remaining warnings in `FPSFieldView` pose switch; optional strict VQT dimensions; DDA cutscenes still pending.
 
 ## Fallback Strategy
 

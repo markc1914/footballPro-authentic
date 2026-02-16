@@ -8,6 +8,7 @@
 import Foundation
 import AVFoundation
 import AppKit
+import Foundation
 
 // MARK: - Sound Effect Types
 
@@ -95,7 +96,22 @@ class SoundManager: ObservableObject {
     private var playerNode: AVAudioPlayerNode?
     private var crowdPlayerNode: AVAudioPlayerNode?
 
+    // Disable audio when running under tests/CI or when explicitly requested.
+    private static let audioAllowed: Bool = {
+        let env = ProcessInfo.processInfo.environment
+        if env["DISABLE_AUDIO"] != nil { return false }
+        if env["CI"] != nil { return false }
+        if env["XCTestConfigurationFilePath"] != nil { return false }
+        if Bundle.allBundles.contains(where: { $0.bundleURL.pathExtension == "xctest" }) { return false }
+        return true
+    }()
+
     private init() {
+        guard Self.audioAllowed else {
+            isSoundEnabled = false
+            isCrowdEnabled = false
+            return
+        }
         setupAudioEngine()
     }
 

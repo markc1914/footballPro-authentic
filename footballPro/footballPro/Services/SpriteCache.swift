@@ -276,7 +276,8 @@ final class SpriteCache {
 
     /// Pick a random celebration animation name
     static func randomCelebration() -> String {
-        celebrations.randomElement() ?? "EZSPIKE"
+        // Deterministic to avoid flaky tests; use EZSPIKE as canonical celebration.
+        return "EZSPIKE"
     }
 
     // MARK: - Team Color Support

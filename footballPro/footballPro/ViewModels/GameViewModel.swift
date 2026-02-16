@@ -86,6 +86,11 @@ public class GameViewModel: ObservableObject { // Made public
     private var authenticOffensivePlaybook: [AuthenticPlayDefinition] = []
     private var authenticDefensivePlaybook: [AuthenticPlayDefinition] = []
 
+    // Animation state (moved out of FPSFieldView)
+    @Published var offAnimStates: [PlayerAnimationState] = Array(repeating: PlayerAnimationState(), count: 11)
+    @Published var defAnimStates: [PlayerAnimationState] = Array(repeating: PlayerAnimationState(), count: 11)
+    @Published var cameraFocusX: CGFloat = 320
+
     // Pagination for play calling screen (16 slots per page)
     @Published public var currentPlaybookPage: Int = 0
     public let playsPerPage: Int = 16
@@ -119,6 +124,7 @@ public class GameViewModel: ObservableObject { // Made public
 
         // Load authentic playbooks
         loadAuthenticPlaybooks()
+        applyTeamColors()
 
         simulationEngine.startGame()
         self.game = simulationEngine.currentGame
@@ -145,7 +151,7 @@ public class GameViewModel: ObservableObject { // Made public
         }
     }
 
-    private func loadAuthenticPlaybooks() {
+    func loadAuthenticPlaybooks() {
         do {
             let fbproOriginalURL = URL(fileURLWithPath: "/Users/markcornelius/projects/claude/footballPro/footballPro/FBPRO_ORIGINAL")
             authenticOffensivePlaybook = try AuthenticPlaybookLoader.load(from: fbproOriginalURL, kind: .offense).plays // Static call
@@ -155,6 +161,44 @@ public class GameViewModel: ObservableObject { // Made public
         } catch {
             print("Error loading authentic playbooks: \(error)")
         }
+    }
+
+    /// Apply team colors to sprite cache (home = color table 1, away = color table 2)
+    private func applyTeamColors() {
+        guard let home = homeTeam, let away = awayTeam else { return }
+
+        func rgb(_ hex: String) -> (UInt8, UInt8, UInt8) {
+            let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+            var int: UInt64 = 0
+            Scanner(string: cleaned).scanHexInt64(&int)
+            let r, g, b: UInt64
+            switch cleaned.count {
+            case 3:
+                (r, g, b) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+            case 6, 8:
+                (r, g, b) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+            default:
+                (r, g, b) = (0, 0, 0)
+            }
+            return (UInt8(r), UInt8(g), UInt8(b))
+        }
+
+        let homeColors: [(UInt8, UInt8, UInt8)] = [
+            rgb(home.colors.primary),
+            rgb(home.colors.secondary),
+            rgb(home.colors.accent),
+            rgb(home.colors.primary),
+            rgb(home.colors.secondary)
+        ]
+        let awayColors: [(UInt8, UInt8, UInt8)] = [
+            rgb(away.colors.primary),
+            rgb(away.colors.secondary),
+            rgb(away.colors.accent),
+            rgb(away.colors.primary),
+            rgb(away.colors.secondary)
+        ]
+
+        SpriteCache.shared.setTeamColors(homeColors: homeColors, awayColors: awayColors)
     }
 
     // NEW: Placeholder for opening kickoff logic
@@ -1013,8 +1057,21 @@ public struct AuthenticPlayCall: PlayCall { // Made public, conforms to new Play
     public var name: String { return play.name }
     public var playType: PlayType {
         switch play.category {
-        case .run: return .insideRun
-        case .pass: return .shortPass
+        case .run:
+            let upper = play.name.uppercased()
+            if upper.contains("SW") || upper.contains("SL") || upper.contains("PI") {
+                return .outsideRun
+            }
+            return .insideRun
+        case .pass:
+            let upper = play.name.uppercased()
+            if upper.contains("DP") || upper.contains("FL") {
+                return .deepPass
+            }
+            if upper.contains("OW") || upper.contains("CR") {
+                return .mediumPass
+            }
+            return .shortPass
         case .screen: return .screen
         case .draw: return .draw
         case .playAction: return .playAction

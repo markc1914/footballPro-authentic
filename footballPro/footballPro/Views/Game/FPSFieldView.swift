@@ -12,6 +12,7 @@
 
 import SwiftUI
 import CoreGraphics
+import Foundation
 
 // MARK: - Perspective Projection Engine
 
@@ -193,15 +194,17 @@ struct FPSFieldView: View {
 
     @State private var currentBlueprint: PlayAnimationBlueprint?
     @State private var animationStartTime: Date?
-    @State private var cameraFocusX: CGFloat = 320  // Smoothed camera focus in flat space
 
     /// Whether authentic sprites are loaded and ready for rendering
     @State private var spritesLoaded = false
 
-    /// Per-player animation state machines (11 offense + 11 defense)
-    @State private var offAnimStates: [PlayerAnimationState] = []
-    @State private var defAnimStates: [PlayerAnimationState] = []
     @State private var lastTickTime: Date?
+
+    /// Optional frame logger (JSONL) for timing alignment against DOS captures.
+    /// Enable by launching the app with `FPS_FRAME_LOG=/tmp/fps_frames.jsonl`.
+    @State private var frameLogHandle: FileHandle?
+    @State private var frameLogIndex: Int = 0
+    private let frameLogEnvKey = "FPS_FRAME_LOG"
 
     // Internal flat field dimensions (blueprint coordinate space)
     private let flatFieldWidth: CGFloat = 640
@@ -220,121 +223,14 @@ struct FPSFieldView: View {
                 if isAnimatingPlay, let blueprint = currentBlueprint, let startTime = animationStartTime {
                     // === ANIMATED RENDERING ===
                     // Projection is computed per-frame inside TimelineView so camera can track the ball.
-                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                        let elapsed = timeline.date.timeIntervalSince(startTime)
-                        let progress = min(elapsed / blueprint.totalDuration, 1.0)
-
-                        // Determine ball position in flat space for camera tracking
-                        let ballFlatPos = blueprint.ballPath.flatPosition(
-                            at: progress,
-                            offensivePaths: blueprint.offensivePaths,
-                            defensivePaths: blueprint.defensivePaths
+                    // Use a periodic timeline to ensure ticks even without implicit SwiftUI animations.
+                    TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { timeline in
+                        renderAnimatedFrame(
+                            timeline: timeline,
+                            geo: geo,
+                            blueprint: blueprint,
+                            startTime: startTime
                         )
-
-                        // Smooth camera tracking: lerp toward ball's flat X
-                        let targetFocusX = ballFlatPos.x
-                        let smoothedFocusX = cameraFocusX + (targetFocusX - cameraFocusX) * cameraSmoothing
-
-                        // Per-frame projection centered on ball carrier
-                        let animProj = PerspectiveProjection(
-                            screenWidth: geo.size.width,
-                            screenHeight: geo.size.height,
-                            focusFlatX: smoothedFocusX
-                        )
-
-                        // Determine current phase and ball carrier
-                        let currentPhase = blueprint.currentPhase(at: progress)
-                        let carrier = blueprint.ballPath.ballCarrier(at: progress)
-
-                        ZStack {
-                            // Field surface (redraws per-frame with tracked camera)
-                            Canvas { context, size in
-                                drawField(context: context, size: size, proj: animProj)
-                            }
-
-                            // All 22 players with animated positions, poses, and ball carrier flag
-                            ForEach(0..<(defensePlayers.count + offensePlayers.count), id: \.self) { idx in
-                                let isDefense = idx < defensePlayers.count
-                                let i = isDefense ? idx : idx - defensePlayers.count
-                                let players = isDefense ? defensePlayers : offensePlayers
-                                let paths = isDefense ? blueprint.defensivePaths : blueprint.offensivePaths
-
-                                let path = i < paths.count ? paths[i] : nil
-                                let rawPos = path?.position(at: progress) ?? players[i].position
-                                let moving = path?.isMoving(at: progress) ?? false
-                                let facing = path?.facingDirection(at: progress) ?? 0
-                                let screenPos = animProj.project(flatPos: rawPos, isFieldFlipped: isFieldFlipped)
-                                let depth = animProj.flatXToDepth(rawPos.x, isFieldFlipped: isFieldFlipped)
-                                let scale = animProj.scaleAtDepth(depth)
-
-                                // Determine if this player has the ball
-                                let playerHasBall: Bool = {
-                                    guard let c = carrier else { return false }
-                                    return c.playerIndex == i && c.isOffense == !isDefense
-                                }()
-
-                                // Determine pose
-                                let role = path?.role ?? players[i].role
-                                let pose = determinePose(
-                                    role: role,
-                                    isDefense: isDefense,
-                                    isMoving: moving,
-                                    hasBall: playerHasBall,
-                                    phase: currentPhase,
-                                    progress: progress
-                                )
-
-                                let animatedPlayer = makeAnimatedPlayer(
-                                    players, i,
-                                    position: screenPos,
-                                    isMoving: moving,
-                                    facing: facing,
-                                    hasBall: playerHasBall,
-                                    pose: pose
-                                )
-                                let sprFrame = animatedSpriteFrame(
-                                    pose: pose, role: role, isDefense: isDefense,
-                                    playerIndex: i, hasBall: playerHasBall,
-                                    facing: facing, phase: currentPhase, elapsed: elapsed
-                                )
-                                AuthenticPlayerSprite(
-                                    player: animatedPlayer,
-                                    isDefense: isDefense,
-                                    spriteFrame: sprFrame,
-                                    baseScale: spriteBaseScale * scale
-                                )
-                                .zIndex(Double(depth) * 1000)
-                            }
-
-                            // Football (only draw separately when not held by a player)
-                            if carrier == nil {
-                                let rawBallPos = ballFlatPos
-                                let ballScreen = animProj.project(flatPos: rawBallPos, isFieldFlipped: isFieldFlipped)
-                                let ballDepth = animProj.flatXToDepth(rawBallPos.x, isFieldFlipped: isFieldFlipped)
-                                let ballScale = animProj.scaleAtDepth(ballDepth)
-
-                                FootballSprite()
-                                    .position(ballScreen)
-                                    .scaleEffect(ballScale)
-                                    .zIndex(Double(ballDepth) * 1000 + 0.5)
-                            }
-
-                            // Amber LED clocks
-                            animationClockOverlay
-
-                            // Player control indicator — ball carrier silhouette + jersey number
-                            if let c = carrier {
-                                let carrierPlayers = c.isOffense ? offensePlayers : defensePlayers
-                                let jerseyNum = c.playerIndex < carrierPlayers.count ? carrierPlayers[c.playerIndex].number : 0
-                                PlayerControlIndicator(jerseyNumber: jerseyNum)
-                            }
-                        }
-                        .onChange(of: progress >= 1.0) { _, finished in
-                            if finished { endAnimation() }
-                        }
-                        .onChange(of: smoothedFocusX) { _, newX in
-                            cameraFocusX = newX
-                        }
                     }
                 } else {
                     // === STATIC RENDERING (pre-snap / between plays) ===
@@ -374,7 +270,7 @@ struct FPSFieldView: View {
                         let staticPlayer = makeAnimatedPlayer(
                             entry.isDefense ? defensePlayers : offensePlayers,
                             entry.arrayIndex,
-                            position: screenPos, isMoving: false, facing: 0,
+                            position: screenPos, isMoving: false, facing: entry.isDefense ? .pi : 0,
                             hasBall: false, pose: preSnapPose
                         )
                         let staticSprFrame = authenticSpriteFrame(
@@ -523,8 +419,6 @@ struct FPSFieldView: View {
                 return isMoving ? .running : .dbReady
             case .defensiveBack, .cornerback, .safety:
                 return isMoving ? .running : .backpedaling
-            default:
-                return isMoving ? .running : .standing
             }
 
         case .resolution:
@@ -580,6 +474,144 @@ struct FPSFieldView: View {
         }
     }
 
+    // MARK: - Animated Frame Rendering
+
+    private func renderAnimatedFrame(
+        timeline: TimelineViewDefaultContext,
+        geo: GeometryProxy,
+        blueprint: PlayAnimationBlueprint,
+        startTime: Date
+    ) -> some View {
+        let elapsed = timeline.date.timeIntervalSince(startTime)
+        let progress = min(elapsed / blueprint.totalDuration, 1.0)
+
+        // Determine ball position in flat space for camera tracking
+        let ballFlatPos = blueprint.ballPath.flatPosition(
+            at: progress,
+            offensivePaths: blueprint.offensivePaths,
+            defensivePaths: blueprint.defensivePaths
+        )
+
+        // Smooth camera tracking: lerp toward ball's flat X
+        let targetFocusX = ballFlatPos.x
+        let smoothedFocusX = viewModel.cameraFocusX + (targetFocusX - viewModel.cameraFocusX) * cameraSmoothing
+
+        // Per-frame projection centered on ball carrier
+        let animProj = PerspectiveProjection(
+            screenWidth: geo.size.width,
+            screenHeight: geo.size.height,
+            focusFlatX: smoothedFocusX
+        )
+
+        // Determine current phase and ball carrier
+        let currentPhase = blueprint.currentPhase(at: progress)
+        let carrier = blueprint.ballPath.ballCarrier(at: progress)
+
+        logFrameIfNeeded(
+            progress: progress,
+            elapsed: elapsed,
+            phase: currentPhase,
+            projection: animProj,
+            ballFlat: ballFlatPos,
+            carrier: carrier,
+            blueprint: blueprint
+        )
+
+        return ZStack {
+            // Field surface (redraws per-frame with tracked camera)
+            Canvas { context, size in
+                drawField(context: context, size: size, proj: animProj)
+            }
+
+            // All 22 players with animated positions, poses, and ball carrier flag
+            ForEach(0..<(defensePlayers.count + offensePlayers.count), id: \.self) { idx in
+                let isDefense = idx < defensePlayers.count
+                let i = isDefense ? idx : idx - defensePlayers.count
+                let players = isDefense ? defensePlayers : offensePlayers
+                let paths = isDefense ? blueprint.defensivePaths : blueprint.offensivePaths
+
+                let path = i < paths.count ? paths[i] : nil
+                let rawPos = path?.position(at: progress) ?? players[i].position
+                let moving = path?.isMoving(at: progress) ?? false
+                let facing: Double = {
+                    let f = path?.facingDirection(at: progress) ?? 0
+                    if moving || abs(f) > 0.0001 { return f }
+                    return isDefense ? .pi : 0
+                }()
+                let screenPos = animProj.project(flatPos: rawPos, isFieldFlipped: isFieldFlipped)
+                let depth = animProj.flatXToDepth(rawPos.x, isFieldFlipped: isFieldFlipped)
+                let scale = animProj.scaleAtDepth(depth)
+
+                // Determine if this player has the ball
+                let playerHasBall: Bool = {
+                    guard let c = carrier else { return false }
+                    return c.playerIndex == i && c.isOffense == !isDefense
+                }()
+
+                // Determine pose
+                let role = path?.role ?? players[i].role
+                let pose = determinePose(
+                    role: role,
+                    isDefense: isDefense,
+                    isMoving: moving,
+                    hasBall: playerHasBall,
+                    phase: currentPhase,
+                    progress: progress
+                )
+
+                let animatedPlayer = makeAnimatedPlayer(
+                    players, i,
+                    position: screenPos,
+                    isMoving: moving,
+                    facing: facing,
+                    hasBall: playerHasBall,
+                    pose: pose
+                )
+                let sprFrame = animatedSpriteFrame(
+                    pose: pose, role: role, isDefense: isDefense,
+                    playerIndex: i, hasBall: playerHasBall,
+                    facing: facing, phase: currentPhase, elapsed: elapsed
+                )
+                AuthenticPlayerSprite(
+                    player: animatedPlayer,
+                    isDefense: isDefense,
+                    spriteFrame: sprFrame,
+                    baseScale: spriteBaseScale * scale
+                )
+                .zIndex(Double(depth) * 1000)
+            }
+
+            // Football (only draw separately when not held by a player)
+            if carrier == nil {
+                let rawBallPos = ballFlatPos
+                let ballScreen = animProj.project(flatPos: rawBallPos, isFieldFlipped: isFieldFlipped)
+                let ballDepth = animProj.flatXToDepth(rawBallPos.x, isFieldFlipped: isFieldFlipped)
+                let ballScale = animProj.scaleAtDepth(ballDepth)
+
+                FootballSprite()
+                    .position(ballScreen)
+                    .scaleEffect(ballScale)
+                    .zIndex(Double(ballDepth) * 1000 + 0.5)
+            }
+
+            // Amber LED clocks
+            animationClockOverlay
+
+            // Player control indicator — ball carrier silhouette + jersey number
+            if let c = carrier {
+                let carrierPlayers = c.isOffense ? offensePlayers : defensePlayers
+                let jerseyNum = c.playerIndex < carrierPlayers.count ? carrierPlayers[c.playerIndex].number : 0
+                PlayerControlIndicator(jerseyNumber: jerseyNum)
+            }
+        }
+        .onChange(of: progress >= 1.0) { _, finished in
+            if finished { endAnimation() }
+        }
+        .onChange(of: smoothedFocusX) { _, newX in
+            viewModel.cameraFocusX = newX
+        }
+    }
+
     // MARK: - Animation Control
 
     private func startAnimation(blueprint: PlayAnimationBlueprint) {
@@ -587,14 +619,20 @@ struct FPSFieldView: View {
         isAnimatingPlay = true
         animationStartTime = Date()
         lastTickTime = nil
+        // Initialize optional frame logger
+        if let logPath = ProcessInfo.processInfo.environment[frameLogEnvKey] {
+            prepareFrameLog(at: logPath)
+        } else {
+            frameLogHandle = nil
+        }
 
         // Initialize per-player animation states (11 offense + 11 defense)
-        offAnimStates = Array(repeating: PlayerAnimationState(), count: max(offensePlayers.count, 11))
-        defAnimStates = Array(repeating: PlayerAnimationState(), count: max(defensePlayers.count, 11))
+        viewModel.offAnimStates = Array(repeating: PlayerAnimationState(), count: max(offensePlayers.count, 11))
+        viewModel.defAnimStates = Array(repeating: PlayerAnimationState(), count: max(defensePlayers.count, 11))
 
         // Initialize camera focus on the LOS
         if let game = viewModel.game {
-            cameraFocusX = yardToFlatX(game.fieldPosition.yardLine)
+            viewModel.cameraFocusX = yardToFlatX(game.fieldPosition.yardLine)
         }
     }
 
@@ -603,10 +641,144 @@ struct FPSFieldView: View {
         currentBlueprint = nil
         animationStartTime = nil
         lastTickTime = nil
-        offAnimStates = []
-        defAnimStates = []
+        try? frameLogHandle?.close()
+        frameLogHandle = nil
+        viewModel.offAnimStates = []
+        viewModel.defAnimStates = []
         viewModel.currentAnimationBlueprint = nil
         setupFieldPositions()
+    }
+
+    /// Prepare JSONL frame log for timing alignment when FPS_FRAME_LOG is set.
+    private func prepareFrameLog(at path: String) {
+        do {
+            let url = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            FileManager.default.createFile(atPath: path, contents: nil)
+            frameLogHandle = try FileHandle(forWritingTo: url)
+            frameLogIndex = 0
+        } catch {
+            print("FPS_FRAME_LOG: unable to open \(path): \(error)")
+            frameLogHandle = nil
+        }
+    }
+
+    /// Log one animation frame (positions/poses) to JSONL for external comparison to DOS captures.
+    private func logFrame(
+        progress: Double,
+        elapsed: Double,
+        phase: AnimationPhase?,
+        projection: PerspectiveProjection,
+        ballFlat: CGPoint,
+        carrier: (playerIndex: Int, isOffense: Bool)?,
+        blueprint: PlayAnimationBlueprint
+    ) {
+        guard let handle = frameLogHandle else { return }
+
+        struct FramePoint: Codable { let x: Double; let y: Double }
+        struct FramePlayer: Codable {
+            let isDefense: Bool
+            let index: Int
+            let role: String
+            let hasBall: Bool
+            let moving: Bool
+            let pose: String
+            let facing: Double
+            let flat: FramePoint
+            let screen: FramePoint
+            let depth: Double
+        }
+        struct FrameEntry: Codable {
+            let idx: Int
+            let elapsed: Double
+            let progress: Double
+            let phase: String
+            let ballFlat: FramePoint
+            let ballScreen: FramePoint
+            let players: [FramePlayer]
+        }
+
+        let ballScreen = projection.project(flatPos: ballFlat, isFieldFlipped: isFieldFlipped)
+
+        func capturePlayers(paths: [AnimatedPlayerPath], isDefense: Bool) -> [FramePlayer] {
+            paths.enumerated().map { (idx, path) in
+                let rawPos = path.position(at: progress)
+                let screenPos = projection.project(flatPos: rawPos, isFieldFlipped: isFieldFlipped)
+                let depth = projection.flatXToDepth(rawPos.x, isFieldFlipped: isFieldFlipped)
+                let moving = path.isMoving(at: progress)
+                let facing = path.facingDirection(at: progress)
+                let hasBall = carrier.map { $0.playerIndex == idx && $0.isOffense == !isDefense } ?? false
+                let role = path.role
+                let pose = determinePose(
+                    role: role,
+                    isDefense: isDefense,
+                    isMoving: moving,
+                    hasBall: hasBall,
+                    phase: phase,
+                    progress: progress
+                )
+                return FramePlayer(
+                    isDefense: isDefense,
+                    index: idx,
+                    role: "\(role)",
+                    hasBall: hasBall,
+                    moving: moving,
+                    pose: "\(pose)",
+                    facing: facing,
+                    flat: FramePoint(x: rawPos.x, y: rawPos.y),
+                    screen: FramePoint(x: screenPos.x, y: screenPos.y),
+                    depth: depth
+                )
+            }
+        }
+
+        let players = capturePlayers(paths: blueprint.offensivePaths, isDefense: false) +
+            capturePlayers(paths: blueprint.defensivePaths, isDefense: true)
+
+        let entry = FrameEntry(
+            idx: frameLogIndex,
+            elapsed: elapsed,
+            progress: progress,
+            phase: phase?.name.rawValue ?? "unknown",
+            ballFlat: FramePoint(x: ballFlat.x, y: ballFlat.y),
+            ballScreen: FramePoint(x: ballScreen.x, y: ballScreen.y),
+            players: players
+        )
+
+        do {
+            let data = try JSONEncoder().encode(entry)
+            if let nl = "\n".data(using: .utf8) {
+                handle.write(data)
+                handle.write(nl)
+            }
+            frameLogIndex += 1
+        } catch {
+            print("FPS_FRAME_LOG encode failed: \(error)")
+        }
+    }
+
+    /// Lightweight wrapper to guard the expensive logging call.
+    private func logFrameIfNeeded(
+        progress: Double,
+        elapsed: Double,
+        phase: AnimationPhase?,
+        projection: PerspectiveProjection,
+        ballFlat: CGPoint,
+        carrier: (playerIndex: Int, isOffense: Bool)?,
+        blueprint: PlayAnimationBlueprint
+    ) {
+        guard frameLogHandle != nil || ProcessInfo.processInfo.environment[frameLogEnvKey] != nil else { return }
+        logFrame(
+            progress: progress,
+            elapsed: elapsed,
+            phase: phase,
+            projection: projection,
+            ballFlat: ballFlat,
+            carrier: carrier,
+            blueprint: blueprint
+        )
     }
 
     // MARK: - Field Drawing (Canvas)
@@ -1127,7 +1299,7 @@ struct FPSFieldView: View {
         guard let info = SpriteCache.shared.animationInfo(named: animName) else { return nil }
 
         // Get or create animation state for this player
-        let stateArray = isDefense ? defAnimStates : offAnimStates
+        let stateArray = isDefense ? viewModel.defAnimStates : viewModel.offAnimStates
         var playerAnim: PlayerAnimationState
         if playerIndex < stateArray.count {
             playerAnim = stateArray[playerIndex]
@@ -1165,15 +1337,23 @@ struct FPSFieldView: View {
         // Write back updated state
         if playerIndex < stateArray.count {
             if isDefense {
-                defAnimStates[playerIndex] = playerAnim
+                viewModel.defAnimStates[playerIndex] = playerAnim
             } else {
-                offAnimStates[playerIndex] = playerAnim
+                viewModel.offAnimStates[playerIndex] = playerAnim
             }
         }
 
         let angle = facingToAngle(facing, isFlipped: isFieldFlipped)
         let viewIdx = SpriteCache.viewIndex(fromAngle: angle, viewCount: info.views)
-        return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx)
+
+        let colorTable: Int = {
+            guard let game = viewModel.game else { return 0 }
+            let offenseIsHome = game.isHomeTeamPossession
+            let isHomePlayer = isDefense ? !offenseIsHome : offenseIsHome
+            return isHomePlayer ? SpriteCache.homeColorTable : SpriteCache.awayColorTable
+        }()
+
+        return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx, colorTable: colorTable)
     }
 
     // MARK: - Field Setup

@@ -86,6 +86,7 @@ struct ScreenshotHarness {
         game.homeTimeouts = 3
         game.awayTimeouts = 3
         vm.game = game
+        vm.loadAuthenticPlaybooks()
 
         // Set last play result if provided
         if let desc = lastPlayDescription {
