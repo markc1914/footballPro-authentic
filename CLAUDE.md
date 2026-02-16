@@ -15,8 +15,8 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 |------|---------|
 | `Views/GameDayView.swift` | ZStack state machine — `GamePhase` enum drives which screen shows |
 | `Views/FPSFieldView.swift` | Full-screen perspective field (640x360 blueprint space, PerspectiveProjection) |
-| `Views/FPSPlayCallingScreen.swift` | 16-slot green grid (1-8 left, 9-16 right), scoreboard bar, red buttons |
-| `Views/FPSScoreboardBar.swift` | Team names+ratings, QTR grid, amber LED clock, DOWN/TO GO/BALL ON |
+| `Views/FPSPlayCallingScreen.swift` | 4×4 green grid, 3-button bar (TIME OUT, SPECIAL TEAMS, READY-BREAK), scoreboard |
+| `Views/FPSScoreboardBar.swift` | Two-row layout (away top, home bottom), QTR grid, amber LED clock, situation block |
 | `Views/FPSPlayResultOverlay.swift` | Dark charcoal result box on field, team names in cyan/red |
 | `Views/FPSRefereeOverlay.swift` | Referee signal overlay on field |
 | `Views/FPSReplayControls.swift` | VCR-style replay transport buttons |
@@ -54,7 +54,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 **Always use FPS component library:** FPSButton, FPSDialog, FPSDigitalClock
 
 **Field rendering rules:**
-- Solid green field (#248024), no grass stripes, no stadium backdrop during gameplay
+- Alternating grass stripes every 5 yards (#248024 dark / #2D8A2D light), perspective-projected
 - Single perspective camera, ~25 yard visible window (8 behind LOS + 17 ahead)
 - No sideline figures, officials, chain gang, or coaches (clean like original)
 - AuthenticPlayerSprite renders original ANIM.DAT sprites (falls back to RetroPlayerSprite if files missing)
@@ -62,11 +62,11 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - Team color remapping via SpriteCache.setTeamColors() (CT1=home, CT2=away palette overrides)
 - Amber LED clocks at bottom corners only (play clock wired to viewModel.playClockSeconds)
 - Yellow goalposts with blue base padding
-- Vertical hash mark ticks (not horizontal dashes)
+- Horizontal hash mark dashes (parallel to yard lines)
 - LOS "X" marker at center during pre-snap
 - Ball carrier green number box with alternating blue/orange border
 - VCR toolbar (11 red buttons) during play animation phase
-- Pre-snap situation text box with narrative (team, yard line, down/distance, time)
+- Pre-snap situation text box centered vertically with narrative (team, yard line, down/distance, time)
 
 ## Important Patterns & Rules
 
@@ -76,6 +76,15 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - GameClock has `displayTime` (String "M:SS") for display
 - PlayBlueprintGenerator generates in 640x360 flat space — PerspectiveProjection handles screen mapping
 - **New Swift files must be manually added to Xcode .pbxproj** (use the Python script or Xcode)
+
+**Simulation tuning (calibrated to NFL averages):**
+- XP success: `0.94 + (accuracy - 70) * 0.002` (~94% for average kicker)
+- FG modifier: `0.85 + (kickPower + kickAccuracy) / 1000.0` (~0.99 for average kicker)
+- Rushing yards: right-skewed distribution (40% stuffed, 35% moderate, 15% good, 7% big, 3% breakaway)
+- Receiver targeting: weighted by overall rating (star WRs get more targets)
+- Kick return TD: 0.3% (NFL average)
+- AI play calling: tracks last 5 calls, reduces repeat weight by 50%
+- AI timeouts: wired into post-play loop for defensive team
 
 ## Original Game Data (FPS Football Pro '93)
 
@@ -101,7 +110,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 | PYFDecoder.swift | *.PYF | Player index files (PPD: marker + uint16 indices). |
 | LGCDecoder.swift | *.LGC | City pair records (historical matchups). |
 | LGTDecoder.swift | *.LGT | League structure templates (C00:/D00:/TMT: sections). |
-| SCRDecoder.swift | *.SCR | DGDS LZW/RLE, nibble merge, CGImage via PAL. 320x200/640x350. |
+| SCRDecoder.swift | *.SCR | DGDS LZW/RLE + VQT quadtree, nibble merge, CGImage via PAL. 320x200/640x350. |
 | SampleDecoder.swift | SAMPLE.DAT | Offset table + 8-bit unsigned PCM. ~115 samples. |
 | SampleAudioService.swift | (runtime) | WAV wrapping + AVAudioPlayer playback for decoded samples. |
 | StockDATDecoder.swift | STOCK.DAT/MAP | 1002 play/formation records. 25B header + 11 variable-length player entries with routes, motion, assignments. |
@@ -359,9 +368,13 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - `GameDayView.swift`: GAMINTRO.SCR as pre-game narration background
 - `GameDayView.swift`: CHAMP.SCR as championship game-over background
 
+**VQT format (DECODED):**
+- Recursive quadtree decomposition with adaptive local color tables (not traditional VQ)
+- LSB-first bitstream, 4-bit quadrant mask per node, variable-width color indices at leaves
+- BALL.SCR (football) and KICK.SCR (kicking scene) both decode perfectly
+
 **Deferred (low priority):**
-- VQT: format for BALL.SCR and KICK.SCR — NOW DECODED (recursive quadtree + adaptive color tables)
-- DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA)
+- DDA animated intro sequences (INTROPT1.DDA, INTROPT2.DDA, DYNAMIX.DDA) — frame table decoded, RLE in progress
 
 ### Phase G: Audio (SAMPLE.DAT) — COMPLETE
 **Goal:** Add original game sound effects.
