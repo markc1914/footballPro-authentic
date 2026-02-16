@@ -431,7 +431,22 @@ Gameplay polish ─────────────────────�
 Animation fixes ─────────────────────────→ COMPLETE (state in ViewModel, team colors, facing, durations)
 ```
 
-**All core phases complete.** Remaining work: DDA intro cutscenes; visual/gameplay accuracy refinement.
+**All core phases complete.** Remaining work: DDA intro cutscenes; visual accuracy refinement (see below).
+
+## Visual Accuracy Refinement (Planned)
+
+Comparison of screenshots (`/tmp/fps_screenshots/`) against original reference frames (`/tmp/fps_gameplay/`) identified these issues:
+
+### High Priority
+1. **Play result overlay style** — Original uses flat dark rectangle (no rounded corners) with continuous prose and buttons OUTSIDE the text box. Our version has a rounded dialog with embedded buttons. Files: `FPSPlayResultOverlay.swift`, `GameViewModel.swift`.
+2. **VCR replay bar** — Original shows a compact 11-button VCR toolbar (24x20 icons, green/red split) at the top of the field during presnap/playAnimation/playResult/refereeCall phases. Our `FPSVCRToolbar` exists but only during playAnimation and is oversized. File: `GameDayView.swift`.
+3. **Play calling button layout** — Original has exactly 3 buttons (TIME OUT, SPECIAL TEAMS, READY-BREAK!). We show 5 (extra PAGE -/+). Remove page buttons, add keyboard left/right arrow for pagination. File: `FPSPlayCallingScreen.swift`.
+4. **Opponent play hints** — Original shows simplified AI play type hints ("Run left", "Goal line run") in red text across ~4 opponent grid slots. We show empty slots. Requires pre-selecting AI play on phase entry. Files: `GameViewModel.swift`, `FPSPlayCallingScreen.swift`.
+
+### Medium Priority
+5. **Scoreboard label layout** — Original right section is a 2-row x 3-column grid (TIME OUTS/DOWN/TO GO top, TIME OUTS/BALL ON/PLAY CLOCK bottom). Our layout differs in spacing/arrangement. File: `FPSScoreboardBar.swift`.
+6. **Field yard line numbers** — Original renders vertically-stacked digits with perspective squash, positioned at ~92% sideline width, with directional triangles. Our numbers are horizontal and at 80%. File: `FPSFieldView.swift`.
+7. **Play result text format** — Original uses continuous prose: "Buffalo's ball on their 49 yard line. First and 10 to go. 4:50 left in the first quarter. The score is Buffalo 0, Dallas 0." with colored team names. Need `generateProseResult()` method. Files: `FPSPlayResultOverlay.swift`, `GameViewModel.swift`.
 
 ## Fallback Strategy
 

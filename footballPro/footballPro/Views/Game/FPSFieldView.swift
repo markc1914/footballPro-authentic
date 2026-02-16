@@ -899,19 +899,64 @@ struct FPSFieldView: View {
             context.stroke(linePath, with: .color(VGA.fieldLine.opacity(lineOpacity)),
                           lineWidth: lineWidth * scale)
 
-            // Yard numbers — large and prominent like original
+            // Yard numbers — vertically stacked digits near sidelines (FPS '93 style)
             if isTenYardLine && yard > 0 && yard < 100 {
                 let displayNum = yard <= 50 ? yard : (100 - yard)
-                let fontSize = max(18, 32 * scale)
-                let numText = Text("\(displayNum)")
-                    .font(.system(size: fontSize, weight: .heavy, design: .monospaced))
-                    .foregroundColor(VGA.fieldLine.opacity(0.75))
+                let digits = String(displayNum).map { String($0) }
+                let leftNumX = proj.fieldCenterX - halfW * 0.92
+                let rightNumX = proj.fieldCenterX + halfW * 0.92
 
-                let leftNumX = proj.fieldCenterX - halfW * 0.80
-                context.draw(context.resolve(numText), at: CGPoint(x: leftNumX, y: screenY))
+                for (index, digit) in digits.enumerated() {
+                    // Offset each digit vertically (~1.5 yards apart in field space)
+                    let yardOffset = CGFloat(index) * 1.5 - CGFloat(digits.count - 1) * 0.75
+                    let digitDepth = depth + yardOffset * 0.01  // approximate depth shift
+                    let digitScreenY = screenY + yardOffset * 12 * scale
+                    let digitFontSize = max(14, 22 * scale)
+                    let verticalSquash = max(0.35, 0.55 * scale)
 
-                let rightNumX = proj.fieldCenterX + halfW * 0.80
-                context.draw(context.resolve(numText), at: CGPoint(x: rightNumX, y: screenY))
+                    let resolvedDigit = context.resolve(
+                        Text(digit)
+                            .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
+                            .foregroundColor(VGA.fieldLine.opacity(0.95))
+                    )
+
+                    // Left sideline — draw with vertical perspective squash
+                    context.drawLayer { layerCtx in
+                        layerCtx.translateBy(x: leftNumX, y: digitScreenY)
+                        layerCtx.scaleBy(x: 1.0, y: verticalSquash)
+                        layerCtx.translateBy(x: -leftNumX, y: -digitScreenY)
+                        layerCtx.draw(resolvedDigit, at: CGPoint(x: leftNumX, y: digitScreenY))
+                    }
+
+                    // Right sideline
+                    context.drawLayer { layerCtx in
+                        layerCtx.translateBy(x: rightNumX, y: digitScreenY)
+                        layerCtx.scaleBy(x: 1.0, y: verticalSquash)
+                        layerCtx.translateBy(x: -rightNumX, y: -digitScreenY)
+                        layerCtx.draw(resolvedDigit, at: CGPoint(x: rightNumX, y: digitScreenY))
+                    }
+                }
+
+                // Directional triangle pointing toward nearer end zone
+                if displayNum != 50 {
+                    let triSize = max(3, 6 * scale)
+                    let pointsUp = (yard < 50) != isFieldFlipped  // toward lower yard numbers
+                    for sideX in [leftNumX, rightNumX] {
+                        let triX = sideX + (sideX < proj.fieldCenterX ? triSize * 2.5 : -triSize * 2.5)
+                        var triPath = Path()
+                        if pointsUp {
+                            triPath.move(to: CGPoint(x: triX, y: screenY - triSize))
+                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY + triSize * 0.3))
+                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY + triSize * 0.3))
+                        } else {
+                            triPath.move(to: CGPoint(x: triX, y: screenY + triSize))
+                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY - triSize * 0.3))
+                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY - triSize * 0.3))
+                        }
+                        triPath.closeSubpath()
+                        context.fill(triPath, with: .color(VGA.fieldLine.opacity(0.90)))
+                    }
+                }
             }
         }
 

@@ -51,6 +51,16 @@ struct FPSPlayCallingScreen: View {
                     showSpecialTeams = true
                 }
             }
+            .onKeyPress(.leftArrow) {
+                viewModel.previousPage(isSpecialTeams: showSpecialTeams)
+                selectedSlot = nil
+                return .handled
+            }
+            .onKeyPress(.rightArrow) {
+                viewModel.nextPage(isSpecialTeams: showSpecialTeams)
+                selectedSlot = nil
+                return .handled
+            }
         }
     }
 
@@ -65,18 +75,6 @@ struct FPSPlayCallingScreen: View {
             .disabled(viewModel.possessingTeamTimeouts <= 0)
 
             Spacer()
-
-            FPSButton("PAGE -") {
-                viewModel.previousPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-            }
-            .padding(.horizontal, 4)
-
-            FPSButton("PAGE +") {
-                viewModel.nextPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-            }
-            .padding(.horizontal, 4)
 
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") {
                 showSpecialTeams.toggle()
@@ -102,14 +100,6 @@ struct FPSPlayCallingScreen: View {
                 .disabled(true)
 
             Spacer()
-
-            FPSButton("PAGE -") { }
-                .disabled(true)
-                .padding(.horizontal, 4)
-
-            FPSButton("PAGE +") { }
-                .disabled(true)
-                .padding(.horizontal, 4)
 
             FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") { }
                 .disabled(true)
@@ -251,15 +241,11 @@ struct FPSPlayCallingScreen: View {
                             .frame(width: 16, alignment: .trailing)
                             .padding(.trailing, 2)
 
-                        // Left column empty green slot
-                        Rectangle()
-                            .fill(VGA.playSlotGreen)
-                            .border(VGA.playSlotDark, width: 1)
+                        // Left column green slot (with optional AI hint)
+                        opponentGreenSlot(row: row)
 
-                        // Right column empty green slot
-                        Rectangle()
-                            .fill(VGA.playSlotGreen)
-                            .border(VGA.playSlotDark, width: 1)
+                        // Right column green slot (with optional AI hint)
+                        opponentGreenSlot(row: row)
 
                         // Row number on far right (9-16)
                         Text("\(row + 9)")
@@ -271,16 +257,37 @@ struct FPSPlayCallingScreen: View {
                 }
             }
 
-            // Opponent notification panel (raised gray panel like original FPS '93)
-            Text(opponentNotificationText)
-                .font(RetroFont.body())
-                .foregroundColor(.black)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 10)
-                .background(VGA.panelBg)
-                .modifier(DOSPanelBorder(.raised, width: 1))
+            // Only show notification overlay if no AI hint is available
+            if viewModel.aiPlayHintText == nil {
+                Text(opponentNotificationText)
+                    .font(RetroFont.body())
+                    .foregroundColor(.black)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(VGA.panelBg)
+                    .modifier(DOSPanelBorder(.raised, width: 1))
+            }
         }
+    }
+
+    /// Opponent grid slot: shows AI play hint in red text (matching FPS '93)
+    /// Hints appear in rows 3-4 (0-indexed: 2-3) across both columns = 4 slots
+    @ViewBuilder
+    private func opponentGreenSlot(row: Int) -> some View {
+        HStack {
+            if let hint = viewModel.aiPlayHintText, row >= 2 && row <= 3 {
+                Text(hint)
+                    .font(RetroFont.small())
+                    .foregroundColor(VGA.teamRed)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(VGA.playSlotGreen)
+        .border(VGA.playSlotDark, width: 1)
     }
 
     private var opponentNotificationText: String {

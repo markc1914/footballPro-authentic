@@ -30,11 +30,22 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 |------|---------|
 | `Views/GameDayView.swift` | ZStack state machine — `GamePhase` enum drives which screen shows |
 | `Views/FPSFieldView.swift` | Full-screen perspective field (640x360 blueprint space, PerspectiveProjection) |
+| `App/FootballProApp.swift` | App entry, GameScreen enum, GameState, ManagementHubView |
+| `Views/Components/AuthenticSplashScreen.swift` | INTDYNA.SCR + CREDIT.SCR splash sequence on app launch |
 | `Views/FPSPlayCallingScreen.swift` | 16-slot green grid (1-8 left, 9-16 right), scoreboard bar, red buttons |
 | `Views/FPSScoreboardBar.swift` | Team names+ratings, QTR grid, amber LED clock, DOWN/TO GO/BALL ON |
 | `Views/FPSPlayResultOverlay.swift` | Dark charcoal result box on field, team names in cyan/red |
 | `Views/FPSRefereeOverlay.swift` | Referee signal overlay on field |
 | `Views/FPSReplayControls.swift` | VCR-style replay transport buttons |
+| `Views/Franchise/StandingsView.swift` | Division/conference standings (W-L-T, PCT, PF, PA) |
+| `Views/Franchise/StatsView.swift` | Tabbed stat leaders + 1992 historical stats toggle |
+| `Views/Franchise/DraftRoomView.swift` | Draft room with prospect grid, scouting, auto-pick |
+| `Views/Franchise/PlayoffBracketView.swift` | 8-team bracket (4 per conference, seeded 1-4) |
+| `Views/Franchise/TradeProposalView.swift` | Trade builder with fairness evaluation |
+| `Views/Franchise/FreeAgencyView.swift` | Free agent market sorted by rating |
+| `Views/Franchise/DepthChartView.swift` | Position group depth chart editor |
+| `Views/Franchise/SaveLoadView.swift` | 8-slot UserDefaults save/load system |
+| `Views/Franchise/SettingsView.swift` | FranchiseSettingsView (difficulty, audio, speed) |
 | `Engine/PlayBlueprintGenerator.swift` | Generates animation paths for all 22 players in 640x360 flat space |
 | `Engine/SimulationEngine.swift` | Core play-by-play simulation |
 | `Styles/RetroStyle.swift` | VGA color palette (`VGA` struct) and `RetroFont` presets |
@@ -60,6 +71,7 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - No sideline figures, officials, chain gang, or coaches (clean like original)
 - AuthenticPlayerSprite with ANIM.DAT sprites via SpriteCache; Retro fallback only if assets missing
 - Green number box overlay on ball carrier (matching original FPS '93 style)
+- Team color remapping via `SpriteCache.setTeamColors()` (CT1 = home, CT2 = away palette overrides)
 - Amber LED clocks at bottom corners only
 
 ## Important Patterns & Rules
@@ -70,7 +82,18 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 - GameClock has `displayTime` (String "M:SS") for display
 - PlayBlueprintGenerator generates in 640x360 flat space — PerspectiveProjection handles screen mapping
 - **New Swift files must be manually added to Xcode .pbxproj** (use the Python script or Xcode)
+- AI short yardage: force run/short-pass on 3rd/4th-and-2-or-less
+- Field visuals: sideline gray/track borders; authentic RCSTAND referee sprite
 
+**Simulation tuning (calibrated to NFL averages):**
+- XP success: `0.94 + (accuracy - 70) * 0.002` (~94% for average kicker)
+- FG modifier: `0.85 + (kickPower + kickAccuracy) / 1000.0` (~0.99 for average kicker)
+- Rushing yards distribution: 40% stuffed, 35% moderate, 15% good, 7% big, 3% breakaway
+- Receiver targeting weighted by overall rating (star WRs get more targets)
+- Kick return TD: 0.3%
+- AI play calling tracks last 5 calls, halves repeat weight
+- AI timeouts wired into post-play loop for defensive team
+- Clock management: out-of-bounds stops (25% outside runs, 5% inside), two-minute warning Q2/Q4, kneel-down and spike plays with AI logic
 ## Original Game Data (FPS Football Pro '93)
 
 **Game directory:** `~/Downloads/front-page-sports-football-pro/DYNAMIX/FBPRO/`
@@ -102,6 +125,11 @@ Reuse as much of the original game as possible: sprites, animations, screens, au
 |------|------|--------|---------|
 | `*.DDA` | 34-429KB | Partially decoded | Dynamix Delta Animation cutscenes (frame table known, RLE encoding pending) |
 | `VQT` sections in *.SCR | few KB | **DECODED** | Vector Quantization tiles (BALL.SCR, KICK.SCR) |
+
+### Fidelity Gaps (Active)
+- Playbook exposure parity: surface all original OFF/DEF plays from PRF/PLN in UI; counts should match GameData banks (currently OFF 18/~14, DEF 9/~14; ~5 DEF missing).
+- Animation timing parity: capture FPS_FRAME_LOG during live plays and align phase/frame timing to DOS reference; adjust rates/phase durations accordingly (needs frame log capture).
+- Audio mapping parity: verify SAMPLE.DAT cue mapping to gameplay events; wire unmapped SoundEffects to correct sample IDs and validate in-game triggers (currently 0 mapped; 17 unmapped).
 
 ---
 

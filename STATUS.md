@@ -231,3 +231,9 @@ The RetroFieldView recreates the look and feel of the original 1993 FPS Football
 **Status: READY TO PLAY! 🏈**
 
 The game now has the complete Front Page Sports Football Pro '93 experience with animated field view, play-by-play simulation, and retro sound effects.
+
+## 🚧 Open Items (Parallel Tracks)
+
+- Playbook exposure parity: surface all original OFF/DEF plays from PRF/PLN in UI; counts should match GameData banks.
+- Animation timing parity: capture FPS_FRAME_LOG during live plays and align phase/frame timing to DOS reference; adjust rates/phase durations accordingly.
+- Audio mapping parity: verify SAMPLE.DAT cue mapping to gameplay events; wire unmapped SoundEffects to correct sample IDs and validate in-game triggers.

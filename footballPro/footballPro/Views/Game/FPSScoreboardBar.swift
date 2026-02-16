@@ -86,24 +86,20 @@ struct FPSScoreboardBar: View {
                 }
                 .frame(width: 110)
 
-                // Right section: Situation (two rows: away timeouts top, home timeouts bottom + DOWN/TO GO/BALL ON)
-                VStack(spacing: 2) {
-                    // Away team timeouts row
-                    HStack(spacing: 8) {
-                        HStack(spacing: 2) {
-                            Text("T/O")
+                // Right section: 2-row x 3-column situation grid (matching FPS '93)
+                VStack(spacing: 1) {
+                    // Row 1: TIME OUTS (away) | DOWN | TO GO
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            Text("TIME OUTS")
                                 .font(RetroFont.tiny())
                                 .foregroundColor(VGA.lightGray)
                             Text("\(game.awayTimeouts)")
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.digitalAmber)
                         }
+                        .frame(width: 70)
 
-                        Spacer()
-                    }
-
-                    // Situation data row
-                    HStack(spacing: 8) {
                         VStack(spacing: 0) {
                             Text("DOWN")
                                 .font(RetroFont.tiny())
@@ -112,6 +108,7 @@ struct FPSScoreboardBar: View {
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.digitalAmber)
                         }
+                        .frame(width: 55)
 
                         VStack(spacing: 0) {
                             Text("TO GO")
@@ -121,6 +118,20 @@ struct FPSScoreboardBar: View {
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.white)
                         }
+                        .frame(width: 55)
+                    }
+
+                    // Row 2: TIME OUTS (home) | BALL ON | PLAY CLOCK
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            Text("TIME OUTS")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(VGA.lightGray)
+                            Text("\(game.homeTimeouts)")
+                                .font(RetroFont.small())
+                                .foregroundColor(VGA.digitalAmber)
+                        }
+                        .frame(width: 70)
 
                         VStack(spacing: 0) {
                             Text("BALL ON")
@@ -130,27 +141,17 @@ struct FPSScoreboardBar: View {
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.digitalAmber)
                         }
+                        .frame(width: 55)
 
                         VStack(spacing: 0) {
                             Text("PLAY CLK")
                                 .font(RetroFont.tiny())
                                 .foregroundColor(VGA.lightGray)
-                            FPSDigitalClock(time: "\(viewModel.playClockSeconds)", fontSize: 12)
-                        }
-                    }
-
-                    // Home team timeouts row
-                    HStack(spacing: 8) {
-                        HStack(spacing: 2) {
-                            Text("T/O")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.homeTimeouts)")
+                            Text("\(viewModel.playClockSeconds)")
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.digitalAmber)
                         }
-
-                        Spacer()
+                        .frame(width: 55)
                     }
                 }
                 .frame(maxWidth: .infinity)

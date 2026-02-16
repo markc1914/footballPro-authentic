@@ -2,8 +2,8 @@
 //  FPSPlayResultOverlay.swift
 //  footballPro
 //
-//  FPS '93 play result — dark charcoal text box overlaid on field (field visible behind)
-//  White text with team names highlighted in cyan/red, Instant Replay + Continue buttons
+//  FPS '93 play result — flat dark charcoal rectangle overlaid on field
+//  Continuous prose with colored team names, buttons below the text box
 //  Matched from actual gameplay video frames
 //
 
@@ -26,107 +26,93 @@ struct FPSPlayResultOverlay: View {
                 Color.black.ignoresSafeArea()
             }
 
-            // Center the overlay vertically, slightly left of center
+            // Center the overlay on the field
             GeometryReader { geo in
-                resultBox
-                    .frame(maxWidth: 500)
-                    .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
+                VStack(spacing: 8) {
+                    // Dark text box (flat rectangle, no rounded corners — FPS '93 style)
+                    textBox
+
+                    // Buttons BELOW the text box (not inside it)
+                    buttonBar
+                }
+                .frame(maxWidth: 500)
+                .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
             }
         }
     }
 
-    private var resultBox: some View {
-        VStack(spacing: 6) {
-            if let result = viewModel.lastPlayResult {
-                // Play description with colored team names
-                Text(attributedDescription(result.description))
+    // MARK: - Text Box (flat dark rectangle with continuous prose)
+
+    private var textBox: some View {
+        VStack(spacing: 0) {
+            if viewModel.lastPlayResult != nil {
+                Text(attributedProseResult())
                     .font(RetroFont.body())
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 12)
-                    .padding(.top, 10)
-
-                // Down and distance info
-                if let game = viewModel.game {
-                    Text("\(game.downAndDistance.displayDownAndDistance).")
-                        .font(RetroFont.body())
-                        .foregroundColor(VGA.white)
-                        .multilineTextAlignment(.leading)
-                        .padding(.horizontal, 12)
-                }
-
-                // User offense: show Quick Huddle / Select Play
-                // User defense: show Instant Replay / Continue
-                if viewModel.isUserPossession {
-                    VStack(spacing: 4) {
-                        Text(viewModel.possessionTeamName)
-                            .font(RetroFont.bodyBold())
-                            .foregroundColor(VGA.white)
-
-                        HStack(spacing: 16) {
-                            FPSButton("Quick Huddle") {
-                                viewModel.continueAfterResult()
-                            }
-                            FPSButton("Select Play") {
-                                viewModel.continueAfterResult()
-                            }
-                        }
-                    }
-                    .padding(.vertical, 6)
-                } else {
-                    HStack(spacing: 16) {
-                        FPSButton("Instant Replay") {
-                            viewModel.enterReplay()
-                        }
-                        FPSButton("Continue") {
-                            viewModel.continueAfterResult()
-                        }
-                    }
-                    .padding(.vertical, 6)
-                }
+                    .padding(.vertical, 10)
             } else {
-                Text("Play complete")
+                Text("Play complete.")
                     .font(RetroFont.body())
                     .foregroundColor(VGA.lightGray)
                     .padding(12)
-
-                FPSButton("Continue") {
-                    viewModel.continueAfterResult()
-                }
-                .padding(.bottom, 8)
             }
         }
         .frame(maxWidth: 500)
-        .background(Color(red: 0.23, green: 0.23, blue: 0.29))
-        .modifier(DOSPanelBorder(.raised, width: 1))
+        .background(Color(red: 0.12, green: 0.12, blue: 0.15))
+        .border(Color(red: 0.4, green: 0.4, blue: 0.45), width: 1)
     }
 
-    // MARK: - Attributed Description (color team names by possession)
+    // MARK: - Button Bar (outside the text box)
 
-    private func attributedDescription(_ text: String) -> AttributedString {
-        var result = AttributedString(text)
+    private var buttonBar: some View {
+        HStack(spacing: 16) {
+            FPSButton("Instant Replay") {
+                viewModel.enterReplay()
+            }
+            FPSButton("Continue") {
+                viewModel.continueAfterResult()
+            }
+        }
+    }
+
+    // MARK: - Continuous Prose (FPS '93 authentic style)
+
+    private func attributedProseResult() -> AttributedString {
+        let prose = viewModel.generateProseResult()
+        var result = AttributedString(prose)
         result.foregroundColor = VGA.white
         result.font = RetroFont.body()
 
-        // Possessing team highlighted in cyan, opposing team in red
+        // Color ALL occurrences of each team's city name
         let possTeam = viewModel.game?.isHomeTeamPossession == true ? viewModel.homeTeam : viewModel.awayTeam
         let oppTeam = viewModel.game?.isHomeTeamPossession == true ? viewModel.awayTeam : viewModel.homeTeam
 
         if let team = possTeam {
-            for name in [team.name, team.fullName, team.city] {
-                if let range = result.range(of: name, options: .caseInsensitive) {
-                    result[range].foregroundColor = VGA.teamCyan
-                }
+            for name in [team.city, team.name, team.fullName] {
+                colorAllOccurrences(of: name, in: &result, color: VGA.teamCyan)
             }
         }
 
         if let team = oppTeam {
-            for name in [team.name, team.fullName, team.city] {
-                if let range = result.range(of: name, options: .caseInsensitive) {
-                    result[range].foregroundColor = VGA.teamRed
-                }
+            for name in [team.city, team.name, team.fullName] {
+                colorAllOccurrences(of: name, in: &result, color: VGA.teamRed)
             }
         }
 
         return result
+    }
+
+    private func colorAllOccurrences(of text: String, in attributed: inout AttributedString, color: Color) {
+        var searchStart = attributed.startIndex
+        while searchStart < attributed.endIndex {
+            let remaining = attributed[searchStart...]
+            if let range = remaining.range(of: text, options: .caseInsensitive) {
+                attributed[range].foregroundColor = color
+                searchStart = range.upperBound
+            } else {
+                break
+            }
+        }
     }
 }

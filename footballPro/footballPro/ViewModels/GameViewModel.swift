@@ -201,6 +201,89 @@ public class GameViewModel: ObservableObject { // Made public
         SpriteCache.shared.setTeamColors(homeColors: homeColors, awayColors: awayColors)
     }
 
+    // MARK: - Prose Result Generator (FPS '93 authentic style)
+
+    /// Generate continuous prose play result matching original FPS '93 format
+    public func generateProseResult() -> String {
+        guard let game = game, let result = lastPlayResult else { return "Play complete." }
+
+        let possTeam = game.isHomeTeamPossession ? homeTeam : awayTeam
+        let oppTeam = game.isHomeTeamPossession ? awayTeam : homeTeam
+        let possCity = possTeam?.city ?? "Team"
+        let oppCity = oppTeam?.city ?? "Opponent"
+
+        var parts: [String] = []
+
+        // 1. Play description (from SimulationEngine)
+        let playDesc = result.description.hasSuffix(".") ? result.description : result.description + "."
+        parts.append(playDesc)
+
+        // 2. Possession + field position
+        let yardLine = game.fieldPosition.yardLine
+        if yardLine == 50 {
+            parts.append("\(possCity)'s ball on the 50 yard line.")
+        } else if yardLine < 50 {
+            parts.append("\(possCity)'s ball on their \(yardLine) yard line.")
+        } else {
+            parts.append("\(possCity)'s ball on the \(oppCity) \(100 - yardLine) yard line.")
+        }
+
+        // 3. Down and distance (spelled out)
+        let downWords = ["First", "Second", "Third", "Fourth"]
+        let downWord = game.downAndDistance.down >= 1 && game.downAndDistance.down <= 4
+            ? downWords[game.downAndDistance.down - 1] : "\(game.downAndDistance.down)th"
+        let goalToGo = game.downAndDistance.lineOfScrimmage + game.downAndDistance.yardsToGo >= 100
+        let distText = goalToGo ? "goal" : "\(game.downAndDistance.yardsToGo)"
+        parts.append("\(downWord) and \(distText) to go.")
+
+        // 4. Time remaining
+        let quarterWords = ["first", "second", "third", "fourth"]
+        let quarterWord = game.clock.quarter >= 1 && game.clock.quarter <= 4
+            ? quarterWords[game.clock.quarter - 1] : "overtime"
+        parts.append("\(game.clock.displayTime) left in the \(quarterWord) quarter.")
+
+        // 5. Score
+        let possScore = game.isHomeTeamPossession ? game.score.homeScore : game.score.awayScore
+        let oppScore = game.isHomeTeamPossession ? game.score.awayScore : game.score.homeScore
+        parts.append("The score is \(possCity) \(possScore), \(oppCity) \(oppScore).")
+
+        return parts.joined(separator: " ")
+    }
+
+    // MARK: - AI Play Hint (for opponent grid display)
+
+    /// Simplified hint text for the AI opponent's play (e.g., "Run left", "Goal line run")
+    public var aiPlayHintText: String? {
+        guard let result = lastPlayResult else { return nil }
+        // Generate a simplified hint from the play type
+        switch result.playType {
+        case .insideRun, .draw, .counter, .qbSneak:
+            return "Run middle"
+        case .outsideRun, .sweep:
+            return "Run left"
+        case .shortPass, .screen:
+            return "Short pass"
+        case .mediumPass, .rollout:
+            return "Pass right"
+        case .deepPass:
+            return "Deep pass"
+        case .playAction:
+            return "Play action"
+        case .kneel:
+            return "Kneel"
+        case .spike:
+            return "Spike"
+        case .kickoff:
+            return "Kickoff"
+        case .punt:
+            return "Punt"
+        case .fieldGoal, .extraPoint:
+            return "Field goal"
+        default:
+            return "Regular play"
+        }
+    }
+
     // NEW: Placeholder for opening kickoff logic
     internal func executeOpeningKickoff() async {
         print("Executing opening kickoff...")

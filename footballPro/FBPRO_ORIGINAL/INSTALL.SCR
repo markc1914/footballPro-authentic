@@ -1,0 +1,118 @@
+clear
+
+echo The install program will now copy 
+echo Front Page Sports:Football Pro to your hard drive.
+echo Approximate hard drive space required:  11 Megs
+echo
+echo Do you wish to (C)ontinue or (E)xit?
+pick ce Continue Exit
+
+:Continue
+clear
+%1:
+godir %4 CantCreate
+
+md ttm > nul
+md stock > nul
+md custom > nul
+md books > nul
+md ltapes > nul
+md xtapes > nul
+
+exists %2:RESOURCE.000 Please insert the disk labeled "Disk 1" in drive %2:.
+echo Copying Game files...
+
+copy %2:*.*           
+echo %3 > resource.cfg
+
+echo Processing %2:resource.000...
+unchunk RESOURCE.000 . > nul
+if ERRORLEVEL 1 goto BadChunk
+del RESOURCE.000
+
+exists %2:RESOURCE.001 Please insert the disk labeled "Disk 2" in drive %2:.
+copy %2:RESOURCE.001 
+echo Processing %2:resource.001...
+unchunk RESOURCE.001 . > nul
+if ERRORLEVEL 1 goto BadChunk
+del RESOURCE.001
+
+exists %2:RESOURCE.002 Please insert the disk labeled "Disk 3" in drive %2:.
+copy %2:RESOURCE.002 
+echo Processing %2:resource.002...
+unchunk RESOURCE.002 . > nul
+if ERRORLEVEL 1 goto BadChunk
+del RESOURCE.002
+
+exists %2:RESOURCE.003 Please insert the disk labeled "Disk 4" in drive %2:.
+copy %2:RESOURCE.003 
+echo Processing %2:resource.003...
+unchunk RESOURCE.003 . > nul
+if ERRORLEVEL 1 goto BadChunk
+del RESOURCE.003
+
+del UNCHUNK.EXE
+
+fbcheck
+if ERRORLEVEL 1 goto Corrupted
+
+clear
+echo
+echo ÿTo play NOW:
+echo ÿ   Type HIKE and press [ENTER].
+echo
+echo ÿTo play LATER:
+echo ÿ   From the root directory of %1:
+echo ÿ   Type CD %4 and press [ENTER], then
+echo ÿ   Type HIKE and press [ENTER].
+echo
+pause
+end
+
+:NoSpace
+clear
+echo
+alert There is not enough space on %1: to install Front Page Sports:Football Pro on your hard drive.  11 megabytes of disk space are necessary.
+end
+
+:CantCreate
+clear
+echo
+alert Unable to create directory %4
+end
+
+:Corrupted
+alert Corrupted files exist.  Please run install again.
+end
+
+:BadChunk
+if ERRORLEVEL 6 goto ERR6
+if ERRORLEVEL 5 goto ERR5
+if ERRORLEVEL 4 goto ERR4
+if ERRORLEVEL 3 goto ERR3
+if ERRORLEVEL 2 goto ERR2
+if ERRORLEVEL 1 goto ERR1
+alert Unable to extract resource file.  Please run install again.
+end
+
+:ERR1
+alert Unable to read resource file.  Make sure the drive door is shut and run install again.
+end
+:ERR2
+alert Unable to write resource file to hard drive.  This program only installs games on hard drives.  Run install again.  If you get this message again you may have a problem with your hard drive.
+end
+:ERR3
+alert Not enough memory to run extraction program.  The extraction program needs a minimum of 550k to operate.
+end
+:ERR4
+alert The resource file is bad.  Run install again.  If you get this message again, you probably received a bad disk.
+end
+:ERR5
+alert Unable to open the resource file for reading.  A possible solution might be to increase the value of the FILES setting in your CONFIG.SYS file.
+end
+:ERR6
+alert Unable to open the target file for writing.  A possible solution might be to increase the value of the FILES setting in your CONFIG.SYS file.
+end
+
+:exit
+end

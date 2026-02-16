@@ -31,6 +31,7 @@ struct GameDayView: View {
                 case .presnap:
                     ZStack {
                         FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
                         // Pre-snap situation text box (FPS '93 style)
                         FPSPresnapSituationBox(viewModel: viewModel)
                     }
@@ -45,12 +46,14 @@ struct GameDayView: View {
                 case .playResult:
                     ZStack {
                         FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
                         FPSPlayResultOverlay(viewModel: viewModel)
                     }
 
                 case .refereeCall(let message):
                     ZStack {
                         FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
                         FPSRefereeOverlay(message: message) {
                             viewModel.continueAfterResult()
                         }
@@ -563,42 +566,50 @@ struct FPSPresnapSituationBox: View {
 struct FPSVCRToolbar: View {
     @ObservedObject var viewModel: GameViewModel
 
+    /// Whether the play animation is currently running (highlights the Play button)
+    private var isPlaying: Bool {
+        if case .playAnimation = viewModel.currentPhase { return true }
+        return false
+    }
+
     var body: some View {
         VStack {
-            HStack(spacing: 2) {
-                vcrButton("EJECT") { }
-                vcrButton("STOP") { }
-                vcrButton("#") { }  // Numbers toggle
-                vcrButton("BALL") { }  // Follow ball
-                vcrButton("CAM") { }   // Camera select
+            HStack(spacing: 1) {
+                // Utility group (green buttons)
+                vcrButton("\u{25B3}", isGreen: true) { }       // Eject
+                vcrButton("\u{25A0}", isGreen: false) { }      // Stop
+                vcrButton("#", isGreen: true) { }               // Numbers toggle
+                vcrButton("\u{25CF}", isGreen: true) { }       // Ball follow
+                vcrButton("C", isGreen: true) { }               // Camera
 
-                Spacer().frame(width: 8)
+                Spacer().frame(width: 4)
 
-                vcrButton("<<") { }   // Fast reverse
-                vcrButton("<") { }    // Reverse
-                vcrButton("||") { }   // Pause
-                vcrButton(">") { }    // Play
-                vcrButton(">>") { }   // Fast forward
-                vcrButton("SLO") { }  // Slow motion
+                // Transport group (red buttons, Play highlighted green when active)
+                vcrButton("\u{25C0}\u{25C0}", isGreen: false) { }  // Rewind
+                vcrButton("\u{25C0}", isGreen: false) { }           // Step back
+                vcrButton("||", isGreen: false) { }                  // Pause
+                vcrButton("\u{25B6}", isGreen: isPlaying) { }       // Play
+                vcrButton("\u{25B6}\u{25B6}", isGreen: false) { }  // Fast forward
+                vcrButton("SLO", isGreen: false) { }                // Slow
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
             .background(VGA.panelVeryDark.opacity(0.85))
 
             Spacer()
         }
     }
 
-    private func vcrButton(_ label: String, action: @escaping () -> Void) -> some View {
+    private func vcrButton(_ label: String, isGreen: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(RetroFont.tiny())
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .foregroundColor(.white)
-                .frame(width: 36, height: 22)
-                .background(VGA.buttonBg)
+                .frame(width: 24, height: 18)
+                .background(isGreen ? VGA.playSlotGreen : VGA.buttonBg)
                 .overlay(
                     Rectangle()
-                        .stroke(VGA.buttonHighlight, lineWidth: 1)
+                        .stroke(VGA.buttonHighlight, lineWidth: 0.5)
                 )
         }
         .buttonStyle(PlainButtonStyle())
