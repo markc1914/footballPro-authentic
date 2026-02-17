@@ -178,8 +178,15 @@ struct PerspectiveProjection {
         if cameraMode == .overhead {
             return 0.60  // Smaller sprites for overhead bird's eye view
         }
-        let w = widthAtDepth(depth)
-        return max(w / nearWidth, 0.50)
+        // Perspective sprite scaling matching original FPS '93:
+        // Near players (depth=0) are full size, far players (depth=1) are ~60% size.
+        // Uses a non-linear curve so the scaling accelerates toward the far end,
+        // matching the trapezoid perspective where far-field compresses more.
+        let clamped = min(max(depth, 0), 1)
+        let t = pow(clamped, 0.75)  // Slightly faster falloff toward the far end
+        let nearScale: CGFloat = 1.0
+        let farScale: CGFloat = 0.58  // Far players are ~58% of near player size
+        return max(nearScale + (farScale - nearScale) * t, 0.45)
     }
 
     func flatXToDepth(_ flatX: CGFloat, isFieldFlipped: Bool) -> CGFloat {
@@ -314,8 +321,9 @@ struct PerspectiveProjection {
     /// Scale for sideline projection based on cross-field Y.
     func sidelineScaleAtY(_ flatY: CGFloat) -> CGFloat {
         let depth = sidelineFlatYToDepth(flatY)
-        let perspT = pow(depth, 0.85)
-        return max(1.0 - perspT * 0.4, 0.50)
+        let perspT = pow(depth, 0.75)
+        // Match perspective mode range: near=1.0, far=~0.58
+        return max(1.0 - perspT * 0.42, 0.45)
     }
 
     func visibleYardRange(isFieldFlipped: Bool) -> (Int, Int) {
@@ -1136,8 +1144,9 @@ struct FPSFieldView: View {
 
         // Gray sideline border strips (track/concrete area beyond sidelines)
         // These follow the perspective projection — wider at bottom, narrower at top
-        let sidelineGray = Color(red: 0.50, green: 0.50, blue: 0.50)
-        let borderFraction: CGFloat = 0.06  // Width of gray strip as fraction of field width
+        // Original FPS '93 shows a medium-dark brownish-gray track surface
+        let sidelineGray = Color(red: 0.35, green: 0.33, blue: 0.30)
+        let borderFraction: CGFloat = 0.08  // Width of gray strip as fraction of field width
 
         let nearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
         let nearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
@@ -1363,17 +1372,35 @@ struct FPSFieldView: View {
             context.stroke(rightHash, with: .color(VGA.fieldLine.opacity(0.55)), lineWidth: max(1.0, 1.5 * scale))
         }
 
-        // Sideline borders — subtle in original FPS '93 (field extends to edge)
+        // Sideline borders — visible white boundary lines in original FPS '93
         let slNearLeft = CGPoint(x: proj.fieldCenterX - proj.nearWidth / 2, y: proj.fieldBottom)
         let slNearRight = CGPoint(x: proj.fieldCenterX + proj.nearWidth / 2, y: proj.fieldBottom)
         let slFarLeft = CGPoint(x: proj.fieldCenterX - proj.farWidth / 2, y: proj.fieldTop)
         let slFarRight = CGPoint(x: proj.fieldCenterX + proj.farWidth / 2, y: proj.fieldTop)
 
+        // White sideline boundary — prominent in the original game
         let leftSideline = Path { p in p.move(to: slNearLeft); p.addLine(to: slFarLeft) }
-        context.stroke(leftSideline, with: .color(VGA.fieldLine.opacity(0.35)), lineWidth: 2)
+        context.stroke(leftSideline, with: .color(VGA.fieldLine.opacity(0.85)), lineWidth: 2.5)
 
         let rightSideline = Path { p in p.move(to: slNearRight); p.addLine(to: slFarRight) }
-        context.stroke(rightSideline, with: .color(VGA.fieldLine.opacity(0.35)), lineWidth: 2)
+        context.stroke(rightSideline, with: .color(VGA.fieldLine.opacity(0.85)), lineWidth: 2.5)
+
+        // Outer track edge — thin dark line between track and black background for definition
+        let trackNearBorderW = proj.nearWidth * borderFraction
+        let trackFarBorderW = proj.farWidth * borderFraction
+        let trackEdgeColor = Color(red: 0.22, green: 0.20, blue: 0.18)
+
+        let leftTrackEdge = Path { p in
+            p.move(to: CGPoint(x: nearLeft.x - trackNearBorderW, y: proj.fieldBottom))
+            p.addLine(to: CGPoint(x: farLeft.x - trackFarBorderW, y: proj.fieldTop))
+        }
+        context.stroke(leftTrackEdge, with: .color(trackEdgeColor), lineWidth: 1.5)
+
+        let rightTrackEdge = Path { p in
+            p.move(to: CGPoint(x: nearRight.x + trackNearBorderW, y: proj.fieldBottom))
+            p.addLine(to: CGPoint(x: farRight.x + trackFarBorderW, y: proj.fieldTop))
+        }
+        context.stroke(rightTrackEdge, with: .color(trackEdgeColor), lineWidth: 1.5)
 
         // End zone text
         drawEndZoneText(context: context, proj: proj, minYard: minYard, maxYard: maxYard)
@@ -2031,6 +2058,7 @@ struct AuthenticPlayerSprite: View {
                 if player.hasBall {
                     let boxYOffset: CGFloat = player.pose == .down ? -4 : -CGFloat(frame.height) * baseScale / 2 - 10
                     BallCarrierNumberBox(number: player.number)
+                        .scaleEffect(min(baseScale / 2.5, 1.0))  // Scale box with perspective depth
                         .offset(y: boxYOffset)
                 }
             }

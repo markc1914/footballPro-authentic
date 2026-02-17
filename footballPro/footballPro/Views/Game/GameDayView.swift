@@ -212,6 +212,7 @@ struct GameDayView: View {
                         awayTeam: viewModel.awayTeam,
                         game: game,
                         isChampionship: isCurrentGameChampionship,
+                        playoffRound: currentPlayoffRound,
                         onContinue: {
                             recordGameResult()
                             gameState.currentScreen = .season
@@ -283,14 +284,22 @@ struct GameDayView: View {
         )
     }
 
-    private var isCurrentGameChampionship: Bool {
+    private var currentPlayoffRound: PlayoffRound? {
         guard let game = viewModel.game,
-              let season = gameState.currentSeason else { return false }
+              let season = gameState.currentSeason else { return nil }
         return season.schedule.first(where: {
             $0.homeTeamId == game.homeTeamId &&
             $0.awayTeamId == game.awayTeamId &&
             $0.week == game.week
-        })?.playoffRound == .championship
+        })?.playoffRound
+    }
+
+    private var isCurrentGameChampionship: Bool {
+        currentPlayoffRound == .championship
+    }
+
+    private var isCurrentGamePlayoff: Bool {
+        currentPlayoffRound != nil
     }
 
     private func recordGameResult() {
@@ -459,73 +468,129 @@ struct GameOverView: View {
     let awayTeam: Team?
     let game: Game
     var isChampionship: Bool = false
+    var playoffRound: PlayoffRound? = nil
     let onContinue: () -> Void
 
     @State private var champImage: CGImage?
+
+    /// Whether this is any playoff game (including championship)
+    private var isPlayoff: Bool { playoffRound != nil }
+
+    /// Title text based on game context
+    private var titleText: String {
+        if isChampionship { return "CHAMPIONS!" }
+        if let round = playoffRound { return "\(round.rawValue.uppercased()) - FINAL" }
+        return "FINAL SCORE"
+    }
+
+    /// Winner announcement text
+    private func winnerText(winner: Team) -> String {
+        if isChampionship {
+            return "\(winner.fullName) ARE CHAMPIONS!"
+        } else if isPlayoff {
+            return "\(winner.fullName) ADVANCE!"
+        } else {
+            return "\(winner.fullName) WIN!"
+        }
+    }
+
+    /// Winner text color — gold for championship, amber for playoff, default for regular
+    private var winnerColor: Color {
+        if isChampionship { return VGA.yellow }
+        if isPlayoff { return VGA.digitalAmber }
+        return VGA.digitalAmber
+    }
+
+    /// Background opacity — brighter for championship, moderate for playoff
+    private var backgroundOpacity: Double {
+        if isChampionship { return 0.5 }
+        if isPlayoff { return 0.35 }
+        return 0.0
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // CHAMP.SCR background for championship games
-            if isChampionship, let bg = champImage {
+            // CHAMP.SCR trophy background for championship and playoff games
+            if isPlayoff, let bg = champImage {
                 Image(decorative: bg, scale: 1.0)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .opacity(0.4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(backgroundOpacity)
             }
 
-            FPSDialog(isChampionship ? "CHAMPIONS!" : "FINAL SCORE") {
-                VStack(spacing: 16) {
-                    Spacer().frame(height: 8)
+            VStack(spacing: 0) {
+                Spacer()
 
-                    HStack(spacing: 24) {
-                        VStack(spacing: 4) {
-                            Text(awayTeam?.abbreviation ?? "AWAY")
-                                .font(RetroFont.header())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.score.awayScore)")
-                                .font(RetroFont.score())
-                                .foregroundColor(game.score.awayScore > game.score.homeScore ? VGA.green : VGA.white)
-                        }
-
-                        Text("-")
-                            .font(RetroFont.huge())
-                            .foregroundColor(VGA.darkGray)
-
-                        VStack(spacing: 4) {
-                            Text(homeTeam?.abbreviation ?? "HOME")
-                                .font(RetroFont.header())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.score.homeScore)")
-                                .font(RetroFont.score())
-                                .foregroundColor(game.score.homeScore > game.score.awayScore ? VGA.green : VGA.white)
-                        }
-                    }
-
-                    if let winner = game.score.homeScore > game.score.awayScore ? homeTeam : awayTeam {
-                        Text(isChampionship ? "\(winner.fullName) ARE CHAMPIONS!" : "\(winner.fullName) WIN!")
-                            .font(RetroFont.title())
-                            .foregroundColor(isChampionship ? VGA.yellow : VGA.digitalAmber)
-                    } else if game.score.isTied {
-                        Text("TIE GAME")
-                            .font(RetroFont.title())
-                            .foregroundColor(VGA.orange)
-                    }
-
-                    Spacer().frame(height: 8)
-
-                    FPSButton("CONTINUE TO SEASON") {
-                        onContinue()
-                    }
-
-                    Spacer().frame(height: 8)
+                // Playoff round banner above the score panel
+                if isPlayoff && !isChampionship, let round = playoffRound {
+                    Text(round.rawValue.uppercased())
+                        .font(RetroFont.small())
+                        .foregroundColor(VGA.digitalAmber)
+                        .tracking(2)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                        .background(VGA.panelVeryDark.opacity(0.8))
+                        .padding(.bottom, 8)
                 }
-                .padding(24)
+
+                FPSDialog(titleText) {
+                    VStack(spacing: 16) {
+                        Spacer().frame(height: 8)
+
+                        HStack(spacing: 24) {
+                            VStack(spacing: 4) {
+                                Text(awayTeam?.abbreviation ?? "AWAY")
+                                    .font(RetroFont.header())
+                                    .foregroundColor(VGA.lightGray)
+                                Text("\(game.score.awayScore)")
+                                    .font(RetroFont.score())
+                                    .foregroundColor(game.score.awayScore > game.score.homeScore ? VGA.green : VGA.white)
+                            }
+
+                            Text("-")
+                                .font(RetroFont.huge())
+                                .foregroundColor(VGA.darkGray)
+
+                            VStack(spacing: 4) {
+                                Text(homeTeam?.abbreviation ?? "HOME")
+                                    .font(RetroFont.header())
+                                    .foregroundColor(VGA.lightGray)
+                                Text("\(game.score.homeScore)")
+                                    .font(RetroFont.score())
+                                    .foregroundColor(game.score.homeScore > game.score.awayScore ? VGA.green : VGA.white)
+                            }
+                        }
+
+                        if let winner = game.score.homeScore > game.score.awayScore ? homeTeam : awayTeam {
+                            Text(winnerText(winner: winner))
+                                .font(isChampionship ? RetroFont.large() : RetroFont.title())
+                                .foregroundColor(winnerColor)
+                                .shadow(color: isChampionship ? VGA.yellow.opacity(0.4) : .clear, radius: 6, x: 0, y: 0)
+                        } else if game.score.isTied {
+                            Text("TIE GAME")
+                                .font(RetroFont.title())
+                                .foregroundColor(VGA.orange)
+                        }
+
+                        Spacer().frame(height: 8)
+
+                        FPSButton("CONTINUE TO SEASON") {
+                            onContinue()
+                        }
+
+                        Spacer().frame(height: 8)
+                    }
+                    .padding(24)
+                }
+
+                Spacer()
             }
         }
         .onAppear {
-            if isChampionship {
+            if isPlayoff {
                 loadChampBackground()
             }
         }

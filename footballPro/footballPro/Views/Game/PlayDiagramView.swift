@@ -426,56 +426,70 @@ struct MiniPlayDiagramView: View {
 
     var body: some View {
         Canvas { context, size in
-            let lineColor: Color = isSelected ? .black : .white
+            // Scale marker sizes relative to slot dimensions for consistent readability
+            let scale = min(size.width, size.height) / 60.0
+            let offenseColor: Color = isSelected ? .black : Color(red: 1.0, green: 1.0, blue: 1.0)
+            let defenseColor: Color = isSelected ? .black : Color(red: 1.0, green: 0.55, blue: 0.55)
+            let lineColor: Color = diagram.isOffensive ? offenseColor : defenseColor
             let primaryColor: Color = isSelected ? .black : VGA.digitalAmber
-            let dimColor: Color = isSelected ? .black.opacity(0.4) : .white.opacity(0.3)
+            let secondaryRouteColor: Color = isSelected ? .black.opacity(0.7) : Color(red: 0.85, green: 0.85, blue: 0.85)
+            let dimColor: Color = isSelected ? .black.opacity(0.5) : .white.opacity(0.25)
 
-            // Draw LOS as thin horizontal line
-            let losY = size.height * 0.45
+            // Inset the drawing area to keep marks away from edges
+            let insetX = size.width * 0.06
+            let insetY = size.height * 0.06
+            let drawW = size.width - insetX * 2
+            let drawH = size.height - insetY * 2
+
+            // Draw LOS as dashed horizontal line
+            let losY = insetY + drawH * 0.45
             var losPath = Path()
-            losPath.move(to: CGPoint(x: 1, y: losY))
-            losPath.addLine(to: CGPoint(x: size.width - 1, y: losY))
-            context.stroke(losPath, with: .color(dimColor), lineWidth: 0.5)
+            losPath.move(to: CGPoint(x: insetX, y: losY))
+            losPath.addLine(to: CGPoint(x: insetX + drawW, y: losY))
+            context.stroke(losPath, with: .color(dimColor),
+                           style: StrokeStyle(lineWidth: max(1.0, 0.8 * scale), dash: [3, 2]))
 
             for player in diagram.players {
                 // STOCK.DAT: X = lateral, Y = depth (negative = behind LOS)
-                let px = player.normalizedPosition.x * size.width
-                let py = (1.0 - player.normalizedPosition.y) * size.height
+                let px = insetX + player.normalizedPosition.x * drawW
+                let py = insetY + (1.0 - player.normalizedPosition.y) * drawH
 
                 // Draw route lines first (behind marks)
                 if let route = player.route, route.count > 1 {
                     var routePath = Path()
-                    let sx = route[0].x * size.width
-                    let sy = (1.0 - route[0].y) * size.height
+                    let sx = insetX + route[0].x * drawW
+                    let sy = insetY + (1.0 - route[0].y) * drawH
                     routePath.move(to: CGPoint(x: sx, y: sy))
 
                     for i in 1..<route.count {
-                        let rx = route[i].x * size.width
-                        let ry = (1.0 - route[i].y) * size.height
+                        let rx = insetX + route[i].x * drawW
+                        let ry = insetY + (1.0 - route[i].y) * drawH
                         routePath.addLine(to: CGPoint(x: rx, y: ry))
                     }
 
-                    let routeColor = player.isPrimaryTarget ? primaryColor : lineColor
-                    let lw: CGFloat = player.isPrimaryTarget ? 1.2 : 0.7
+                    let routeColor = player.isPrimaryTarget ? primaryColor : secondaryRouteColor
+                    let lw: CGFloat = player.isPrimaryTarget ? max(2.0, 1.8 * scale) : max(1.2, 1.0 * scale)
 
                     if player.isPrimaryTarget {
+                        // Primary route: solid, bright amber, thick
                         context.stroke(routePath, with: .color(routeColor), lineWidth: lw)
                     } else {
+                        // Secondary routes: dashed
                         context.stroke(routePath, with: .color(routeColor),
-                                       style: StrokeStyle(lineWidth: lw, dash: [2, 1.5]))
+                                       style: StrokeStyle(lineWidth: lw, dash: [3, 2]))
                     }
 
-                    // Small arrow at end of route
+                    // Arrow at end of route
                     if route.count >= 2 {
                         let lastPt = route[route.count - 1]
                         let prevPt = route[route.count - 2]
-                        let ex = lastPt.x * size.width
-                        let ey = (1.0 - lastPt.y) * size.height
-                        let bx = prevPt.x * size.width
-                        let by = (1.0 - prevPt.y) * size.height
+                        let ex = insetX + lastPt.x * drawW
+                        let ey = insetY + (1.0 - lastPt.y) * drawH
+                        let bx = insetX + prevPt.x * drawW
+                        let by = insetY + (1.0 - prevPt.y) * drawH
 
                         let angle = atan2(ey - by, ex - bx)
-                        let aLen: CGFloat = 3
+                        let aLen: CGFloat = max(5.0, 4.0 * scale)
                         let aAng: CGFloat = .pi / 5
 
                         var arrow = Path()
@@ -493,28 +507,34 @@ struct MiniPlayDiagramView: View {
                     }
                 }
 
-                // Draw player mark
-                let ms: CGFloat = 2.5
+                // Draw player mark — sized relative to slot
+                let ms: CGFloat = max(4.0, 3.5 * scale)
 
                 if diagram.isOffensive {
                     if player.isQB {
+                        // QB: filled bright circle
                         let r = CGRect(x: px - ms, y: py - ms, width: ms * 2, height: ms * 2)
                         context.fill(Path(ellipseIn: r), with: .color(lineColor))
                     } else if player.isSkillPosition {
+                        // Skill positions: open circle with thicker stroke
                         let r = CGRect(x: px - ms, y: py - ms, width: ms * 2, height: ms * 2)
-                        context.stroke(Path(ellipseIn: r), with: .color(lineColor), lineWidth: 0.8)
+                        context.stroke(Path(ellipseIn: r), with: .color(lineColor),
+                                       lineWidth: max(1.5, 1.2 * scale))
                     } else {
-                        let r = CGRect(x: px - 1.5, y: py - 1.5, width: 3, height: 3)
-                        context.fill(Path(ellipseIn: r), with: .color(lineColor))
+                        // Linemen: filled square for visual distinction
+                        let sq: CGFloat = max(3.0, 2.5 * scale)
+                        let r = CGRect(x: px - sq, y: py - sq, width: sq * 2, height: sq * 2)
+                        context.fill(Path(r), with: .color(lineColor))
                     }
                 } else {
-                    // Defense: X marks
+                    // Defense: X marks with thicker lines
                     var xPath = Path()
                     xPath.move(to: CGPoint(x: px - ms, y: py - ms))
                     xPath.addLine(to: CGPoint(x: px + ms, y: py + ms))
                     xPath.move(to: CGPoint(x: px + ms, y: py - ms))
                     xPath.addLine(to: CGPoint(x: px - ms, y: py + ms))
-                    context.stroke(xPath, with: .color(lineColor), lineWidth: 0.8)
+                    context.stroke(xPath, with: .color(lineColor),
+                                   lineWidth: max(1.5, 1.2 * scale))
                 }
             }
         }

@@ -16,6 +16,16 @@ struct FPSScoreboardBar: View {
     @State private var fallbackWindDirection: String = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].randomElement()!
     @State private var fallbackWindSpeed: Int = Int.random(in: 0...15)
 
+    // Dark scoreboard background matching original FPS '93 (near-black)
+    private let scoreboardBg = Color(red: 0.05, green: 0.05, blue: 0.06) // ~#0D0D0F
+    // Slightly lighter cell background for subtle depth
+    private let cellBg = Color(red: 0.08, green: 0.08, blue: 0.10) // ~#141419
+    // Border/separator color for beveled cell edges
+    private let borderLight = Color(red: 0.25, green: 0.25, blue: 0.28) // raised edge highlight
+    private let borderDark = Color(red: 0.06, green: 0.06, blue: 0.08)  // shadow edge
+    // Label color — brighter than before for contrast on dark bg
+    private let labelColor = Color(red: 0.70, green: 0.70, blue: 0.72) // ~#B3B3B8
+
     private var windDirection: String {
         viewModel.game?.gameWeather?.windDirectionName ?? fallbackWindDirection
     }
@@ -41,30 +51,37 @@ struct FPSScoreboardBar: View {
                     // QTR header row (column labels between team rows)
                     HStack(spacing: 0) {
                         // Team name placeholder space
-                        Spacer().frame(width: 120)
+                        HStack(spacing: 3) {
+                            Text("QTR:")
+                                .font(RetroFont.tiny())
+                                .foregroundColor(labelColor)
+                        }
+                        .frame(width: 120, alignment: .trailing)
+                        .padding(.trailing, 4)
 
                         Text("1")
                             .font(RetroFont.tiny())
-                            .foregroundColor(game.clock.quarter == 1 ? VGA.digitalAmber : VGA.lightGray)
+                            .foregroundColor(game.clock.quarter == 1 ? VGA.digitalAmber : labelColor)
                             .frame(width: 28)
                         Text("2")
                             .font(RetroFont.tiny())
-                            .foregroundColor(game.clock.quarter == 2 ? VGA.digitalAmber : VGA.lightGray)
+                            .foregroundColor(game.clock.quarter == 2 ? VGA.digitalAmber : labelColor)
                             .frame(width: 28)
                         Text("3")
                             .font(RetroFont.tiny())
-                            .foregroundColor(game.clock.quarter == 3 ? VGA.digitalAmber : VGA.lightGray)
+                            .foregroundColor(game.clock.quarter == 3 ? VGA.digitalAmber : labelColor)
                             .frame(width: 28)
                         Text("4")
                             .font(RetroFont.tiny())
-                            .foregroundColor(game.clock.quarter == 4 ? VGA.digitalAmber : VGA.lightGray)
+                            .foregroundColor(game.clock.quarter == 4 ? VGA.digitalAmber : labelColor)
                             .frame(width: 28)
                         Text("TOTAL")
                             .font(RetroFont.tiny())
-                            .foregroundColor(VGA.lightGray)
+                            .foregroundColor(labelColor)
                             .frame(width: 48)
                     }
                     .frame(height: 12)
+                    .background(scoreboardBg)
 
                     // Row 2: Home team
                     teamRow(
@@ -78,6 +95,11 @@ struct FPSScoreboardBar: View {
                 }
                 .frame(width: 280)
 
+                // Vertical separator
+                Rectangle()
+                    .fill(borderLight)
+                    .frame(width: 1)
+
                 // Center: Game clock + WIND
                 VStack(spacing: 2) {
                     FPSDigitalClock(time: game.clock.displayTime, fontSize: 20)
@@ -85,89 +107,75 @@ struct FPSScoreboardBar: View {
                     HStack(spacing: 4) {
                         Text("WIND")
                             .font(RetroFont.tiny())
-                            .foregroundColor(VGA.lightGray)
+                            .foregroundColor(labelColor)
                         Text("\(windDirection) \(String(format: "%02d", windSpeed))")
                             .font(RetroFont.tiny())
                             .foregroundColor(VGA.white)
                     }
                 }
                 .frame(width: 110)
+                .background(scoreboardBg)
+
+                // Vertical separator
+                Rectangle()
+                    .fill(borderLight)
+                    .frame(width: 1)
 
                 // Right section: 2-row x 3-column situation grid (matching FPS '93)
                 VStack(spacing: 1) {
                     // Row 1: TIME OUTS (away) | DOWN | TO GO
-                    HStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            Text("TIME OUTS")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.awayTimeouts)")
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.digitalAmber)
-                        }
-                        .frame(width: 70)
+                    HStack(spacing: 1) {
+                        situationCell(label: "TIME OUTS", value: "\(game.awayTimeouts)", valueColor: VGA.digitalAmber)
+                            .frame(width: 70)
 
-                        VStack(spacing: 0) {
-                            Text("DOWN")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.downAndDistance.down)")
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.digitalAmber)
-                        }
-                        .frame(width: 55)
+                        situationCell(label: "DOWN", value: "\(game.downAndDistance.down)", valueColor: VGA.digitalAmber)
+                            .frame(width: 55)
 
-                        VStack(spacing: 0) {
-                            Text("TO GO")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.downAndDistance.yardsToGo)")
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.white)
-                        }
-                        .frame(width: 55)
+                        situationCell(label: "TO GO", value: "\(game.downAndDistance.yardsToGo)", valueColor: VGA.white)
+                            .frame(width: 55)
                     }
 
                     // Row 2: TIME OUTS (home) | BALL ON | PLAY CLOCK
-                    HStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            Text("TIME OUTS")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(game.homeTimeouts)")
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.digitalAmber)
-                        }
-                        .frame(width: 70)
+                    HStack(spacing: 1) {
+                        situationCell(label: "TIME OUTS", value: "\(game.homeTimeouts)", valueColor: VGA.digitalAmber)
+                            .frame(width: 70)
 
-                        VStack(spacing: 0) {
-                            Text("BALL ON")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text(game.fieldPosition.displayYardLine)
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.digitalAmber)
-                        }
-                        .frame(width: 55)
+                        situationCell(label: "BALL ON", value: game.fieldPosition.displayYardLine, valueColor: VGA.digitalAmber)
+                            .frame(width: 55)
 
-                        VStack(spacing: 0) {
-                            Text("PLAY CLK")
-                                .font(RetroFont.tiny())
-                                .foregroundColor(VGA.lightGray)
-                            Text("\(viewModel.playClockSeconds)")
-                                .font(RetroFont.small())
-                                .foregroundColor(VGA.digitalAmber)
-                        }
-                        .frame(width: 55)
+                        situationCell(label: "PLAY CLK", value: "\(viewModel.playClockSeconds)", valueColor: VGA.digitalAmber)
+                            .frame(width: 55)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 4)
             }
             .frame(height: 60)
-            .background(VGA.panelVeryDark)
-            .modifier(DOSPanelBorder(.raised, width: 1))
+            .background(scoreboardBg)
+            .overlay(
+                // Top highlight edge
+                VStack(spacing: 0) {
+                    Rectangle().fill(borderLight).frame(height: 1)
+                    Spacer()
+                    Rectangle().fill(borderDark).frame(height: 1)
+                }
+            )
         }
+    }
+
+    // MARK: - Situation Cell (label + value with dark bg)
+
+    private func situationCell(label: String, value: String, valueColor: Color) -> some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(RetroFont.tiny())
+                .foregroundColor(labelColor)
+            Text(value)
+                .font(RetroFont.small())
+                .foregroundColor(valueColor)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(cellBg)
     }
 
     // MARK: - Team Row
@@ -220,6 +228,7 @@ struct FPSScoreboardBar: View {
                 .frame(width: 48)
         }
         .frame(height: 16)
+        .background(cellBg)
     }
 
     // MARK: - Helpers
