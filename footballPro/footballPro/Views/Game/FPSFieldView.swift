@@ -1239,59 +1239,94 @@ struct FPSFieldView: View {
             context.stroke(linePath, with: .color(VGA.fieldLine.opacity(lineOpacity)),
                           lineWidth: lineWidth * scale)
 
-            // Yard numbers — vertically stacked digits near sidelines (FPS '93 style)
+            // Yard numbers — large white digits between hash marks and sidelines (FPS '93 style)
+            // Original game has very prominent stacked digits: top digit then bottom digit
+            // Numbers appear on BOTH sides of field (left and right of hash marks)
             if isTenYardLine && yard > 0 && yard < 100 {
                 let displayNum = yard <= 50 ? yard : (100 - yard)
-                let digits = String(displayNum).map { String($0) }
-                let leftNumX = proj.fieldCenterX - halfW * 0.92
-                let rightNumX = proj.fieldCenterX + halfW * 0.92
+                let tensDigit = String(displayNum / 10)
+                let onesDigit = String(displayNum % 10)
 
-                for (index, digit) in digits.enumerated() {
-                    // Offset each digit vertically (~1.5 yards apart in field space)
-                    let yardOffset = CGFloat(index) * 1.5 - CGFloat(digits.count - 1) * 0.75
-                    let digitDepth = depth + yardOffset * 0.01  // approximate depth shift
-                    let digitScreenY = screenY + yardOffset * 12 * scale
-                    let digitFontSize = max(14, 22 * scale)
-                    let verticalSquash = max(0.35, 0.55 * scale)
+                // Position numbers between hash marks and sidelines
+                // Hash marks are at ~0.30 from center, sidelines at edge
+                // Left side numbers: between left sideline and left hash
+                let leftNumX = proj.fieldCenterX - halfW * 0.62
+                // Right side numbers: between right hash and right sideline
+                let rightNumX = proj.fieldCenterX + halfW * 0.62
 
-                    let resolvedDigit = context.resolve(
-                        Text(digit)
-                            .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
-                            .foregroundColor(VGA.fieldLine.opacity(0.95))
-                    )
+                // Large font matching original FPS '93 prominent yard numbers
+                let digitFontSize = max(18, 32 * scale)
+                // Vertical squash to simulate perspective (numbers painted on field)
+                let verticalSquash = max(0.30, 0.45 * scale)
+                // Vertical spacing between stacked digits in screen space
+                let digitSpacing = digitFontSize * verticalSquash * 0.85
 
-                    // Left sideline — draw with vertical perspective squash
-                    context.drawLayer { layerCtx in
-                        layerCtx.translateBy(x: leftNumX, y: digitScreenY)
-                        layerCtx.scaleBy(x: 1.0, y: verticalSquash)
-                        layerCtx.translateBy(x: -leftNumX, y: -digitScreenY)
-                        layerCtx.draw(resolvedDigit, at: CGPoint(x: leftNumX, y: digitScreenY))
-                    }
+                // --- Left side numbers (far side in perspective — upside down) ---
+                // Far-side numbers are rotated 180 degrees in the original game
+                // Tens digit on top (further from camera), ones digit below (closer)
+                let resolvedTensL = context.resolve(
+                    Text(tensDigit)
+                        .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
+                        .foregroundColor(VGA.fieldLine.opacity(0.95))
+                )
+                let resolvedOnesL = context.resolve(
+                    Text(onesDigit)
+                        .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
+                        .foregroundColor(VGA.fieldLine.opacity(0.95))
+                )
 
-                    // Right sideline
-                    context.drawLayer { layerCtx in
-                        layerCtx.translateBy(x: rightNumX, y: digitScreenY)
-                        layerCtx.scaleBy(x: 1.0, y: verticalSquash)
-                        layerCtx.translateBy(x: -rightNumX, y: -digitScreenY)
-                        layerCtx.draw(resolvedDigit, at: CGPoint(x: rightNumX, y: digitScreenY))
-                    }
+                // Left side: rotated 180° (upside down, far side of field)
+                context.drawLayer { layerCtx in
+                    let cy = screenY - digitSpacing * 0.5
+                    layerCtx.translateBy(x: leftNumX, y: cy)
+                    layerCtx.scaleBy(x: 1.0, y: -verticalSquash)
+                    layerCtx.translateBy(x: -leftNumX, y: -cy)
+                    layerCtx.draw(resolvedOnesL, at: CGPoint(x: leftNumX, y: cy - digitSpacing * 0.5))
+                    layerCtx.draw(resolvedTensL, at: CGPoint(x: leftNumX, y: cy + digitSpacing * 0.5))
+                }
+
+                // --- Right side numbers (near side — right-side up) ---
+                let resolvedTensR = context.resolve(
+                    Text(tensDigit)
+                        .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
+                        .foregroundColor(VGA.fieldLine.opacity(0.95))
+                )
+                let resolvedOnesR = context.resolve(
+                    Text(onesDigit)
+                        .font(.system(size: digitFontSize, weight: .heavy, design: .monospaced))
+                        .foregroundColor(VGA.fieldLine.opacity(0.95))
+                )
+
+                // Right side: normal orientation (near side of field)
+                context.drawLayer { layerCtx in
+                    let cy = screenY + digitSpacing * 0.5
+                    layerCtx.translateBy(x: rightNumX, y: cy)
+                    layerCtx.scaleBy(x: 1.0, y: verticalSquash)
+                    layerCtx.translateBy(x: -rightNumX, y: -cy)
+                    layerCtx.draw(resolvedTensR, at: CGPoint(x: rightNumX, y: cy - digitSpacing * 0.5))
+                    layerCtx.draw(resolvedOnesR, at: CGPoint(x: rightNumX, y: cy + digitSpacing * 0.5))
                 }
 
                 // Directional triangle pointing toward nearer end zone
                 if displayNum != 50 {
-                    let triSize = max(3, 6 * scale)
+                    let triSize = max(4, 8 * scale)
                     let pointsUp = (yard < 50) != isFieldFlipped  // toward lower yard numbers
-                    for sideX in [leftNumX, rightNumX] {
-                        let triX = sideX + (sideX < proj.fieldCenterX ? triSize * 2.5 : -triSize * 2.5)
+                    // Draw triangles next to numbers on both sides
+                    for (sideX, isLeft) in [(leftNumX, true), (rightNumX, false)] {
+                        let triOffset = triSize * 2.5
+                        let triX = isLeft ? sideX - triOffset : sideX + triOffset
+                        let triSquash = verticalSquash
                         var triPath = Path()
-                        if pointsUp {
-                            triPath.move(to: CGPoint(x: triX, y: screenY - triSize))
-                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY + triSize * 0.3))
-                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY + triSize * 0.3))
+                        if pointsUp != isLeft {
+                            // Near side or matching direction: triangle points toward far end (up on screen)
+                            triPath.move(to: CGPoint(x: triX, y: screenY - triSize * triSquash))
+                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY + triSize * 0.3 * triSquash))
+                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY + triSize * 0.3 * triSquash))
                         } else {
-                            triPath.move(to: CGPoint(x: triX, y: screenY + triSize))
-                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY - triSize * 0.3))
-                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY - triSize * 0.3))
+                            // Far side or opposite direction: triangle points toward near end (down on screen)
+                            triPath.move(to: CGPoint(x: triX, y: screenY + triSize * triSquash))
+                            triPath.addLine(to: CGPoint(x: triX - triSize * 0.6, y: screenY - triSize * 0.3 * triSquash))
+                            triPath.addLine(to: CGPoint(x: triX + triSize * 0.6, y: screenY - triSize * 0.3 * triSquash))
                         }
                         triPath.closeSubpath()
                         context.fill(triPath, with: .color(VGA.fieldLine.opacity(0.90)))

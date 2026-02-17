@@ -70,6 +70,14 @@ struct FPSPlayCallingScreen: View {
                     selectedSlot = nil
                     return .handled
                 }
+                .onKeyPress(characters: CharacterSet(charactersIn: "sS")) { _ in
+                    showSubstitution = true
+                    return .handled
+                }
+                .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { _ in
+                    showEditAudibles = true
+                    return .handled
+                }
             }
 
             // Substitution overlay panel
@@ -102,16 +110,6 @@ struct FPSPlayCallingScreen: View {
 
             Spacer()
 
-            FPSButton("SUBS") {
-                showSubstitution = true
-            }
-
-            FPSButton("AUDIBLES") {
-                showEditAudibles = true
-            }
-
-            Spacer()
-
             FPSButton("READY - BREAK!") {
                 executeSelectedPlay()
             }
@@ -123,19 +121,16 @@ struct FPSPlayCallingScreen: View {
     // MARK: - Bottom Button Bar (mirror)
 
     private var bottomButtonBar: some View {
-        HStack(spacing: 0) {
-            Spacer()
-
+        HStack(spacing: 4) {
             FPSButton("TIME OUT") { }
                 .disabled(true)
+                .opacity(0.3)
 
-            Spacer()
             Spacer()
 
             FPSButton("READY - BREAK!") { }
                 .disabled(true)
-
-            Spacer()
+                .opacity(0.3)
         }
     }
 
@@ -283,10 +278,38 @@ struct FPSPlayCallingScreen: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Opponent Slot Grid (2 columns x 8 rows with notification overlay)
+    // MARK: - Opponent Slot Grid (2 columns x 8 rows, showing opponent's plays like original FPS '93)
+
+    /// The opponent's plays: when user is on offense, show defensive plays; when on defense, show offensive plays.
+    /// During special teams, show special teams plays. The AI-recommended play is highlighted.
+    private var opponentPlays: [String] {
+        if showSpecialTeams {
+            return viewModel.availableSpecialTeamsPlays.map { $0.displayName }
+        }
+        if viewModel.isUserPossession {
+            // User on offense — opponent is on defense
+            return viewModel.availableDefensivePlays.map { $0.displayName }
+        } else {
+            // User on defense — opponent is on offense
+            return viewModel.availableOffensivePlays.map { $0.displayName }
+        }
+    }
+
+    /// Index of the AI-recommended play within opponentPlays (deterministic pick, stable per play).
+    /// Uses a simple offset into the list to simulate "computer recommends" highlight from original.
+    private var aiRecommendedIndex: Int? {
+        let plays = opponentPlays
+        guard !plays.isEmpty else { return nil }
+        // Pick a deterministic "recommended" play — roughly first third of the list
+        let pick = plays.count / 3
+        return min(pick, plays.count - 1)
+    }
 
     private var opponentSlotGrid: some View {
-        ZStack {
+        let plays = opponentPlays
+        let hasPlays = !plays.isEmpty
+
+        return ZStack {
             VStack(spacing: 1) {
                 ForEach(0..<8, id: \.self) { row in
                     HStack(spacing: 0) {
@@ -297,11 +320,19 @@ struct FPSPlayCallingScreen: View {
                             .frame(width: 16, alignment: .trailing)
                             .padding(.trailing, 2)
 
-                        // Left column green slot (with optional AI hint)
-                        opponentGreenSlot(row: row)
+                        // Left column slot (slots 1-8)
+                        let leftIndex = row
+                        opponentGreenSlot(
+                            name: leftIndex < plays.count ? plays[leftIndex] : "",
+                            isRecommended: leftIndex == aiRecommendedIndex
+                        )
 
-                        // Right column green slot (with optional AI hint)
-                        opponentGreenSlot(row: row)
+                        // Right column slot (slots 9-16)
+                        let rightIndex = row + 8
+                        opponentGreenSlot(
+                            name: rightIndex < plays.count ? plays[rightIndex] : "",
+                            isRecommended: rightIndex == aiRecommendedIndex
+                        )
 
                         // Row number on far right (9-16)
                         Text("\(row + 9)")
@@ -313,8 +344,8 @@ struct FPSPlayCallingScreen: View {
                 }
             }
 
-            // Only show notification overlay if no AI hint is available
-            if viewModel.aiPlayHintText == nil {
+            // Show notification overlay only when there are no plays to display
+            if !hasPlays {
                 Text(opponentNotificationText)
                     .font(RetroFont.body())
                     .foregroundColor(.black)
@@ -327,15 +358,15 @@ struct FPSPlayCallingScreen: View {
         }
     }
 
-    /// Opponent grid slot: shows AI play hint in red text (matching FPS '93)
-    /// Hints appear in rows 3-4 (0-indexed: 2-3) across both columns = 4 slots
-    @ViewBuilder
-    private func opponentGreenSlot(row: Int) -> some View {
-        HStack {
-            if let hint = viewModel.aiPlayHintText, row >= 2 && row <= 3 {
-                Text(hint)
+    /// Opponent grid slot: non-interactive, shows play name in white text on green background.
+    /// The AI-recommended play gets a white border and amber text (like original FPS '93 "computer recommends").
+    private func opponentGreenSlot(name: String, isRecommended: Bool) -> some View {
+        let hasPlay = !name.isEmpty
+        return HStack {
+            if hasPlay {
+                Text(name)
                     .font(RetroFont.small())
-                    .foregroundColor(VGA.teamRed)
+                    .foregroundColor(isRecommended ? VGA.digitalAmber : .white)
                     .lineLimit(1)
             }
             Spacer()
@@ -343,7 +374,7 @@ struct FPSPlayCallingScreen: View {
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VGA.playSlotGreen)
-        .border(VGA.playSlotDark, width: 1)
+        .border(isRecommended && hasPlay ? Color.white : VGA.playSlotDark, width: isRecommended && hasPlay ? 2 : 1)
     }
 
     private var opponentNotificationText: String {

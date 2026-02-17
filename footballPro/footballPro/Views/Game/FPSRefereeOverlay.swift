@@ -2,9 +2,9 @@
 //  FPSRefereeOverlay.swift
 //  footballPro
 //
-//  FPS '93 referee overlay — PIP window on the field (field visible around it)
-//  Uses authentic RCSTAND sprite from ANIM.DAT when available.
-//  Falls back to Canvas geometric drawing if sprites aren't loaded.
+//  FPS '93 referee overlay — DOS-style bordered popup window inset on the field.
+//  Matches the original game: gray raised panel with RCSTAND sprite inside,
+//  and a separate text banner below showing the call (e.g., "First down, Buffalo").
 //
 
 import SwiftUI
@@ -15,36 +15,6 @@ struct FPSRefereeOverlay: View {
 
     @State private var opacity: Double = 0
 
-    /// Whether this is a stoppage call (timeout, FG, penalty) that shows on black background
-    private var isStoppage: Bool {
-        let upper = message.uppercased()
-        return upper.contains("TIMEOUT") || upper.contains("FIELD GOAL") ||
-               upper.contains("PENALTY") || upper.contains("SAFETY") ||
-               upper.contains("TWO MINUTE") || upper.contains("GOOD")
-    }
-
-    /// Determine the arm signal type based on message content
-    private var signalType: RefereeSignal {
-        let upper = message.uppercased()
-        if upper.contains("TOUCHDOWN") || upper.contains("GOOD") {
-            return .touchdown      // Both arms straight up
-        } else if upper.contains("INCOMPLETE") {
-            return .incomplete     // Arms crossed/waving at waist
-        } else if upper.contains("PENALTY") || upper.contains("FLAG") {
-            return .penalty        // One arm throwing flag overhead
-        } else if upper.contains("TIMEOUT") {
-            return .timeout        // Hands forming T
-        } else if upper.contains("SAFETY") {
-            return .safety         // Hands clasped above head
-        } else {
-            return .firstDown      // One arm pointing forward
-        }
-    }
-
-    private enum RefereeSignal {
-        case touchdown, firstDown, incomplete, penalty, timeout, safety
-    }
-
     /// Try to get the authentic RCSTAND sprite from SpriteCache
     private var authenticRefereeImage: CGImage? {
         guard SpriteCache.shared.isAvailable else { return nil }
@@ -54,177 +24,49 @@ struct FPSRefereeOverlay: View {
 
     var body: some View {
         GeometryReader { geo in
-            // PIP window overlaid on field — no full-screen backdrop (field visible around it)
-            let insetW = geo.size.width * 0.38
-            let insetH = geo.size.height * 0.50
+            // Panel sizing — matches original FPS '93 proportions
+            let panelW = geo.size.width * 0.32
+            let panelH = panelW * 0.85  // roughly square referee window
+            let textH: CGFloat = 28      // text banner height
 
             VStack(spacing: 0) {
-                // Referee figure inside inset — authentic sprite or Canvas fallback
-                if let cgImage = authenticRefereeImage {
-                    // Authentic RCSTAND sprite from ANIM.DAT
-                    ZStack {
-                        // Background — dark green for field continuity, black for stoppages
-                        Rectangle()
-                            .fill(isStoppage
-                                ? Color(red: 0.05, green: 0.05, blue: 0.05)
-                                : Color(red: 0.15, green: 0.25, blue: 0.15))
+                // ── Referee panel: raised DOS border around green field + sprite ──
+                ZStack {
+                    // Green field background inside the panel (matching surrounding field)
+                    Color(red: 0.14, green: 0.50, blue: 0.14)
 
+                    // Referee sprite (authentic or fallback)
+                    if let cgImage = authenticRefereeImage {
                         Image(decorative: cgImage, scale: 1.0)
                             .interpolation(.none)
                             .scaleEffect(min(
-                                (insetW * 0.6) / CGFloat(cgImage.width),
-                                (insetH * 0.55 * 0.8) / CGFloat(cgImage.height)
+                                (panelW * 0.7) / CGFloat(cgImage.width),
+                                (panelH * 0.85) / CGFloat(cgImage.height)
                             ))
+                    } else {
+                        // Fallback: simple geometric referee silhouette
+                        fallbackReferee(width: panelW, height: panelH)
                     }
-                    .frame(height: insetH * 0.55)
-                    .clipped()
-                } else {
-                    // Fallback: Canvas geometric referee
-                    Canvas { context, size in
-                        let cx = size.width / 2
-                        let cy = size.height / 2
-
-                        // Background — dark green field for continuation, black for stoppages
-                        let bgColor = isStoppage
-                            ? Color(red: 0.05, green: 0.05, blue: 0.05)
-                            : Color(red: 0.15, green: 0.25, blue: 0.15)
-                        context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: size.height)),
-                                     with: .color(bgColor))
-
-                        // Hat (black cap)
-                        let hat = Path(CGRect(x: cx - 8, y: cy - 48, width: 16, height: 6))
-                        context.fill(hat, with: .color(.black))
-
-                        // Head
-                        let head = Path(ellipseIn: CGRect(x: cx - 10, y: cy - 42, width: 20, height: 20))
-                        context.fill(head, with: .color(.white))
-
-                        // Body (black and white stripes)
-                        for i in 0..<6 {
-                            let y = cy - 20 + CGFloat(i) * 7
-                            let stripe = Path(CGRect(x: cx - 12, y: y, width: 24, height: 7))
-                            context.fill(stripe, with: .color(i % 2 == 0 ? .black : .white))
-                        }
-
-                        // Black pants
-                        let pants = Path(CGRect(x: cx - 10, y: cy + 22, width: 20, height: 16))
-                        context.fill(pants, with: .color(.black))
-
-                        // Legs
-                        let leftLeg = Path(CGRect(x: cx - 8, y: cy + 38, width: 6, height: 12))
-                        let rightLeg = Path(CGRect(x: cx + 2, y: cy + 38, width: 6, height: 12))
-                        context.fill(leftLeg, with: .color(.black))
-                        context.fill(rightLeg, with: .color(.black))
-
-                        // Arms based on signal type
-                        let armY = cy - 14
-                        switch signalType {
-                        case .touchdown:
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 16, y: armY - 34))
-                            }
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 16, y: armY - 34))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-
-                        case .firstDown:
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 32, y: armY - 8))
-                            }
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 16, y: armY + 16))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-
-                        case .incomplete:
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 18, y: armY + 12))
-                            }
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 18, y: armY + 12))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-
-                        case .penalty:
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 24, y: armY - 28))
-                            }
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-                            let flagRect = CGRect(x: cx + 22, y: armY - 32, width: 8, height: 6)
-                            context.fill(Path(flagRect), with: .color(VGA.yellow))
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 16, y: armY + 16))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-
-                        case .timeout:
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 24, y: armY - 16))
-                            }
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 24, y: armY - 16))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-                            let tBar = Path { p in
-                                p.move(to: CGPoint(x: cx - 10, y: armY - 20))
-                                p.addLine(to: CGPoint(x: cx + 10, y: armY - 20))
-                            }
-                            context.stroke(tBar, with: .color(.white), lineWidth: 4)
-
-                        case .safety:
-                            let leftArm = Path { p in
-                                p.move(to: CGPoint(x: cx - 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx - 4, y: armY - 30))
-                            }
-                            let rightArm = Path { p in
-                                p.move(to: CGPoint(x: cx + 12, y: armY))
-                                p.addLine(to: CGPoint(x: cx + 4, y: armY - 30))
-                            }
-                            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
-                            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
-                        }
-                    }
-                    .frame(height: insetH * 0.55)
                 }
+                .frame(width: panelW, height: panelH)
+                .background(VGA.panelBg)
+                .modifier(DOSPanelBorder(.raised, width: 3))
 
-                // Message text area
-                VStack(spacing: 6) {
-                    Text(message)
-                        .font(RetroFont.header())
-                        .foregroundColor(VGA.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 12)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color(red: 0.20, green: 0.20, blue: 0.20))
+                // ── Text banner: separate raised panel below with the call text ──
+                Text(message)
+                    .font(RetroFont.body())
+                    .foregroundColor(.black)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .frame(minWidth: panelW * 0.7, maxWidth: panelW * 1.1)
+                    .frame(height: textH)
+                    .background(VGA.panelBg)
+                    .modifier(DOSPanelBorder(.raised, width: 2))
+                    .offset(y: -2)  // slight overlap with panel above
             }
-            .frame(width: insetW, height: insetH)
-            .background(VGA.panelBg)
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(Color(red: 0.60, green: 0.60, blue: 0.60), lineWidth: 3)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(.black, lineWidth: 1)
-            )
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+            .position(x: geo.size.width / 2, y: geo.size.height * 0.45)
             .opacity(opacity)
         }
         .onTapGesture { onDismiss() }
@@ -242,5 +84,52 @@ struct FPSRefereeOverlay: View {
                 }
             }
         }
+    }
+
+    /// Fallback geometric referee when RCSTAND sprite is unavailable
+    @ViewBuilder
+    private func fallbackReferee(width: CGFloat, height: CGFloat) -> some View {
+        Canvas { context, size in
+            let cx = size.width / 2
+            let cy = size.height / 2
+
+            // Hat (black cap)
+            let hat = Path(CGRect(x: cx - 8, y: cy - 48, width: 16, height: 6))
+            context.fill(hat, with: .color(.black))
+
+            // Head
+            let head = Path(ellipseIn: CGRect(x: cx - 10, y: cy - 42, width: 20, height: 20))
+            context.fill(head, with: .color(Color(red: 0.9, green: 0.8, blue: 0.7)))
+
+            // Body (black and white stripes)
+            for i in 0..<6 {
+                let y = cy - 20 + CGFloat(i) * 7
+                let stripe = Path(CGRect(x: cx - 12, y: y, width: 24, height: 7))
+                context.fill(stripe, with: .color(i % 2 == 0 ? .black : .white))
+            }
+
+            // Black pants
+            let pants = Path(CGRect(x: cx - 10, y: cy + 22, width: 20, height: 16))
+            context.fill(pants, with: .color(.black))
+
+            // Legs
+            let leftLeg = Path(CGRect(x: cx - 8, y: cy + 38, width: 6, height: 12))
+            let rightLeg = Path(CGRect(x: cx + 2, y: cy + 38, width: 6, height: 12))
+            context.fill(leftLeg, with: .color(.black))
+            context.fill(rightLeg, with: .color(.black))
+
+            // Arms at sides (standing pose)
+            let leftArm = Path { p in
+                p.move(to: CGPoint(x: cx - 12, y: cy - 14))
+                p.addLine(to: CGPoint(x: cx - 16, y: cy + 10))
+            }
+            let rightArm = Path { p in
+                p.move(to: CGPoint(x: cx + 12, y: cy - 14))
+                p.addLine(to: CGPoint(x: cx + 16, y: cy + 10))
+            }
+            context.stroke(leftArm, with: .color(.white), lineWidth: 4)
+            context.stroke(rightArm, with: .color(.white), lineWidth: 4)
+        }
+        .frame(width: width, height: height)
     }
 }

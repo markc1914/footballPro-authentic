@@ -492,13 +492,27 @@ Animation fixes ─────────────────────�
 
 ## Known Issues & Gaps (vs Original Game)
 
+### High Priority (Visual Accuracy)
+- **Play calling button bar layout** — Original has only TIME OUT + READY-BREAK! centered wide. Ours has 5 buttons (TIME OUT, SUBS, AUDIBLES, spacer, READY-BREAK). Move SUBS/AUDIBLES to separate access (e.g., keyboard shortcuts or within opponent grid area)
+- **Opponent play grid shows nothing** — Original shows opponent's play choices in their bottom grid (e.g., "Squib kick / Onside kick / Kickoff" in rows 3-4). Our bottom half is blank green with only a text notification overlay
+- **Field yard line numbers** — Original has large white "10 20 30 40 50" painted on the field. Our field has hash marks but yard numbers not visible
+- **Referee popup window** — Original shows referee in a popup window inset on the field with "First down, Buffalo" text below. Our referee overlay may not match this exact bordered-window style
+- **Main menu structure** — Original: QuickStart, Exhibition Play, League Play, Play Editor, Change QuickStart, Restart Saved Game. Ours: NEW GAME, LOAD GAME, SETTINGS, QUIT
+
+### Medium Priority (Polish)
+- **Scoreboard contrast** — Original scoreboard has very dark (near-black) background with high-contrast amber/red text. Ours could be darker
+- **Player sprite perspective scaling** — Original shows noticeably smaller sprites for far-field players. Our sprites may not scale enough with distance
+- **Field sideline detail** — Original shows stadium/sideline borders with crowd elements. Our field has gray sideline but minimal detail
+- **Game over screen** — Our final score is a bare gray panel. Should show CHAMP.SCR trophy background for championship games
+- **Play diagram readability** — Mini X-O diagrams in green slots are quite small/hard to read compared to original
+
 ### Remaining Features
 - **Play Editor** — Full play design tool with logic scripting
 - **Practice mode** — Practice Field accessible from Play Editor
 - **Free-floating camera** — Mouse-controlled camera during play
 - **Roster drag-and-drop** — Original lets you drag players between slots
 
-### Low Priority (Polish)
+### Low Priority
 - **Supplemental Draft** — Additional rounds after College Draft
 - **Game Plans** — 64 plays each loaded before game (partially implemented via playbooks)
 - **Team passwords** — Password protection for human-owned teams
