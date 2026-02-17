@@ -55,6 +55,7 @@ struct PlayBlueprintGenerator {
             )
 
             if let stockOff = stockOffPlay {
+                let sorted = sortPlayersToStandardOrder(stockOff.players)
                 let offPaths = buildAuthenticOffensivePaths(
                     stockPlay: stockOff,
                     result: result,
@@ -62,6 +63,11 @@ struct PlayBlueprintGenerator {
                     centerY: centerY,
                     totalDuration: totalDuration,
                     phases: phases
+                )
+
+                // Determine the STOCK.DAT target receiver for accurate ball path
+                let stockTargetIdx = findStockTargetReceiver(
+                    players: sorted, result: result, isPass: result.playType.isPass
                 )
 
                 let defPaths: [AnimatedPlayerPath]
@@ -94,7 +100,8 @@ struct PlayBlueprintGenerator {
                     centerY: centerY,
                     offPaths: offPaths,
                     totalDuration: totalDuration,
-                    phases: phases
+                    phases: phases,
+                    stockTargetReceiverIndex: stockTargetIdx
                 )
 
                 return PlayAnimationBlueprint(
@@ -670,7 +677,8 @@ struct PlayBlueprintGenerator {
         centerY: CGFloat,
         offPaths: [AnimatedPlayerPath],
         totalDuration: Double,
-        phases: [AnimationPhase]
+        phases: [AnimationPhase],
+        stockTargetReceiverIndex: Int? = nil
     ) -> BallAnimationPath {
 
         var segments: [BallSegment] = []
@@ -693,7 +701,8 @@ struct PlayBlueprintGenerator {
                 qbPos = CGPoint(x: losX - 25, y: centerY)
             }
 
-            let targetIdx = findTargetReceiverIndex(result: result)
+            // Use STOCK.DAT target receiver if available, otherwise fallback to heuristic
+            let targetIdx = stockTargetReceiverIndex ?? findTargetReceiverIndex(result: result)
             let catchPos: CGPoint
             if targetIdx < offPaths.count, let wp = offPaths[targetIdx].waypoints.first(where: { $0.time >= resolutionStart }) {
                 catchPos = wp.position
@@ -749,6 +758,8 @@ struct PlayBlueprintGenerator {
     // MARK: - Route Waypoint Generation
 
     /// Convert a PlayRoute into waypoints in field coordinate space.
+    /// Route depths are measured from the LOS (losX), not from the player's start position,
+    /// so receivers run PAST the LOS to their route depth downfield.
     private static func generateRouteWaypoints(
         route: PlayRoute,
         start: CGPoint,
@@ -763,6 +774,11 @@ struct PlayBlueprintGenerator {
         let routeDuration = routeEnd - routeStart
         let isAboveCenter = start.y < centerY
 
+        // Route target X: measured from the LOS, not the player's start position.
+        // This ensures routes always go downfield past the LOS.
+        let routeBaseX = losX
+        let routeEndX = routeBaseX + depthPixels
+
         // Direction multiplier: if player is above center, "outside" = upward (negative Y)
         let outsideMult: CGFloat = isAboveCenter ? -1 : 1
         let insideMult: CGFloat = -outsideMult
@@ -770,116 +786,116 @@ struct PlayBlueprintGenerator {
         switch route.route {
         case .fly:
             // Straight downfield
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y)
+            let endPos = CGPoint(x: routeEndX, y: start.y)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .post:
             // Straight, then 45° inside
-            let breakPoint = CGPoint(x: start.x + depthPixels * 0.6, y: start.y)
+            let breakPoint = CGPoint(x: routeBaseX + depthPixels * 0.6, y: start.y)
             waypoints.append(AnimationWaypoint(position: breakPoint, time: routeStart + routeDuration * 0.5, speed: .fast))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + insideMult * depthPixels * 0.4)
+            let endPos = CGPoint(x: routeEndX, y: start.y + insideMult * depthPixels * 0.4)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .corner:
             // Straight, then 45° outside
-            let breakPoint = CGPoint(x: start.x + depthPixels * 0.6, y: start.y)
+            let breakPoint = CGPoint(x: routeBaseX + depthPixels * 0.6, y: start.y)
             waypoints.append(AnimationWaypoint(position: breakPoint, time: routeStart + routeDuration * 0.5, speed: .fast))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + outsideMult * depthPixels * 0.4)
+            let endPos = CGPoint(x: routeEndX, y: start.y + outsideMult * depthPixels * 0.4)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .out:
             // Straight to depth, then 90° to sideline
-            let breakPoint = CGPoint(x: start.x + depthPixels, y: start.y)
+            let breakPoint = CGPoint(x: routeEndX, y: start.y)
             waypoints.append(AnimationWaypoint(position: breakPoint, time: routeStart + routeDuration * 0.6, speed: .fast))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + outsideMult * 25)
+            let endPos = CGPoint(x: routeEndX, y: start.y + outsideMult * 25)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .slant:
             // Short forward then 45° inside
-            let breakPoint = CGPoint(x: start.x + 15, y: start.y)
+            let breakPoint = CGPoint(x: routeBaseX + 15, y: start.y)
             waypoints.append(AnimationWaypoint(position: breakPoint, time: routeStart + routeDuration * 0.25, speed: .fast))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + insideMult * depthPixels * 0.7)
+            let endPos = CGPoint(x: routeEndX, y: start.y + insideMult * depthPixels * 0.7)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .curl:
             // Straight to depth, then turn back
-            let deepPoint = CGPoint(x: start.x + depthPixels, y: start.y)
+            let deepPoint = CGPoint(x: routeEndX, y: start.y)
             waypoints.append(AnimationWaypoint(position: deepPoint, time: routeStart + routeDuration * 0.7, speed: .fast))
-            let curlBack = CGPoint(x: start.x + depthPixels - 10, y: start.y + insideMult * 5)
+            let curlBack = CGPoint(x: routeEndX - 10, y: start.y + insideMult * 5)
             waypoints.append(AnimationWaypoint(position: curlBack, time: routeEnd, speed: .normal))
 
         case .comeBack:
             // Deep, then back toward sideline
-            let deepPoint = CGPoint(x: start.x + depthPixels, y: start.y)
+            let deepPoint = CGPoint(x: routeEndX, y: start.y)
             waypoints.append(AnimationWaypoint(position: deepPoint, time: routeStart + routeDuration * 0.65, speed: .fast))
-            let comebackPos = CGPoint(x: start.x + depthPixels - 12, y: start.y + outsideMult * 10)
+            let comebackPos = CGPoint(x: routeEndX - 12, y: start.y + outsideMult * 10)
             waypoints.append(AnimationWaypoint(position: comebackPos, time: routeEnd, speed: .normal))
 
         case .drag:
             // Slight forward then horizontal across
-            let midPoint = CGPoint(x: start.x + 10, y: start.y)
+            let midPoint = CGPoint(x: routeBaseX + 10, y: start.y)
             waypoints.append(AnimationWaypoint(position: midPoint, time: routeStart + routeDuration * 0.2, speed: .fast))
-            let endPos = CGPoint(x: start.x + 15, y: start.y + insideMult * 60)
+            let endPos = CGPoint(x: routeBaseX + 15, y: start.y + insideMult * 60)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .flat:
             // Short route angling to sideline
-            let endPos = CGPoint(x: start.x + depthPixels * 0.5, y: start.y + outsideMult * 30)
+            let endPos = CGPoint(x: routeBaseX + depthPixels * 0.5, y: start.y + outsideMult * 30)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .hitch:
             // Straight to depth, stop
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y)
+            let endPos = CGPoint(x: routeEndX, y: start.y)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeStart + routeDuration * 0.6, speed: .fast))
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .slow))
 
         case .fade:
             // Diagonal toward sideline corner
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + outsideMult * depthPixels * 0.3)
+            let endPos = CGPoint(x: routeEndX, y: start.y + outsideMult * depthPixels * 0.3)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .wheel:
             // Start inside (fake block), then break outside deep
             let fakeBlock = CGPoint(x: start.x + 5, y: start.y + insideMult * 5)
             waypoints.append(AnimationWaypoint(position: fakeBlock, time: routeStart + routeDuration * 0.3, speed: .slow))
-            let breakOut = CGPoint(x: start.x + depthPixels * 0.5, y: start.y + outsideMult * 15)
+            let breakOut = CGPoint(x: routeBaseX + depthPixels * 0.5, y: start.y + outsideMult * 15)
             waypoints.append(AnimationWaypoint(position: breakOut, time: routeStart + routeDuration * 0.6, speed: .fast))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + outsideMult * 30)
+            let endPos = CGPoint(x: routeEndX, y: start.y + outsideMult * 30)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .sprint))
 
         case .cut: // New case for the generic cut route
             // For now, treat generic cuts as a short straight route
-            let endPos = CGPoint(x: start.x + depthPixels * 0.5, y: start.y)
+            let endPos = CGPoint(x: routeBaseX + depthPixels * 0.5, y: start.y)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .swing:
-            // Arc out to flat
+            // Arc out to flat — starts behind LOS, arcs forward
             let midPoint = CGPoint(x: start.x - 5, y: start.y + outsideMult * 15)
             waypoints.append(AnimationWaypoint(position: midPoint, time: routeStart + routeDuration * 0.35, speed: .normal))
-            let endPos = CGPoint(x: start.x + 10, y: start.y + outsideMult * 35)
+            let endPos = CGPoint(x: routeBaseX + 10, y: start.y + outsideMult * 35)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .angle:
             // Diagonal cut at 45°
             let direction = route.direction
             let lateralMult: CGFloat = direction == .left ? -1 : (direction == .right ? 1 : insideMult)
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + lateralMult * depthPixels * 0.6)
+            let endPos = CGPoint(x: routeEndX, y: start.y + lateralMult * depthPixels * 0.6)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .delay:
             // Hold (fake block), then release
             waypoints.append(AnimationWaypoint(position: start, time: routeStart + routeDuration * 0.35, speed: .slow))
-            let endPos = CGPoint(x: start.x + depthPixels, y: start.y + insideMult * 15)
+            let endPos = CGPoint(x: routeEndX, y: start.y + insideMult * 15)
             waypoints.append(AnimationWaypoint(position: endPos, time: routeEnd, speed: .fast))
 
         case .block, .passBlock:
-            // Step back, hold
+            // Step back, hold — blocking stays relative to player position
             let blockPos = CGPoint(x: start.x - 5, y: start.y + CGFloat.random(in: -3...3))
             waypoints.append(AnimationWaypoint(position: blockPos, time: routeStart + routeDuration * 0.2, speed: .slow))
             waypoints.append(AnimationWaypoint(position: blockPos, time: routeEnd, speed: .slow))
 
         case .runBlock:
-            // Step forward into defender
+            // Step forward into defender — blocking stays relative to player position
             let blockPos = CGPoint(x: start.x + 12, y: start.y + CGFloat.random(in: -5...5))
             waypoints.append(AnimationWaypoint(position: blockPos, time: routeEnd, speed: .fast))
 
@@ -893,6 +909,111 @@ struct PlayBlueprintGenerator {
         }
 
         return waypoints
+    }
+
+    // MARK: - Kickoff Blueprint
+
+    /// Generate a kickoff-specific animation blueprint with kicking and return team formations.
+    static func generateKickoffBlueprint(
+        result: PlayResult,
+        los: Int  // Kickoff from yard line (typically 35)
+    ) -> PlayAnimationBlueprint {
+        let losX = yardToX(los)
+        let centerY = fieldHeight / 2
+        let totalDuration: Double = 5.5
+        let gainPixels = CGFloat(result.yardsGained) * yardsPerPixel
+
+        let phases: [AnimationPhase] = [
+            AnimationPhase(name: .preSnap, startTime: 0.0, endTime: 0.05),
+            AnimationPhase(name: .snap, startTime: 0.05, endTime: 0.15),
+            AnimationPhase(name: .resolution, startTime: 0.15, endTime: 0.7),
+            AnimationPhase(name: .yac, startTime: 0.7, endTime: 0.9),
+            AnimationPhase(name: .tackle, startTime: 0.9, endTime: 1.0)
+        ]
+
+        // Kicking team lineup: spread across the 35 yard line
+        let kickTeamSpacing: CGFloat = 28
+        let kickTeamBaseY = centerY - 5 * kickTeamSpacing / 2
+        var kickerPaths: [AnimatedPlayerPath] = []
+
+        for i in 0..<11 {
+            let startY = kickTeamBaseY + CGFloat(i) * kickTeamSpacing
+            let startPos = CGPoint(x: losX, y: startY)
+
+            // All kicking team players sprint downfield toward the returner
+            let targetX = losX + gainPixels
+            let targetY = centerY + CGFloat.random(in: -40...40)
+            let endPos = CGPoint(x: targetX, y: targetY)
+
+            var wps: [AnimationWaypoint] = []
+            wps.append(AnimationWaypoint(position: startPos, time: 0.0, speed: .slow))
+            wps.append(AnimationWaypoint(position: startPos, time: 0.15, speed: .slow))
+
+            // Sprint downfield
+            let midPos = CGPoint(x: startPos.x + (endPos.x - startPos.x) * 0.6, y: startY + (targetY - startY) * 0.3)
+            wps.append(AnimationWaypoint(position: midPos, time: 0.5, speed: .sprint))
+            wps.append(AnimationWaypoint(position: endPos, time: 0.9, speed: .fast))
+            wps.append(AnimationWaypoint(position: endPos, time: 1.0, speed: .slow))
+
+            let role: PlayerRole = i == 5 ? .lineman : .lineman // Middle player is kicker
+            kickerPaths.append(AnimatedPlayerPath(playerIndex: i, role: role, waypoints: wps))
+        }
+
+        // Receiving team: spread across the deep return zone (~10-15 yard line)
+        let returnZoneX = yardToX(10)
+        let returnSpacing: CGFloat = 28
+        let returnBaseY = centerY - 5 * returnSpacing / 2
+        var returnPaths: [AnimatedPlayerPath] = []
+
+        for i in 0..<11 {
+            let startY = returnBaseY + CGFloat(i) * returnSpacing
+            let depth: CGFloat = i == 5 ? 0 : CGFloat.random(in: 30...80) // Returner is deep, blockers up front
+            let startPos = CGPoint(x: returnZoneX + depth, y: startY)
+
+            var wps: [AnimationWaypoint] = []
+            wps.append(AnimationWaypoint(position: startPos, time: 0.0, speed: .slow))
+            wps.append(AnimationWaypoint(position: startPos, time: 0.15, speed: .slow))
+
+            if i == 5 {
+                // Returner: catches and runs to the result yard line
+                let catchPos = CGPoint(x: yardToX(5), y: centerY)
+                let returnEndX = yardToX(result.yardsGained)
+                let returnEnd = CGPoint(x: returnEndX, y: centerY + CGFloat.random(in: -20...20))
+                wps.append(AnimationWaypoint(position: catchPos, time: 0.35, speed: .normal))
+                wps.append(AnimationWaypoint(position: returnEnd, time: 0.85, speed: .sprint))
+                wps.append(AnimationWaypoint(position: returnEnd, time: 1.0, speed: .slow))
+            } else {
+                // Blockers: run upfield to set up blocks
+                let blockX = startPos.x + 60
+                let blockEnd = CGPoint(x: blockX, y: startY + CGFloat.random(in: -10...10))
+                wps.append(AnimationWaypoint(position: blockEnd, time: 0.6, speed: .fast))
+                wps.append(AnimationWaypoint(position: blockEnd, time: 1.0, speed: .slow))
+            }
+
+            let role: PlayerRole = i == 5 ? .receiver : .lineman
+            returnPaths.append(AnimatedPlayerPath(playerIndex: i, role: role, waypoints: wps))
+        }
+
+        // Ball path: kicked from kicker, caught by returner, carried to final position
+        let kickStart = CGPoint(x: losX, y: centerY)
+        let catchPoint = CGPoint(x: yardToX(5), y: centerY)
+        let returnEndX = yardToX(result.yardsGained)
+        let returnEnd = CGPoint(x: returnEndX, y: centerY)
+
+        let arcPoints = FieldPhysics.calculatePassArc(from: kickStart, to: catchPoint, power: 95, accuracy: 80, isDeep: true)
+        let ballPath = BallAnimationPath(segments: [
+            .held(byPlayerIndex: 5, isOffense: true, startTime: 0.0, endTime: 0.15),
+            .kicked(arcPoints: arcPoints, startTime: 0.15, endTime: 0.35),
+            .held(byPlayerIndex: 5, isOffense: false, startTime: 0.35, endTime: 1.0)
+        ])
+
+        return PlayAnimationBlueprint(
+            offensivePaths: kickerPaths,
+            defensivePaths: returnPaths,
+            ballPath: ballPath,
+            totalDuration: totalDuration,
+            phases: phases
+        )
     }
 
     // MARK: - Starting Positions
@@ -1000,60 +1121,117 @@ struct PlayBlueprintGenerator {
 
     // MARK: - Authentic STOCK.DAT Play Resolution
 
-    /// Find a matching offensive play from STOCK.DAT
+    /// Find a matching offensive play from STOCK.DAT.
+    /// Priority: exact name > play art name substring > FPS '93 naming conventions > random from category.
     private static func resolveStockOffensivePlay(
         stockDB: StockDatabase,
         playArt: PlayArt?,
         result: PlayResult,
         name: String?
     ) -> StockPlay? {
-        // If a specific name was provided, use it
+        // 1. Exact name match (e.g. from stockPlayName parameter)
         if let name = name, let play = stockDB.play(named: name) {
             return play
         }
 
-        // Try to match by play art name
+        // 2. Match by PlayArt name — try exact first, then substring
         if let artName = playArt?.playName {
-            let normalized = artName.uppercased().replacingOccurrences(of: " ", with: "")
+            let upper = artName.uppercased().replacingOccurrences(of: " ", with: "")
+            // Exact match
             if let play = stockDB.offensivePlays.first(where: {
-                $0.name.uppercased().replacingOccurrences(of: " ", with: "").contains(normalized)
+                $0.name.uppercased().replacingOccurrences(of: " ", with: "") == upper
+            }) {
+                return play
+            }
+            // Substring match (authentic 8-char PLN codes)
+            if let play = stockDB.offensivePlays.first(where: {
+                $0.name.uppercased().replacingOccurrences(of: " ", with: "").contains(upper) ||
+                upper.contains($0.name.uppercased().replacingOccurrences(of: " ", with: ""))
             }) {
                 return play
             }
         }
 
-        // Match by play type: pick a random play from the category
+        // 3. Match by play type using FPS '93 naming conventions
+        //    Run plays: RM/RR/RL (run middle/right/left), FBD (fullback dive), SWP (sweep), DR (draw)
+        //    Short pass: PS (pass short), SA (screen)
+        //    Medium pass: PM (pass medium)
+        //    Deep pass: PL (pass long), PA/FA (play action/fake action)
         let candidates: [StockPlay]
         switch result.playType {
-        case .insideRun, .outsideRun, .draw, .counter, .sweep, .qbSneak, .qbScramble:
-            // Offensive run plays: entries with "R" in name patterns (RM=run middle, RR=run right, RL=run left)
+        case .insideRun, .qbSneak:
             candidates = stockDB.offensivePlays.filter { play in
                 let n = play.name.uppercased()
-                return n.contains("RM") || n.contains("RR") || n.contains("RL") ||
-                       n.contains("RUN") || n.contains("DIVE") || n.contains("SWP") ||
-                       n.contains("SWEEP") || n.contains("DRAW") || n.contains("FBD")
+                return n.contains("RM") || n.contains("FBD") || n.contains("DIVE") ||
+                       n.hasPrefix("QK")
             }
-        case .shortPass, .mediumPass, .screen:
+        case .outsideRun, .sweep, .counter:
             candidates = stockDB.offensivePlays.filter { play in
                 let n = play.name.uppercased()
-                return n.contains("PS") || n.contains("PML") || n.contains("PMR") ||
-                       n.contains("PMM") || n.contains("PSL") || n.contains("PSR") ||
-                       n.contains("PSM") || n.contains("PASS")
+                return n.contains("RR") || n.contains("RL") || n.contains("SWP") ||
+                       n.contains("SWEEP") || n.contains("PI") || n.contains("SL")
             }
-        case .deepPass, .playAction:
+        case .draw:
+            candidates = stockDB.offensivePlays.filter { play in
+                play.name.uppercased().hasPrefix("DR")
+            }
+        case .screen:
+            candidates = stockDB.offensivePlays.filter { play in
+                play.name.uppercased().hasPrefix("SA")
+            }
+        case .shortPass:
             candidates = stockDB.offensivePlays.filter { play in
                 let n = play.name.uppercased()
-                return n.contains("PLR") || n.contains("PLL") || n.contains("PLM") ||
-                       n.contains("DEEP") || n.contains("LONG") || n.contains("PSR")
+                return n.contains("PS") && !n.contains("PL") && !n.contains("PM")
+            }
+        case .mediumPass:
+            candidates = stockDB.offensivePlays.filter { play in
+                play.name.uppercased().contains("PM")
+            }
+        case .deepPass:
+            candidates = stockDB.offensivePlays.filter { play in
+                play.name.uppercased().contains("PL")
+            }
+        case .playAction:
+            candidates = stockDB.offensivePlays.filter { play in
+                let n = play.name.uppercased()
+                return n.contains("PA") || n.hasPrefix("FA")
+            }
+        case .qbScramble:
+            // Any run play works for scramble animation
+            candidates = stockDB.offensivePlays.filter { play in
+                let n = play.name.uppercased()
+                return n.contains("RM") || n.contains("RR") || n.contains("RL")
             }
         default:
             candidates = stockDB.offensivePlays
         }
 
-        return candidates.isEmpty ? stockDB.randomOffensivePlay() : candidates.randomElement()
+        // Pick from matching candidates, falling back to any offensive play
+        if let match = candidates.randomElement() {
+            return match
+        }
+
+        // 4. Broad fallback: run vs pass
+        if result.playType.isRun {
+            let runPlays = stockDB.offensivePlays.filter { play in
+                let n = play.name.uppercased()
+                return n.contains("R") && (n.contains("RM") || n.contains("RR") || n.contains("RL"))
+            }
+            if let match = runPlays.randomElement() { return match }
+        } else if result.playType.isPass {
+            let passPlays = stockDB.offensivePlays.filter { play in
+                let n = play.name.uppercased()
+                return n.contains("P") && (n.contains("PS") || n.contains("PM") || n.contains("PL"))
+            }
+            if let match = passPlays.randomElement() { return match }
+        }
+
+        return stockDB.randomOffensivePlay()
     }
 
-    /// Find a matching defensive play from STOCK.DAT
+    /// Find a matching defensive play from STOCK.DAT.
+    /// Matches by defensive formation characteristics, then falls back to random.
     private static func resolveStockDefensivePlay(
         stockDB: StockDatabase,
         defensiveArt: DefensivePlayArt?,
@@ -1064,12 +1242,30 @@ struct PlayBlueprintGenerator {
             let formName = defArt.formation.rawValue.uppercased()
                 .replacingOccurrences(of: "-", with: "")
                 .replacingOccurrences(of: " ", with: "")
+            // Exact formation name match
+            let exact = stockDB.defensivePlays.filter { play in
+                play.name.uppercased().replacingOccurrences(of: " ", with: "") == formName
+            }
+            if let match = exact.randomElement() { return match }
+
+            // Substring match
             let candidates = stockDB.defensivePlays.filter { play in
-                play.name.uppercased().contains(formName)
+                play.name.uppercased().contains(formName) ||
+                formName.contains(play.name.uppercased().trimmingCharacters(in: .whitespaces))
             }
-            if let match = candidates.randomElement() {
-                return match
+            if let match = candidates.randomElement() { return match }
+
+            // Match by DL/LB count from formation type
+            let dlCount = defArt.formation.dLineCount
+            let lbCount = defArt.formation.lbCount
+            let formCandidates = stockDB.defensivePlays.filter { play in
+                let dlPlayers = play.players.filter {
+                    $0.positionCode == 0x0101 || $0.positionCode == 0x0102
+                }
+                let lbPlayers = play.players.filter { $0.positionCode == 0x0200 }
+                return dlPlayers.count == dlCount && lbPlayers.count == lbCount
             }
+            if let match = formCandidates.randomElement() { return match }
         }
 
         return stockDB.randomDefensivePlay()
@@ -1077,7 +1273,9 @@ struct PlayBlueprintGenerator {
 
     // MARK: - Authentic Offensive Path Builder
 
-    /// Build offensive player paths from authentic STOCK.DAT play data
+    /// Build offensive player paths from authentic STOCK.DAT play data.
+    /// Uses each player's actual STOCK.DAT route waypoints, assignments (block/passTarget),
+    /// and phase positions (PH1=pre-snap, PH2=post-snap, PH3=route endpoint).
     private static func buildAuthenticOffensivePaths(
         stockPlay: StockPlay,
         result: PlayResult,
@@ -1089,9 +1287,11 @@ struct PlayBlueprintGenerator {
 
         let routeStart = phaseTime(phases, .routesDevelop)?.startTime ?? 0.12
         let routeEnd = phaseTime(phases, .routesDevelop)?.endTime ?? 0.55
+        let resolutionStart = phaseTime(phases, .resolution)?.startTime ?? 0.55
         let yacEnd = phaseTime(phases, .yac)?.endTime ?? 0.88
         let tackleEnd: Double = 1.0
         let isPass = result.playType.isPass
+        let isRun = result.playType.isRun
         let gainPixels = CGFloat(result.yardsGained) * yardsPerPixel
         let targetX = losX + gainPixels
 
@@ -1104,6 +1304,12 @@ struct PlayBlueprintGenerator {
             .receiver, .receiver,
             .tightend, .receiver
         ]
+
+        // Identify the target receiver from STOCK.DAT passTarget assignments.
+        // This replaces the hardcoded index-7 assumption.
+        let stockTargetReceiverIndex = findStockTargetReceiver(
+            players: sorted, result: result, isPass: isPass
+        )
 
         var paths: [AnimatedPlayerPath] = []
 
@@ -1139,75 +1345,152 @@ struct PlayBlueprintGenerator {
 
             // Pre-snap hold
             waypoints.append(AnimationWaypoint(position: startPos, time: 0.0, speed: .slow))
-            waypoints.append(AnimationWaypoint(position: startPos, time: routeStart, speed: .slow))
 
-            // Post-snap phase: use PH2 position if available
-            if let postSnap = player.postSnapPosition {
-                let postPos = StockDATDecoder.convertToBlueprint(
-                    stockPoint: postSnap, losX: losX, centerY: centerY
+            // Pre-snap motion (some receivers/backs motion before the snap)
+            if let motionTarget = player.motionTarget {
+                let motionPos = StockDATDecoder.convertToBlueprint(
+                    stockPoint: motionTarget, losX: losX, centerY: centerY
                 )
-                let postSnapTime = routeStart + (routeEnd - routeStart) * 0.15
-                waypoints.append(AnimationWaypoint(position: postPos, time: postSnapTime, speed: .fast))
+                // Motion happens during pre-snap phase, ending just before snap
+                waypoints.append(AnimationWaypoint(position: motionPos, time: routeStart, speed: .normal))
+            } else {
+                waypoints.append(AnimationWaypoint(position: startPos, time: routeStart, speed: .slow))
             }
 
-            // Route phase: use PH3 + waypoints
+            // Determine player's behavior from STOCK.DAT assignments
+            let isBlocker = player.hasBlockingAssignment
+            let isPassRoute = player.hasPassRoute
+            let isThisTarget = (i == stockTargetReceiverIndex)
+            let hasStockRoute = !player.routeWaypoints.isEmpty || player.routePhasePosition != nil
+            let hasPostSnap = player.postSnapPosition != nil
+
+            // === Post-snap movement ===
+            // Use actual STOCK.DAT phase positions and route waypoints
+
+            if hasPostSnap {
+                let postPos = StockDATDecoder.convertToBlueprint(
+                    stockPoint: player.postSnapPosition!, losX: losX, centerY: centerY
+                )
+                // Speed depends on role: blockers engage quickly, route runners accelerate
+                let speed: WaypointSpeed = isBlocker ? .fast : (isPassRoute ? .fast : .normal)
+                let postSnapTime = routeStart + (routeEnd - routeStart) * 0.15
+                waypoints.append(AnimationWaypoint(position: postPos, time: postSnapTime, speed: speed))
+            }
+
+            // Route waypoints from STOCK.DAT (0x0202 nodes)
             if !player.routeWaypoints.isEmpty {
                 let bpWaypoints = StockDATDecoder.convertWaypointsToBlueprint(
                     waypoints: player.routeWaypoints, losX: losX, centerY: centerY
                 )
                 let waypointCount = bpWaypoints.count
                 for (wi, wp) in bpWaypoints.enumerated() {
-                    let t = routeStart + (routeEnd - routeStart) * Double(wi + 1) / Double(waypointCount + 1)
-                    waypoints.append(AnimationWaypoint(position: wp, time: t, speed: .fast))
+                    // Distribute waypoints evenly through the route development phase
+                    let progress = Double(wi + 1) / Double(waypointCount + 1)
+                    let t = routeStart + (routeEnd - routeStart) * progress
+                    // Route runners sprint, blockers are slower
+                    let speed: WaypointSpeed = isBlocker ? .normal : .sprint
+                    waypoints.append(AnimationWaypoint(position: wp, time: t, speed: speed))
                 }
             }
 
+            // Route endpoint (PH3) from STOCK.DAT
             if let routePhase = player.routePhasePosition {
                 let routePos = StockDATDecoder.convertToBlueprint(
                     stockPoint: routePhase, losX: losX, centerY: centerY
                 )
-                waypoints.append(AnimationWaypoint(position: routePos, time: routeEnd, speed: .fast))
+                let speed: WaypointSpeed = isBlocker ? .normal : .fast
+                waypoints.append(AnimationWaypoint(position: routePos, time: routeEnd, speed: speed))
             }
 
-            // Post-route behavior depends on role
+            // === Post-route behavior (after routes develop) ===
+            // This is where the play result affects the animation
+
             let lastPos = waypoints.last?.position ?? startPos
 
             switch role {
             case .lineman:
-                // Hold blocking position
-                waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
+                // Linemen: use assignment to differentiate behavior
+                if isRun && !isBlocker {
+                    // Run-block: push forward toward the play direction
+                    let pushTarget = CGPoint(x: lastPos.x + 15, y: lastPos.y + CGFloat.random(in: -5...5))
+                    waypoints.append(AnimationWaypoint(position: pushTarget, time: resolutionStart, speed: .fast))
+                    waypoints.append(AnimationWaypoint(position: pushTarget, time: tackleEnd, speed: .slow))
+                } else if isPass && !hasStockRoute {
+                    // Pass-block: hold position with minor jostling
+                    let jostle = CGPoint(x: lastPos.x + CGFloat.random(in: -3...3), y: lastPos.y + CGFloat.random(in: -4...4))
+                    waypoints.append(AnimationWaypoint(position: jostle, time: resolutionStart, speed: .slow))
+                    waypoints.append(AnimationWaypoint(position: jostle, time: tackleEnd, speed: .slow))
+                } else {
+                    // Hold at blocking position from STOCK.DAT route
+                    waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
+                }
 
             case .quarterback:
-                if isPass && !result.description.lowercased().contains("sack") {
-                    // Stand in pocket after throw
+                if player.hasQBThrow && isPass {
+                    if result.description.lowercased().contains("sack") {
+                        // Sacked: pushed backward from pocket position
+                        let sackPos = CGPoint(x: lastPos.x - 12, y: lastPos.y + CGFloat.random(in: -5...5))
+                        waypoints.append(AnimationWaypoint(position: sackPos, time: resolutionStart + 0.05, speed: .slow))
+                        waypoints.append(AnimationWaypoint(position: sackPos, time: tackleEnd, speed: .slow))
+                    } else {
+                        // Throw and hold — QB stays in pocket
+                        waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
+                    }
+                } else if isRun {
+                    // Handoff: QB steps back, fakes, holds
+                    if !hasStockRoute {
+                        let handoffPos = CGPoint(x: startPos.x - 8, y: centerY)
+                        waypoints.append(AnimationWaypoint(position: handoffPos, time: resolutionStart, speed: .normal))
+                    }
                     waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
-                } else if result.description.lowercased().contains("sack") {
-                    let sackPos = CGPoint(x: lastPos.x - 10, y: lastPos.y)
-                    waypoints.append(AnimationWaypoint(position: sackPos, time: yacEnd, speed: .slow))
-                    waypoints.append(AnimationWaypoint(position: sackPos, time: tackleEnd, speed: .slow))
                 } else {
                     waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
                 }
 
             case .runningback, .runningBack:
-                if result.playType.isRun {
-                    // Run to gain/loss point
+                if isRun {
+                    // Ball carrier: follow STOCK.DAT route to the gap, then run to gain point
                     let finalY = lastPos.y + CGFloat.random(in: -10...10)
                     let finalPos = CGPoint(x: targetX, y: finalY)
                     waypoints.append(AnimationWaypoint(position: finalPos, time: yacEnd, speed: .sprint))
                     waypoints.append(AnimationWaypoint(position: finalPos, time: tackleEnd, speed: .slow))
+                } else if isBlocker {
+                    // RB assigned to block (pass protection)
+                    let blockPos = CGPoint(x: lastPos.x - 3, y: lastPos.y + CGFloat.random(in: -3...3))
+                    waypoints.append(AnimationWaypoint(position: blockPos, time: resolutionStart, speed: .slow))
+                    waypoints.append(AnimationWaypoint(position: blockPos, time: tackleEnd, speed: .slow))
+                } else if isPassRoute {
+                    // RB running a pass route (swing, angle, screen)
+                    if isThisTarget && result.yardsGained > 0 && !result.isTurnover {
+                        let yacPos = CGPoint(x: targetX, y: lastPos.y + CGFloat.random(in: -10...10))
+                        waypoints.append(AnimationWaypoint(position: yacPos, time: yacEnd, speed: .sprint))
+                        waypoints.append(AnimationWaypoint(position: yacPos, time: tackleEnd, speed: .slow))
+                    } else {
+                        waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .normal))
+                    }
                 } else {
                     waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .normal))
                 }
 
             case .receiver, .tightend:
-                let isTarget = isTargetReceiver(playerIndex: i, result: result, playArt: nil)
-                if isTarget && isPass && result.yardsGained > 0 && !result.isTurnover {
+                if isBlocker && !isPassRoute {
+                    // Receiver/TE assigned to block (run plays, screen plays)
+                    if isRun {
+                        let blockTarget = CGPoint(x: lastPos.x + 12, y: lastPos.y + CGFloat.random(in: -5...5))
+                        waypoints.append(AnimationWaypoint(position: blockTarget, time: resolutionStart, speed: .fast))
+                        waypoints.append(AnimationWaypoint(position: blockTarget, time: tackleEnd, speed: .slow))
+                    } else {
+                        waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
+                    }
+                } else if isThisTarget && isPass && result.yardsGained > 0 && !result.isTurnover {
+                    // This is the targeted receiver — catch and YAC
                     let yacPos = CGPoint(x: targetX, y: lastPos.y + CGFloat.random(in: -10...10))
                     waypoints.append(AnimationWaypoint(position: yacPos, time: yacEnd, speed: .sprint))
                     waypoints.append(AnimationWaypoint(position: yacPos, time: tackleEnd, speed: .slow))
                 } else {
-                    waypoints.append(AnimationWaypoint(position: lastPos, time: tackleEnd, speed: .slow))
+                    // Non-target: slow down at route endpoint
+                    let driftPos = CGPoint(x: lastPos.x + 3, y: lastPos.y + CGFloat.random(in: -3...3))
+                    waypoints.append(AnimationWaypoint(position: driftPos, time: tackleEnd, speed: .slow))
                 }
 
             default:
@@ -1220,9 +1503,53 @@ struct PlayBlueprintGenerator {
         return paths
     }
 
+    /// Find the target receiver index from STOCK.DAT passTarget assignments.
+    /// Falls back to heuristic based on route data and play type.
+    private static func findStockTargetReceiver(
+        players: [StockPlayerEntry],
+        result: PlayResult,
+        isPass: Bool
+    ) -> Int {
+        guard isPass else { return 6 } // RB for run plays
+
+        // Look for players with passTarget assignment (0x0101)
+        let targetsWithIndices = players.enumerated().filter { _, player in
+            player.assignments.contains { $0.type == .passTarget }
+        }
+
+        if !targetsWithIndices.isEmpty {
+            // Pick the first pass target as the primary receiver
+            // In multi-target plays, this is typically the #1 read
+            return targetsWithIndices[0].offset
+        }
+
+        // Fallback: find the receiver/TE with the deepest route
+        let receiversWithIndices = players.enumerated().filter { _, player in
+            player.isSkillPosition && !player.isLineman && player.positionCode != 0x0020 // Not QB
+        }
+
+        if let deepest = receiversWithIndices.max(by: { a, b in
+            let aDepth = a.element.routePhasePosition?.y ?? a.element.preSnapPosition?.y ?? 0
+            let bDepth = b.element.routePhasePosition?.y ?? b.element.preSnapPosition?.y ?? 0
+            return aDepth < bDepth  // Higher Y = deeper downfield in STOCK.DAT coords
+        }) {
+            return deepest.offset
+        }
+
+        // Last resort: default receiver indices by play type
+        switch result.playType {
+        case .screen: return 6  // RB
+        case .shortPass: return 7  // WR1
+        case .deepPass: return 7  // WR1
+        default: return 7
+        }
+    }
+
     // MARK: - Authentic Defensive Path Builder
 
-    /// Build defensive player paths from authentic STOCK.DAT play data
+    /// Build defensive player paths from authentic STOCK.DAT play data.
+    /// Uses STOCK.DAT assignments (rush/coverage/zone) and route waypoints
+    /// to drive realistic defensive player movements.
     private static func buildAuthenticDefensivePaths(
         stockPlay: StockPlay,
         result: PlayResult,
@@ -1235,21 +1562,25 @@ struct PlayBlueprintGenerator {
 
         let routeStart = phaseTime(phases, .routesDevelop)?.startTime ?? 0.12
         let routeEnd = phaseTime(phases, .routesDevelop)?.endTime ?? 0.55
+        let resolutionEnd = phaseTime(phases, .resolution)?.endTime ?? 0.72
+        let yacEnd = phaseTime(phases, .yac)?.endTime ?? 0.88
         let tackleEnd: Double = 1.0
         let isPass = result.playType.isPass
         let gainPixels = CGFloat(result.yardsGained) * yardsPerPixel
         let ballCarrierFinalX = losX + gainPixels
 
-        // Find ball carrier final Y
+        // Find ball carrier final position for pursuit convergence
         let ballCarrierFinalY: CGFloat
         if isPass {
-            let targetIdx = findTargetReceiverIndex(result: result)
+            // For authentic paths, use the stock target receiver logic
+            let targetIdx = findStockTargetReceiverFromOffPaths(offensivePaths: offensivePaths, result: result)
             if targetIdx < offensivePaths.count {
                 ballCarrierFinalY = offensivePaths[targetIdx].waypoints.last?.position.y ?? centerY
             } else {
                 ballCarrierFinalY = centerY
             }
         } else {
+            // RB is at index 6
             if 6 < offensivePaths.count {
                 ballCarrierFinalY = offensivePaths[6].waypoints.last?.position.y ?? centerY
             } else {
@@ -1257,6 +1588,14 @@ struct PlayBlueprintGenerator {
             }
         }
         let ballCarrierFinal = CGPoint(x: ballCarrierFinalX, y: ballCarrierFinalY)
+
+        // QB position for rush targets
+        let qbDropPos: CGPoint
+        if 5 < offensivePaths.count, let qbWP = offensivePaths[5].waypoints.first(where: { $0.time >= routeEnd - 0.1 }) {
+            qbDropPos = qbWP.position
+        } else {
+            qbDropPos = CGPoint(x: losX - 25, y: centerY)
+        }
 
         let roles: [PlayerRole] = [
             .defensiveLine, .defensiveLine, .defensiveLine, .defensiveLine,
@@ -1284,7 +1623,7 @@ struct PlayBlueprintGenerator {
             let role = roles[i]
             var waypoints: [AnimationWaypoint] = []
 
-            // Pre-snap position
+            // Pre-snap position from STOCK.DAT PH1
             let startPos: CGPoint
             if let preSnap = player.preSnapPosition {
                 startPos = StockDATDecoder.convertToBlueprint(
@@ -1300,16 +1639,23 @@ struct PlayBlueprintGenerator {
             waypoints.append(AnimationWaypoint(position: startPos, time: 0.0, speed: .slow))
             waypoints.append(AnimationWaypoint(position: startPos, time: routeStart, speed: .slow))
 
-            // Post-snap movement
+            // Determine this player's primary assignment from STOCK.DAT
+            let isRusher = player.hasRushAssignment
+            let isCoverage = player.hasCoverageAssignment
+            let hasZone = player.zoneTarget != nil
+            let hasStockRoute = !player.routeWaypoints.isEmpty || player.routePhasePosition != nil
+
+            // === Phase 1: Post-snap initial movement (from PH2) ===
             if let postSnap = player.postSnapPosition {
                 let postPos = StockDATDecoder.convertToBlueprint(
                     stockPoint: postSnap, losX: losX, centerY: centerY
                 )
+                let speed: WaypointSpeed = isRusher ? .sprint : .fast
                 let postTime = routeStart + (routeEnd - routeStart) * 0.15
-                waypoints.append(AnimationWaypoint(position: postPos, time: postTime, speed: .fast))
+                waypoints.append(AnimationWaypoint(position: postPos, time: postTime, speed: speed))
             }
 
-            // Route waypoints
+            // === Phase 2: Route development (STOCK.DAT waypoints) ===
             if !player.routeWaypoints.isEmpty {
                 let bpWaypoints = StockDATDecoder.convertWaypointsToBlueprint(
                     waypoints: player.routeWaypoints, losX: losX, centerY: centerY
@@ -1317,18 +1663,37 @@ struct PlayBlueprintGenerator {
                 let wpCount = bpWaypoints.count
                 for (wi, wp) in bpWaypoints.enumerated() {
                     let t = routeStart + (routeEnd - routeStart) * Double(wi + 1) / Double(wpCount + 1)
-                    waypoints.append(AnimationWaypoint(position: wp, time: t, speed: .fast))
+                    let speed: WaypointSpeed = isRusher ? .sprint : .fast
+                    waypoints.append(AnimationWaypoint(position: wp, time: t, speed: speed))
                 }
             }
 
-            // Zone target
-            if let zone = player.zoneTarget {
+            // === Phase 3: Assignment-driven endpoint ===
+            if isRusher && !hasStockRoute {
+                // Pass rush: charge toward QB if no STOCK.DAT route was given
+                let rushTarget = CGPoint(x: qbDropPos.x + 5, y: qbDropPos.y + CGFloat.random(in: -10...10))
+                waypoints.append(AnimationWaypoint(position: rushTarget, time: routeEnd, speed: .sprint))
+            } else if hasZone {
+                // Zone coverage: drop to zone target from STOCK.DAT
                 let zonePos = StockDATDecoder.convertToBlueprint(
-                    stockPoint: zone, losX: losX, centerY: centerY
+                    stockPoint: player.zoneTarget!, losX: losX, centerY: centerY
                 )
                 waypoints.append(AnimationWaypoint(position: zonePos, time: routeEnd, speed: .normal))
+            } else if isCoverage && !hasStockRoute {
+                // Man coverage without specific route: shadow assigned offensive player
+                let coverTarget = findCoverageTargetFromAssignment(
+                    player: player, defIndex: i, offensivePaths: offensivePaths, centerY: centerY
+                )
+                if let receiverPath = offensivePaths[safe: coverTarget] {
+                    // Follow receiver with slight trailing offset
+                    for wp in receiverPath.waypoints where wp.time >= routeStart && wp.time <= routeEnd {
+                        let offset = CGPoint(x: wp.position.x + 5, y: wp.position.y + CGFloat.random(in: -3...3))
+                        waypoints.append(AnimationWaypoint(position: offset, time: min(wp.time + 0.02, 1.0), speed: .fast))
+                    }
+                }
             }
 
+            // Route endpoint (PH3) from STOCK.DAT
             if let routePhase = player.routePhasePosition {
                 let routePos = StockDATDecoder.convertToBlueprint(
                     stockPoint: routePhase, losX: losX, centerY: centerY
@@ -1336,15 +1701,93 @@ struct PlayBlueprintGenerator {
                 waypoints.append(AnimationWaypoint(position: routePos, time: routeEnd, speed: .fast))
             }
 
-            // Pursue ball carrier after route phase
+            // === Phase 4: Pursuit toward ball carrier ===
             let lastPos = waypoints.last?.position ?? startPos
-            let pursuitPos = pursueTarget(from: lastPos, target: ballCarrierFinal, maxDist: 50)
-            waypoints.append(AnimationWaypoint(position: pursuitPos, time: tackleEnd, speed: .fast))
+
+            // All defenders converge toward the ball carrier after the play develops
+            let pursuitSpeed: WaypointSpeed
+            let pursuitDist: CGFloat
+
+            if isRusher {
+                // Rushers are close to the action — aggressive pursuit
+                pursuitSpeed = .sprint
+                pursuitDist = 60
+            } else if isCoverage || hasZone {
+                // Coverage players react and close in
+                pursuitSpeed = .fast
+                pursuitDist = 50
+            } else {
+                // Default pursuit angle
+                pursuitSpeed = .fast
+                pursuitDist = 45
+            }
+
+            // Intermediate pursuit point at resolution time
+            let midPursuitPos = pursueTarget(from: lastPos, target: ballCarrierFinal, maxDist: pursuitDist * 0.6)
+            waypoints.append(AnimationWaypoint(position: midPursuitPos, time: resolutionEnd, speed: pursuitSpeed))
+
+            // Final convergence
+            let finalPursuitPos = pursueTarget(from: midPursuitPos, target: ballCarrierFinal, maxDist: pursuitDist)
+            waypoints.append(AnimationWaypoint(position: finalPursuitPos, time: tackleEnd, speed: pursuitSpeed))
 
             paths.append(AnimatedPlayerPath(playerIndex: i, role: role, waypoints: waypoints))
         }
 
         return paths
+    }
+
+    /// Find which offensive player a defensive player should cover based on STOCK.DAT assignment.
+    /// Uses the targetPlayerIndex from the coverage assignment, falling back to positional matching.
+    private static func findCoverageTargetFromAssignment(
+        player: StockPlayerEntry,
+        defIndex: Int,
+        offensivePaths: [AnimatedPlayerPath],
+        centerY: CGFloat
+    ) -> Int {
+        // Check if STOCK.DAT has an explicit coverage target index
+        if let coverageAssignment = player.assignments.first(where: { $0.type == .coverage }) {
+            let target = Int(coverageAssignment.targetPlayerIndex)
+            if target < offensivePaths.count {
+                return target
+            }
+        }
+
+        // Fallback to positional matching
+        return findCoverageTarget(defIndex: defIndex, offensivePaths: offensivePaths, centerY: centerY)
+    }
+
+    /// Find the target receiver index from offensive paths for ball carrier pursuit.
+    /// Uses the offense's route depth to identify the likely target.
+    private static func findStockTargetReceiverFromOffPaths(
+        offensivePaths: [AnimatedPlayerPath],
+        result: PlayResult
+    ) -> Int {
+        // For runs, ball carrier is RB (index 6)
+        if result.playType.isRun { return 6 }
+
+        // For screen, typically RB or nearby receiver
+        if result.playType == .screen { return 6 }
+
+        // For passes: find the receiver whose final position is closest to the gain point
+        let gainYards = CGFloat(result.yardsGained) * yardsPerPixel
+        let receiverIndices = [7, 8, 9, 10] // WR1, WR2, TE, Slot
+        var bestIdx = 7
+        var bestMatch: CGFloat = .greatestFiniteMagnitude
+
+        for idx in receiverIndices {
+            guard idx < offensivePaths.count else { continue }
+            let path = offensivePaths[idx]
+            if let lastWP = path.waypoints.last {
+                // How far is this receiver's endpoint from the expected catch point?
+                let dist = abs(lastWP.position.x - gainYards)
+                if dist < bestMatch {
+                    bestMatch = dist
+                    bestIdx = idx
+                }
+            }
+        }
+
+        return bestIdx
     }
 
     // MARK: - Player Sorting (STOCK.DAT → Standard 11-player Order)

@@ -46,6 +46,7 @@ struct DepthChartView: View {
     @State private var selectedPosition: Position = .quarterback
     @State private var selectedPlayerId: UUID? = nil
     @State private var showAutoLineupConfirm = false
+    @State private var editingPlayerId: UUID? = nil
 
     // MARK: - Computed
 
@@ -96,9 +97,29 @@ struct DepthChartView: View {
             }
         }
         .background(VGA.screenBg)
-        .sheet(isPresented: $showAutoLineupConfirm) {
-            autoLineupDialog
-        }
+        .overlay(
+            Group {
+                if showAutoLineupConfirm {
+                    autoLineupDialog
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if let pid = editingPlayerId {
+                    ZStack {
+                        Color.black.opacity(0.7).ignoresSafeArea()
+                        PlayerEditorView(
+                            playerId: pid,
+                            onDismiss: { editingPlayerId = nil }
+                        )
+                        .environmentObject(gameState)
+                        .frame(width: 700, height: 500)
+                        .modifier(DOSPanelBorder(.raised, width: 2))
+                    }
+                }
+            }
+        )
     }
 
     // MARK: - Top Bar
@@ -372,6 +393,11 @@ struct DepthChartView: View {
                 guard let playerId = selectedPlayerId else { return }
                 setStarter(playerId)
             }
+
+            FPSButton("EDIT") {
+                guard let playerId = selectedPlayerId else { return }
+                editingPlayerId = playerId
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -382,7 +408,8 @@ struct DepthChartView: View {
 
     private var autoLineupDialog: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
 
             FPSDialog("AUTO-LINEUP") {
                 VStack(spacing: 16) {

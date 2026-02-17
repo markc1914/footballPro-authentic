@@ -263,6 +263,264 @@ struct PlayDiagramView: View {
     }
 }
 
+// MARK: - Mini Play Diagram Data (for play calling green slots)
+
+/// Pre-computed diagram data for a single play, normalized to 0..1 for scaling.
+struct MiniDiagramData: Identifiable {
+    let id = UUID()
+    let isOffensive: Bool
+    let players: [MiniDiagramPlayer]
+
+    struct MiniDiagramPlayer {
+        let normalizedPosition: CGPoint  // 0..1 range
+        let isSkillPosition: Bool        // WR/TE/RB/QB (circles) vs linemen (filled dots)
+        let isQB: Bool
+        let route: [CGPoint]?            // Normalized route waypoints (nil = no route)
+        let hasRushAssignment: Bool       // Defensive rush toward LOS
+        let isPrimaryTarget: Bool         // Primary receiver (highlighted route)
+    }
+}
+
+// MARK: - Mini Play Diagram Cache
+
+/// Caches computed mini diagram data keyed by play name.
+final class MiniDiagramCache {
+    static let shared = MiniDiagramCache()
+
+    private var cache: [String: MiniDiagramData] = [:]
+    private let stockDB: StockDatabase?
+
+    private init() {
+        stockDB = StockDATDecoder.shared
+    }
+
+    func diagram(forPlayName name: String, isOffensive: Bool) -> MiniDiagramData? {
+        let cacheKey = "\(isOffensive ? "O" : "D"):\(name)"
+        if let cached = cache[cacheKey] {
+            return cached
+        }
+
+        guard let db = stockDB else { return nil }
+
+        // Try to find matching STOCK.DAT play
+        let stockPlay: StockPlay?
+        let upper = name.uppercased().replacingOccurrences(of: " ", with: "")
+        if isOffensive {
+            stockPlay = db.offensivePlays.first(where: {
+                $0.name.uppercased().replacingOccurrences(of: " ", with: "") == upper
+            }) ?? db.offensivePlays.first(where: {
+                let su = $0.name.uppercased().replacingOccurrences(of: " ", with: "")
+                return su.contains(upper) || upper.contains(su)
+            })
+        } else {
+            stockPlay = db.defensivePlays.first(where: {
+                $0.name.uppercased().replacingOccurrences(of: " ", with: "") == upper
+            }) ?? db.defensivePlays.first(where: {
+                let su = $0.name.uppercased().replacingOccurrences(of: " ", with: "")
+                return su.contains(upper) || upper.contains(su)
+            })
+        }
+
+        guard let play = stockPlay, !play.players.isEmpty else { return nil }
+
+        let diagram = buildMiniDiagram(from: play, isOffensive: isOffensive)
+        cache[cacheKey] = diagram
+        return diagram
+    }
+
+    private func buildMiniDiagram(from play: StockPlay, isOffensive: Bool) -> MiniDiagramData {
+        var positions: [(CGPoint, StockPlayerEntry)] = []
+        for player in play.players {
+            if let pos = player.preSnapPosition {
+                positions.append((pos, player))
+            }
+        }
+
+        guard !positions.isEmpty else {
+            return MiniDiagramData(isOffensive: isOffensive, players: [])
+        }
+
+        // Collect all coords for bounds (pre-snap + routes)
+        var allXs: [CGFloat] = []
+        var allYs: [CGFloat] = []
+        for (pos, player) in positions {
+            allXs.append(pos.x)
+            allYs.append(pos.y)
+            if let post = player.postSnapPosition {
+                allXs.append(post.x); allYs.append(post.y)
+            }
+            if let rp = player.routePhasePosition {
+                allXs.append(rp.x); allYs.append(rp.y)
+            }
+            for wp in player.routeWaypoints {
+                allXs.append(wp.x); allYs.append(wp.y)
+            }
+            if let zone = player.zoneTarget {
+                allXs.append(zone.x); allYs.append(zone.y)
+            }
+        }
+
+        let minX = allXs.min() ?? 0, maxX = allXs.max() ?? 1
+        let minY = allYs.min() ?? 0, maxY = allYs.max() ?? 1
+        let rangeX = max(maxX - minX, 1)
+        let rangeY = max(maxY - minY, 1)
+        let padX = rangeX * 0.08, padY = rangeY * 0.08
+        let adjMinX = minX - padX, adjRangeX = rangeX + padX * 2
+        let adjMinY = minY - padY, adjRangeY = rangeY + padY * 2
+
+        // Find primary target
+        let primaryIdx: Int? = play.players.firstIndex(where: {
+            $0.assignments.contains(where: { $0.type == .passTarget })
+        })
+
+        func normalize(_ pt: CGPoint) -> CGPoint {
+            CGPoint(
+                x: (pt.x - adjMinX) / adjRangeX,
+                y: (pt.y - adjMinY) / adjRangeY
+            )
+        }
+
+        var diagramPlayers: [MiniDiagramData.MiniDiagramPlayer] = []
+
+        for (idx, (pos, player)) in positions.enumerated() {
+            let nPos = normalize(pos)
+
+            var routePoints: [CGPoint]? = nil
+            let hasRoute = player.postSnapPosition != nil ||
+                           player.routePhasePosition != nil ||
+                           !player.routeWaypoints.isEmpty
+
+            if hasRoute {
+                var route: [CGPoint] = [nPos]
+                if let post = player.postSnapPosition { route.append(normalize(post)) }
+                for wp in player.routeWaypoints { route.append(normalize(wp)) }
+                if let rEnd = player.routePhasePosition { route.append(normalize(rEnd)) }
+                if route.count > 1 { routePoints = route }
+            }
+
+            if !isOffensive && routePoints == nil, let zone = player.zoneTarget {
+                routePoints = [nPos, normalize(zone)]
+            }
+
+            diagramPlayers.append(MiniDiagramData.MiniDiagramPlayer(
+                normalizedPosition: nPos,
+                isSkillPosition: player.isSkillPosition,
+                isQB: player.positionCode == StockPositionType.QB.rawValue,
+                route: routePoints,
+                hasRushAssignment: player.hasRushAssignment,
+                isPrimaryTarget: primaryIdx != nil && idx == primaryIdx
+            ))
+        }
+
+        return MiniDiagramData(isOffensive: isOffensive, players: diagramPlayers)
+    }
+}
+
+// MARK: - Mini Play Diagram View (for green slots)
+
+/// Compact play diagram rendered inside a play calling green slot.
+/// Offensive: O marks with route lines. Defensive: X marks with rush arrows.
+struct MiniPlayDiagramView: View {
+    let diagram: MiniDiagramData
+    let isSelected: Bool
+
+    var body: some View {
+        Canvas { context, size in
+            let lineColor: Color = isSelected ? .black : .white
+            let primaryColor: Color = isSelected ? .black : VGA.digitalAmber
+            let dimColor: Color = isSelected ? .black.opacity(0.4) : .white.opacity(0.3)
+
+            // Draw LOS as thin horizontal line
+            let losY = size.height * 0.45
+            var losPath = Path()
+            losPath.move(to: CGPoint(x: 1, y: losY))
+            losPath.addLine(to: CGPoint(x: size.width - 1, y: losY))
+            context.stroke(losPath, with: .color(dimColor), lineWidth: 0.5)
+
+            for player in diagram.players {
+                // STOCK.DAT: X = lateral, Y = depth (negative = behind LOS)
+                let px = player.normalizedPosition.x * size.width
+                let py = (1.0 - player.normalizedPosition.y) * size.height
+
+                // Draw route lines first (behind marks)
+                if let route = player.route, route.count > 1 {
+                    var routePath = Path()
+                    let sx = route[0].x * size.width
+                    let sy = (1.0 - route[0].y) * size.height
+                    routePath.move(to: CGPoint(x: sx, y: sy))
+
+                    for i in 1..<route.count {
+                        let rx = route[i].x * size.width
+                        let ry = (1.0 - route[i].y) * size.height
+                        routePath.addLine(to: CGPoint(x: rx, y: ry))
+                    }
+
+                    let routeColor = player.isPrimaryTarget ? primaryColor : lineColor
+                    let lw: CGFloat = player.isPrimaryTarget ? 1.2 : 0.7
+
+                    if player.isPrimaryTarget {
+                        context.stroke(routePath, with: .color(routeColor), lineWidth: lw)
+                    } else {
+                        context.stroke(routePath, with: .color(routeColor),
+                                       style: StrokeStyle(lineWidth: lw, dash: [2, 1.5]))
+                    }
+
+                    // Small arrow at end of route
+                    if route.count >= 2 {
+                        let lastPt = route[route.count - 1]
+                        let prevPt = route[route.count - 2]
+                        let ex = lastPt.x * size.width
+                        let ey = (1.0 - lastPt.y) * size.height
+                        let bx = prevPt.x * size.width
+                        let by = (1.0 - prevPt.y) * size.height
+
+                        let angle = atan2(ey - by, ex - bx)
+                        let aLen: CGFloat = 3
+                        let aAng: CGFloat = .pi / 5
+
+                        var arrow = Path()
+                        arrow.move(to: CGPoint(x: ex, y: ey))
+                        arrow.addLine(to: CGPoint(
+                            x: ex - aLen * cos(angle - aAng),
+                            y: ey - aLen * sin(angle - aAng)
+                        ))
+                        arrow.move(to: CGPoint(x: ex, y: ey))
+                        arrow.addLine(to: CGPoint(
+                            x: ex - aLen * cos(angle + aAng),
+                            y: ey - aLen * sin(angle + aAng)
+                        ))
+                        context.stroke(arrow, with: .color(routeColor), lineWidth: lw)
+                    }
+                }
+
+                // Draw player mark
+                let ms: CGFloat = 2.5
+
+                if diagram.isOffensive {
+                    if player.isQB {
+                        let r = CGRect(x: px - ms, y: py - ms, width: ms * 2, height: ms * 2)
+                        context.fill(Path(ellipseIn: r), with: .color(lineColor))
+                    } else if player.isSkillPosition {
+                        let r = CGRect(x: px - ms, y: py - ms, width: ms * 2, height: ms * 2)
+                        context.stroke(Path(ellipseIn: r), with: .color(lineColor), lineWidth: 0.8)
+                    } else {
+                        let r = CGRect(x: px - 1.5, y: py - 1.5, width: 3, height: 3)
+                        context.fill(Path(ellipseIn: r), with: .color(lineColor))
+                    }
+                } else {
+                    // Defense: X marks
+                    var xPath = Path()
+                    xPath.move(to: CGPoint(x: px - ms, y: py - ms))
+                    xPath.addLine(to: CGPoint(x: px + ms, y: py + ms))
+                    xPath.move(to: CGPoint(x: px + ms, y: py - ms))
+                    xPath.addLine(to: CGPoint(x: px - ms, y: py + ms))
+                    context.stroke(xPath, with: .color(lineColor), lineWidth: 0.8)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {

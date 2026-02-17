@@ -18,7 +18,7 @@ struct MainMenuView: View {
     @State private var showSettingsSheet = false
     @State private var backgroundImage: CGImage?
 
-    private let menuItems = ["New Game", "Load Game", "Settings", "Quit"]
+    private let menuItems = ["Quick Start", "Exhibition", "League Play", "Load Game", "Settings", "Quit"]
 
     var body: some View {
         ZStack {
@@ -146,16 +146,38 @@ struct MainMenuView: View {
     private func handleSelection(_ index: Int) {
         switch index {
         case 0:
-            showNewGameSheet = true
+            // Quick Start: Buffalo vs Dallas (like original FPS '93)
+            quickStart()
         case 1:
-            showLoadGameSheet = true
+            // Exhibition: open team picker
+            gameState.navigateTo(.exhibitionSetup)
         case 2:
-            showSettingsSheet = true
+            // League Play (franchise mode)
+            showNewGameSheet = true
         case 3:
+            showLoadGameSheet = true
+        case 4:
+            showSettingsSheet = true
+        case 5:
             NSApplication.shared.terminate(nil)
         default:
             break
         }
+    }
+
+    private func quickStart() {
+        // Load authentic teams, pick Buffalo (Bills) vs Dallas (Cowboys)
+        let league = LeagueGenerator.loadAuthenticLeague() ?? LeagueGenerator.generateLeague()
+
+        let buffalo = league.teams.first { $0.city.uppercased().contains("BUFFALO") }
+        let dallas = league.teams.first { $0.city.uppercased().contains("DALLAS") }
+
+        // Fallback: use first two teams if Buffalo/Dallas not found
+        let awayTeam = buffalo ?? league.teams[0]
+        let homeTeam = dallas ?? (league.teams.count > 1 ? league.teams[1] : league.teams[0])
+
+        gameState.exhibitionLeague = league
+        gameState.startExhibitionGame(homeTeam: homeTeam, awayTeam: awayTeam)
     }
 }
 

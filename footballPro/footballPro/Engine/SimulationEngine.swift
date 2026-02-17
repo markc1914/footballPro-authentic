@@ -28,13 +28,32 @@ class SimulationEngine: ObservableObject {
         self.homeTeam = homeTeam
         self.awayTeam = awayTeam
 
+        // Generate detailed weather from city weather zone + game month
+        // NFL season: weeks 1-4 = Sep, 5-8 = Oct, 9-12 = Nov, 13-17 = Dec, 18+ = Jan
+        let gameMonth: Int
+        if week <= 4 { gameMonth = 9 }
+        else if week <= 8 { gameMonth = 10 }
+        else if week <= 12 { gameMonth = 11 }
+        else if week <= 17 { gameMonth = 12 }
+        else { gameMonth = 1 }
+
+        let detailedWeather = GameWeather.generate(
+            for: homeTeam.city,
+            weatherZone: homeTeam.weatherZone,
+            month: gameMonth
+        )
+
+        // Legacy Weather from zone (for backward compatibility)
+        let legacyWeather = Weather.forZone(homeTeam.weatherZone)
+
         currentGame = Game(
             homeTeamId: homeTeam.id,
             awayTeamId: awayTeam.id,
             week: week,
             seasonYear: seasonYear,
             quarterMinutes: quarterMinutes,
-            weather: Weather.forZone(homeTeam.weatherZone)
+            weather: legacyWeather,
+            gameWeather: detailedWeather
         )
         currentGame?.gameStatus = .pregame
     }
@@ -74,7 +93,8 @@ class SimulationEngine: ObservableObject {
             downAndDistance: game.downAndDistance,
             weather: game.weather,
             isHomePossession: game.isHomeTeamPossession,
-            fatigue: fatigueCtx
+            fatigue: fatigueCtx,
+            gameWeather: game.gameWeather
         )
 
         // Create play result
@@ -608,7 +628,8 @@ class SimulationEngine: ObservableObject {
             defensiveTeam: defTeam,
             fieldPosition: tempFieldPos,
             downAndDistance: tempDown,
-            weather: game.weather
+            weather: game.weather,
+            gameWeather: game.gameWeather
         )
 
         let success = outcome.isTouchdown || (outcome.isComplete && outcome.yardsGained >= 2)
@@ -655,8 +676,14 @@ class SimulationEngine: ObservableObject {
         let ratingModifier = 0.85 + Double(kickPower + kickAccuracy) / 1000.0
         successChance *= ratingModifier
 
-        // Weather effects
-        if game.weather.affectsKicking {
+        // Weather effects — use detailed GameWeather if available
+        if let gw = game.gameWeather {
+            successChance *= gw.kickDistanceModifier
+            // Wind crosswind penalty on accuracy
+            if gw.windSpeed > 10 {
+                successChance *= max(0.70, 1.0 - Double(gw.windSpeed) * 0.008)
+            }
+        } else if game.weather.affectsKicking {
             successChance *= 0.85
         }
 
@@ -721,9 +748,14 @@ class SimulationEngine: ObservableObject {
         let returner = receivingTeam.starter(at: .wideReceiver)
         let returnerName = "\(returner?.firstName ?? "") \(returner?.lastName ?? "Jones")".trimmingCharacters(in: .whitespaces)
 
-        // Calculate gross punt distance
+        // Calculate gross punt distance (with weather modifiers)
         let basePuntDistance = 40 + (kickPower - 70) / 2
-        let grossPunt = basePuntDistance + Int.random(in: -10...10)
+        var grossPunt = basePuntDistance + Int.random(in: -10...10)
+
+        // Apply weather kick distance modifier
+        if let gw = game.gameWeather {
+            grossPunt = Int(Double(grossPunt) * gw.kickDistanceModifier)
+        }
 
         // Calculate return yards (can be 0 for fair catch)
         let returnYards = Double.random(in: 0...1) < 0.25 ? 0 : Int.random(in: 0...15)

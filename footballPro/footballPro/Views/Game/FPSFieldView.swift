@@ -46,10 +46,23 @@ struct PerspectiveProjection {
 
     let focusYardFlatX: CGFloat
 
+    /// Camera mode: .perspective (default behind), .sideline (left-to-right), .overhead (flat top-down)
+    enum CameraMode {
+        case perspective    // Behind offense/defense — standard trapezoid
+        case sideline       // Side view — field runs left-to-right, perspective toward far sideline
+        case overhead       // Bird's eye — flat orthographic, no perspective
+    }
+    let cameraMode: CameraMode
+
+    /// For sideline views, whether field runs right-to-left (sideLeft) vs left-to-right (sideRight)
+    let sidelineFlipped: Bool
+
     init(screenWidth: CGFloat, screenHeight: CGFloat, losYardLine: Int, isFieldFlipped: Bool) {
         self.screenWidth = screenWidth
         self.screenHeight = screenHeight
         self.fieldCenterX = screenWidth / 2
+        self.cameraMode = .perspective
+        self.sidelineFlipped = false
 
         let endZone: CGFloat = 32
         let playField: CGFloat = 576
@@ -79,10 +92,74 @@ struct PerspectiveProjection {
         self.fieldBottom = screenHeight
         self.nearWidth = screenWidth * 1.05
         self.farWidth = screenWidth * 0.82
+        self.cameraMode = .perspective
+        self.sidelineFlipped = false
+    }
+
+    /// Camera-tracking init with camera mode support.
+    init(screenWidth: CGFloat, screenHeight: CGFloat, focusFlatX: CGFloat, cameraMode: CameraMode, sidelineFlipped: Bool = false) {
+        self.screenWidth = screenWidth
+        self.screenHeight = screenHeight
+        self.fieldCenterX = screenWidth / 2
+        self.focusYardFlatX = focusFlatX
+        self.fieldTop = 0
+        self.fieldBottom = screenHeight
+        self.cameraMode = cameraMode
+        self.sidelineFlipped = sidelineFlipped
+
+        switch cameraMode {
+        case .perspective:
+            self.nearWidth = screenWidth * 1.05
+            self.farWidth = screenWidth * 0.82
+        case .sideline:
+            // Sideline: perspective toward far sideline (top = far, narrower)
+            self.nearWidth = screenWidth * 1.02
+            self.farWidth = screenWidth * 0.88
+        case .overhead:
+            // Overhead: no perspective — uniform width
+            self.nearWidth = screenWidth * 0.95
+            self.farWidth = screenWidth * 0.95
+        }
+    }
+
+    /// LOS-based init with camera mode support.
+    init(screenWidth: CGFloat, screenHeight: CGFloat, losYardLine: Int, isFieldFlipped: Bool, cameraMode: CameraMode, sidelineFlipped: Bool = false) {
+        self.screenWidth = screenWidth
+        self.screenHeight = screenHeight
+        self.fieldCenterX = screenWidth / 2
+        self.cameraMode = cameraMode
+        self.sidelineFlipped = sidelineFlipped
+
+        let endZone: CGFloat = 32
+        let playField: CGFloat = 576
+        if isFieldFlipped {
+            self.focusYardFlatX = endZone + (CGFloat(100 - losYardLine) / 100.0) * playField
+        } else {
+            self.focusYardFlatX = endZone + (CGFloat(losYardLine) / 100.0) * playField
+        }
+
+        self.fieldTop = 0
+        self.fieldBottom = screenHeight
+
+        switch cameraMode {
+        case .perspective:
+            self.nearWidth = screenWidth * 1.05
+            self.farWidth = screenWidth * 0.82
+        case .sideline:
+            self.nearWidth = screenWidth * 1.02
+            self.farWidth = screenWidth * 0.88
+        case .overhead:
+            self.nearWidth = screenWidth * 0.95
+            self.farWidth = screenWidth * 0.95
+        }
     }
 
     func depthToScreenY(_ depth: CGFloat) -> CGFloat {
         let clamped = min(max(depth, 0), 1)
+        if cameraMode == .overhead {
+            // Overhead: linear mapping, no perspective compression
+            return fieldBottom + (fieldTop - fieldBottom) * clamped
+        }
         // Non-linear depth compression — more pronounced for isometric feel
         let t = pow(clamped, 0.80)
         return fieldBottom + (fieldTop - fieldBottom) * t
@@ -90,42 +167,111 @@ struct PerspectiveProjection {
 
     func widthAtDepth(_ depth: CGFloat) -> CGFloat {
         let clamped = min(max(depth, 0), 1)
+        if cameraMode == .overhead {
+            return nearWidth  // Uniform width for overhead
+        }
         let t = pow(clamped, 0.80)
         return nearWidth + (farWidth - nearWidth) * t
     }
 
     func scaleAtDepth(_ depth: CGFloat) -> CGFloat {
+        if cameraMode == .overhead {
+            return 0.60  // Smaller sprites for overhead bird's eye view
+        }
         let w = widthAtDepth(depth)
         return max(w / nearWidth, 0.50)
     }
 
     func flatXToDepth(_ flatX: CGFloat, isFieldFlipped: Bool) -> CGFloat {
+        if cameraMode == .sideline {
+            // Sideline: depth is cross-field (Y in blueprint) not along-field
+            // This is handled by sidelineFlatYToDepth instead
+            // For sorting, use a fixed mid-depth
+            return 0.5
+        }
+
         let flatYardsPerPixel = flatPlayFieldWidth / 100.0
+
+        let visibleBehind: CGFloat
+        let visibleAhead: CGFloat
+        if cameraMode == .overhead {
+            // Overhead shows more field (~50 yards)
+            visibleBehind = 25
+            visibleAhead = 25
+        } else {
+            visibleBehind = visibleYardsBehind
+            visibleAhead = visibleYardsAhead
+        }
 
         let nearFlatX: CGFloat
         let farFlatX: CGFloat
 
         if isFieldFlipped {
-            nearFlatX = focusYardFlatX + visibleYardsBehind * flatYardsPerPixel
-            farFlatX = focusYardFlatX - visibleYardsAhead * flatYardsPerPixel
+            nearFlatX = focusYardFlatX + visibleBehind * flatYardsPerPixel
+            farFlatX = focusYardFlatX - visibleAhead * flatYardsPerPixel
             let range = nearFlatX - farFlatX
             if range <= 0 { return 0.5 }
             return (nearFlatX - flatX) / range
         } else {
-            nearFlatX = focusYardFlatX - visibleYardsBehind * flatYardsPerPixel
-            farFlatX = focusYardFlatX + visibleYardsAhead * flatYardsPerPixel
+            nearFlatX = focusYardFlatX - visibleBehind * flatYardsPerPixel
+            farFlatX = focusYardFlatX + visibleAhead * flatYardsPerPixel
             let range = farFlatX - nearFlatX
             if range <= 0 { return 0.5 }
             return (flatX - nearFlatX) / range
         }
     }
 
+    /// For sideline views: convert cross-field Y to depth (0=near sideline, 1=far sideline).
+    func sidelineFlatYToDepth(_ flatY: CGFloat) -> CGFloat {
+        return flatY / flatFieldHeight
+    }
+
     func project(flatPos: CGPoint, isFieldFlipped: Bool) -> CGPoint {
+        if cameraMode == .sideline {
+            return projectSideline(flatPos: flatPos, isFieldFlipped: isFieldFlipped)
+        }
         let depth = flatXToDepth(flatPos.x, isFieldFlipped: isFieldFlipped)
         let lateral = (flatPos.y / flatFieldHeight) - 0.5
         let screenY = depthToScreenY(depth)
         let w = widthAtDepth(depth)
         let screenX = fieldCenterX + lateral * w
+        return CGPoint(x: screenX, y: screenY)
+    }
+
+    /// Sideline projection: field runs left-to-right on screen.
+    /// Blueprint X (along-field) -> screen X (horizontal).
+    /// Blueprint Y (cross-field) -> screen Y (vertical, near sideline at bottom).
+    private func projectSideline(flatPos: CGPoint, isFieldFlipped: Bool) -> CGPoint {
+        let flatYardsPerPixel = flatPlayFieldWidth / 100.0
+        let visibleYards: CGFloat = 30  // Sideline shows ~30 yards horizontally
+
+        let nearFlatX: CGFloat
+        let farFlatX: CGFloat
+        if isFieldFlipped {
+            nearFlatX = focusYardFlatX + (visibleYards / 2) * flatYardsPerPixel
+            farFlatX = focusYardFlatX - (visibleYards / 2) * flatYardsPerPixel
+        } else {
+            nearFlatX = focusYardFlatX - (visibleYards / 2) * flatYardsPerPixel
+            farFlatX = focusYardFlatX + (visibleYards / 2) * flatYardsPerPixel
+        }
+        let range = farFlatX - nearFlatX
+        let horizT: CGFloat = range != 0 ? (flatPos.x - nearFlatX) / range : 0.5
+
+        // Cross-field depth (Y in blueprint -> vertical on screen)
+        let crossFieldT = sidelineFlatYToDepth(flatPos.y)
+
+        // Screen X: left-to-right along the field
+        let screenX: CGFloat
+        if sidelineFlipped {
+            screenX = screenWidth * (1.0 - horizT)  // Flip horizontal for sideLeft
+        } else {
+            screenX = screenWidth * horizT
+        }
+
+        // Screen Y: perspective toward far sideline (top of screen = far)
+        let perspT = pow(crossFieldT, 0.85)
+        let screenY = fieldBottom + (fieldTop - fieldBottom) * perspT
+
         return CGPoint(x: screenX, y: screenY)
     }
 
@@ -139,18 +285,65 @@ struct PerspectiveProjection {
         return flatXToDepth(flatX, isFieldFlipped: isFieldFlipped)
     }
 
+    /// For sideline views: convert a yard line to a horizontal screen fraction (0..1).
+    func yardToSidelineX(_ yard: Int, isFieldFlipped: Bool) -> CGFloat {
+        let flatYardsPerPixel = flatPlayFieldWidth / 100.0
+        let visibleYards: CGFloat = 30
+
+        let flatX: CGFloat
+        if isFieldFlipped {
+            flatX = flatEndZoneWidth + (CGFloat(100 - yard) / 100.0) * flatPlayFieldWidth
+        } else {
+            flatX = flatEndZoneWidth + (CGFloat(yard) / 100.0) * flatPlayFieldWidth
+        }
+
+        let nearFlatX: CGFloat
+        let farFlatX: CGFloat
+        if isFieldFlipped {
+            nearFlatX = focusYardFlatX + (visibleYards / 2) * flatYardsPerPixel
+            farFlatX = focusYardFlatX - (visibleYards / 2) * flatYardsPerPixel
+        } else {
+            nearFlatX = focusYardFlatX - (visibleYards / 2) * flatYardsPerPixel
+            farFlatX = focusYardFlatX + (visibleYards / 2) * flatYardsPerPixel
+        }
+        let range = farFlatX - nearFlatX
+        let t: CGFloat = range != 0 ? (flatX - nearFlatX) / range : 0.5
+        return sidelineFlipped ? (1.0 - t) : t
+    }
+
+    /// Scale for sideline projection based on cross-field Y.
+    func sidelineScaleAtY(_ flatY: CGFloat) -> CGFloat {
+        let depth = sidelineFlatYToDepth(flatY)
+        let perspT = pow(depth, 0.85)
+        return max(1.0 - perspT * 0.4, 0.50)
+    }
+
     func visibleYardRange(isFieldFlipped: Bool) -> (Int, Int) {
         let flatYardsPerPixel = flatPlayFieldWidth / 100.0
+
+        let visibleBehind: CGFloat
+        let visibleAhead: CGFloat
+        switch cameraMode {
+        case .overhead:
+            visibleBehind = 25
+            visibleAhead = 25
+        case .sideline:
+            visibleBehind = 15
+            visibleAhead = 15
+        case .perspective:
+            visibleBehind = visibleYardsBehind
+            visibleAhead = visibleYardsAhead
+        }
 
         let nearFlatX: CGFloat
         let farFlatX: CGFloat
 
         if isFieldFlipped {
-            nearFlatX = focusYardFlatX + visibleYardsBehind * flatYardsPerPixel
-            farFlatX = focusYardFlatX - visibleYardsAhead * flatYardsPerPixel
+            nearFlatX = focusYardFlatX + visibleBehind * flatYardsPerPixel
+            farFlatX = focusYardFlatX - visibleAhead * flatYardsPerPixel
         } else {
-            nearFlatX = focusYardFlatX - visibleYardsBehind * flatYardsPerPixel
-            farFlatX = focusYardFlatX + visibleYardsAhead * flatYardsPerPixel
+            nearFlatX = focusYardFlatX - visibleBehind * flatYardsPerPixel
+            farFlatX = focusYardFlatX + visibleAhead * flatYardsPerPixel
         }
 
         let nearYardRaw: Int
@@ -214,6 +407,20 @@ struct FPSFieldView: View {
     /// Camera smoothing factor — lower = smoother/slower follow (0.05 = very smooth, 0.2 = snappy)
     private let cameraSmoothing: CGFloat = 0.08
 
+    /// Map the ViewModel's camera angle to a PerspectiveProjection.CameraMode.
+    private var currentCameraMode: PerspectiveProjection.CameraMode {
+        switch viewModel.cameraAngle {
+        case .overhead: return .overhead
+        case .sideRight, .sideLeft: return .sideline
+        default: return .perspective
+        }
+    }
+
+    /// Whether the sideline view is flipped (sideLeft = field runs right-to-left).
+    private var isSidelineFlipped: Bool {
+        viewModel.cameraAngle == .sideLeft
+    }
+
     /// Base scale multiplier for authentic sprites (original 320x200 VGA -> 640x360 blueprint space)
     private let spriteBaseScale: CGFloat = 2.5
 
@@ -238,7 +445,9 @@ struct FPSFieldView: View {
                         screenWidth: geo.size.width,
                         screenHeight: geo.size.height,
                         losYardLine: viewModel.game?.fieldPosition.yardLine ?? 50,
-                        isFieldFlipped: isFieldFlipped
+                        isFieldFlipped: isFieldFlipped,
+                        cameraMode: currentCameraMode,
+                        sidelineFlipped: isSidelineFlipped
                     )
 
                     // Field surface
@@ -254,8 +463,9 @@ struct FPSFieldView: View {
                     ForEach(0..<allPlayers.count, id: \.self) { idx in
                         let entry = allPlayers[idx]
                         let screenPos = staticProj.project(flatPos: entry.player.position, isFieldFlipped: isFieldFlipped)
-                        let depth = staticProj.flatXToDepth(entry.player.position.x, isFieldFlipped: isFieldFlipped)
-                        let scale = staticProj.scaleAtDepth(depth)
+                        let depthScale = computeDepthScale(proj: staticProj, flatPos: entry.player.position)
+                        let depth = depthScale.depth
+                        let scale = depthScale.scale
 
                         // Pre-snap poses: match authentic FPS '93 stances
                         let preSnapPose: PlayerPose = {
@@ -292,8 +502,9 @@ struct FPSFieldView: View {
 
                     // Static football at LOS
                     let ballScreen = staticProj.project(flatPos: ballPosition, isFieldFlipped: isFieldFlipped)
-                    let ballDepth = staticProj.flatXToDepth(ballPosition.x, isFieldFlipped: isFieldFlipped)
-                    let ballScale = staticProj.scaleAtDepth(ballDepth)
+                    let staticBallDS = computeDepthScale(proj: staticProj, flatPos: ballPosition)
+                    let ballDepth = staticBallDS.depth
+                    let ballScale = staticBallDS.scale
 
                     FootballSprite()
                         .position(ballScreen)
@@ -303,6 +514,22 @@ struct FPSFieldView: View {
                     // Amber LED clocks
                     animationClockOverlay
                 }
+            }
+            .scaleEffect(viewModel.zoomLevel)
+
+            // Camera angle indicator (top-right corner)
+            cameraIndicatorOverlay
+
+            // Camera angle flash text (centered, fades after 1.5s)
+            if let flashText = viewModel.cameraAngleFlashText {
+                Text(flashText)
+                    .font(RetroFont.header())
+                    .foregroundColor(VGA.digitalAmber)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.7))
+                    .transition(.opacity)
+                    .animation(.easeOut(duration: 0.3), value: viewModel.cameraAngleFlashText)
             }
         }
         .onAppear {
@@ -331,6 +558,45 @@ struct FPSFieldView: View {
             if let blueprint = newBlueprint {
                 startAnimation(blueprint: blueprint)
             }
+        }
+    }
+
+    // MARK: - Camera Indicator Overlay
+
+    /// Small text in top-right corner showing current camera angle and zoom level.
+    private var cameraIndicatorOverlay: some View {
+        VStack {
+            HStack {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(viewModel.cameraAngle.rawValue)
+                        .font(RetroFont.tiny())
+                        .foregroundColor(VGA.digitalAmber.opacity(0.7))
+                    if abs(viewModel.zoomLevel - 1.0) > 0.05 {
+                        Text(String(format: "ZOOM %.0f%%", viewModel.zoomLevel * 100))
+                            .font(RetroFont.tiny())
+                            .foregroundColor(VGA.digitalAmber.opacity(0.5))
+                    }
+                }
+                .padding(6)
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: - Depth/Scale Computation
+
+    /// Compute depth and scale for a player or object based on camera mode.
+    /// Returns (depth, scale) tuple. Depth is used for z-ordering; scale for sprite sizing.
+    private func computeDepthScale(proj: PerspectiveProjection, flatPos: CGPoint) -> (depth: CGFloat, scale: CGFloat) {
+        if proj.cameraMode == .sideline {
+            let d = proj.sidelineFlatYToDepth(flatPos.y)
+            let s = proj.sidelineScaleAtY(flatPos.y)
+            return (d, s)
+        } else {
+            let d = proj.flatXToDepth(flatPos.x, isFieldFlipped: isFieldFlipped)
+            let s = proj.scaleAtDepth(d)
+            return (d, s)
         }
     }
 
@@ -500,7 +766,9 @@ struct FPSFieldView: View {
         let animProj = PerspectiveProjection(
             screenWidth: geo.size.width,
             screenHeight: geo.size.height,
-            focusFlatX: smoothedFocusX
+            focusFlatX: smoothedFocusX,
+            cameraMode: currentCameraMode,
+            sidelineFlipped: isSidelineFlipped
         )
 
         // Determine current phase and ball carrier
@@ -523,6 +791,9 @@ struct FPSFieldView: View {
                 drawField(context: context, size: size, proj: animProj)
             }
 
+            // Update user-controlled player position each frame
+            let _ = updateUserControlledPlayer(dt: 1.0 / 30.0, blueprint: blueprint, progress: progress)
+
             // All 22 players with animated positions, poses, and ball carrier flag
             ForEach(0..<(defensePlayers.count + offensePlayers.count), id: \.self) { idx in
                 let isDefense = idx < defensePlayers.count
@@ -531,16 +802,32 @@ struct FPSFieldView: View {
                 let paths = isDefense ? blueprint.defensivePaths : blueprint.offensivePaths
 
                 let path = i < paths.count ? paths[i] : nil
-                let rawPos = path?.position(at: progress) ?? players[i].position
-                let moving = path?.isMoving(at: progress) ?? false
+                // Check if this player is user-controlled — use override position
+                let isUserControlled = isPlayerUserControlled(index: i, isDefense: isDefense)
+                let rawPos: CGPoint = {
+                    if isUserControlled, let userPos = viewModel.playerControl.userPosition {
+                        return userPos
+                    }
+                    return path?.position(at: progress) ?? players[i].position
+                }()
+                let moving: Bool = {
+                    if isUserControlled {
+                        return viewModel.playerControl.movement.directionVector != nil
+                    }
+                    return path?.isMoving(at: progress) ?? false
+                }()
                 let facing: Double = {
+                    if isUserControlled, let dir = viewModel.playerControl.movement.directionVector {
+                        return atan2(Double(dir.dy), Double(dir.dx))
+                    }
                     let f = path?.facingDirection(at: progress) ?? 0
                     if moving || abs(f) > 0.0001 { return f }
                     return isDefense ? .pi : 0
                 }()
                 let screenPos = animProj.project(flatPos: rawPos, isFieldFlipped: isFieldFlipped)
-                let depth = animProj.flatXToDepth(rawPos.x, isFieldFlipped: isFieldFlipped)
-                let scale = animProj.scaleAtDepth(depth)
+                let animDepthScale = computeDepthScale(proj: animProj, flatPos: rawPos)
+                let depth = animDepthScale.depth
+                let scale = animDepthScale.scale
 
                 // Determine if this player has the ball
                 let playerHasBall: Bool = {
@@ -579,14 +866,34 @@ struct FPSFieldView: View {
                     baseScale: spriteBaseScale * scale
                 )
                 .zIndex(Double(depth) * 1000)
+
+                // User-controlled player highlight — alternating red/orange border
+                if isUserControlled {
+                    UserControlledPlayerHighlight()
+                        .position(screenPos)
+                        .zIndex(Double(depth) * 1000 + 0.3)
+                }
+
+                // Passing mode receiver number overlay
+                if viewModel.playerControl.mode == .passingMode,
+                   !isDefense,
+                   let recIdx = viewModel.playerControl.eligibleReceiverIndices.firstIndex(of: i) {
+                    ReceiverTargetNumber(
+                        number: recIdx + 1,
+                        isHighlighted: recIdx == viewModel.playerControl.highlightedReceiverIndex
+                    )
+                    .position(x: screenPos.x, y: screenPos.y - 20 * scale)
+                    .zIndex(Double(depth) * 1000 + 0.4)
+                }
             }
 
             // Football (only draw separately when not held by a player)
             if carrier == nil {
                 let rawBallPos = ballFlatPos
                 let ballScreen = animProj.project(flatPos: rawBallPos, isFieldFlipped: isFieldFlipped)
-                let ballDepth = animProj.flatXToDepth(rawBallPos.x, isFieldFlipped: isFieldFlipped)
-                let ballScale = animProj.scaleAtDepth(ballDepth)
+                let animBallDS = computeDepthScale(proj: animProj, flatPos: rawBallPos)
+                let ballDepth = animBallDS.depth
+                let ballScale = animBallDS.scale
 
                 FootballSprite()
                     .position(ballScreen)
@@ -634,6 +941,9 @@ struct FPSFieldView: View {
         if let game = viewModel.game {
             viewModel.cameraFocusX = yardToFlatX(game.fieldPosition.yardLine)
         }
+
+        // Initialize player control for this play
+        viewModel.initializePlayerControl(blueprint: blueprint)
     }
 
     private func endAnimation() {
@@ -646,6 +956,7 @@ struct FPSFieldView: View {
         viewModel.offAnimStates = []
         viewModel.defAnimStates = []
         viewModel.currentAnimationBlueprint = nil
+        viewModel.playerControl.reset()
         setupFieldPositions()
     }
 
@@ -1409,10 +1720,121 @@ struct FPSFieldView: View {
         return SpriteCache.shared.sprite(animation: animName, frame: frame, view: viewIdx, colorTable: colorTable)
     }
 
+    // MARK: - Player Control Helpers
+
+    /// Check if a given player index is the user-controlled player.
+    private func isPlayerUserControlled(index: Int, isDefense: Bool) -> Bool {
+        let ctrl = viewModel.playerControl
+        guard ctrl.mode != .none else { return false }
+
+        switch ctrl.mode {
+        case .quarterback, .ballCarrier, .passingMode:
+            return !isDefense && index == ctrl.controlledPlayerIndex
+        case .defender:
+            return isDefense && index == ctrl.controlledPlayerIndex
+        case .none:
+            return false
+        }
+    }
+
+    /// Update user-controlled player position based on movement input.
+    /// Called each animation frame (~30fps).
+    @discardableResult
+    private func updateUserControlledPlayer(dt: CGFloat, blueprint: PlayAnimationBlueprint, progress: Double) -> Bool {
+        let ctrl = viewModel.playerControl
+        guard ctrl.mode != .none else { return false }
+
+        // Initialize user position from blueprint if not yet set
+        if ctrl.userPosition == nil {
+            let paths: [AnimatedPlayerPath]
+            switch ctrl.mode {
+            case .quarterback, .ballCarrier, .passingMode:
+                paths = blueprint.offensivePaths
+            case .defender:
+                paths = blueprint.defensivePaths
+            case .none:
+                return false
+            }
+            if ctrl.controlledPlayerIndex < paths.count {
+                ctrl.userPosition = paths[ctrl.controlledPlayerIndex].position(at: progress)
+            }
+        }
+
+        // Field bounds in blueprint space
+        let fieldBounds = CGRect(x: 0, y: 0, width: flatFieldWidth, height: flatFieldHeight)
+
+        // Speed rating — use a reasonable default (70 = average)
+        let speedRating = 70
+
+        // Update position based on movement input
+        let _ = ctrl.updatePosition(dt: dt, speedRating: speedRating, fieldBounds: fieldBounds)
+
+        // Handle secondary button (X) — switch defender or stiff arm
+        if ctrl.secondaryPressed {
+            ctrl.secondaryPressed = false
+            if ctrl.mode == .defender {
+                // Switch to nearest defender to ball
+                let ballPos = blueprint.ballPath.flatPosition(
+                    at: progress,
+                    offensivePaths: blueprint.offensivePaths,
+                    defensivePaths: blueprint.defensivePaths
+                )
+                viewModel.switchToNearestDefender(
+                    ballPosition: ballPos,
+                    defensivePaths: blueprint.defensivePaths,
+                    progress: progress
+                )
+            }
+            // Ball carrier stiff arm — currently visual only (no gameplay effect yet)
+        }
+
+        // Handle action button (Space) — tackle attempt for defense
+        if ctrl.actionPressed {
+            ctrl.actionPressed = false
+            // Dive/tackle is visual-only for now (no gameplay outcome change)
+        }
+
+        // Auto-switch from QB to ball carrier when ball is handed off / ball carrier changes
+        if let carrier = blueprint.ballPath.ballCarrier(at: progress) {
+            if carrier.isOffense && viewModel.isUserPossession {
+                let carrierIdx = carrier.playerIndex
+                if ctrl.mode == .quarterback && carrierIdx != ctrl.controlledPlayerIndex {
+                    // Ball was handed off — switch to ball carrier
+                    let paths = blueprint.offensivePaths
+                    if carrierIdx < paths.count {
+                        let pos = paths[carrierIdx].position(at: progress)
+                        ctrl.switchToBallCarrier(index: carrierIdx, currentPosition: pos)
+                    }
+                }
+            }
+        }
+
+        return true
+    }
+
     // MARK: - Field Setup
 
+    /// Whether the field perspective is flipped (defense view).
+    /// Accounts for camera angle: behindDefense / behindHome / behindVisiting may flip.
     private var isFieldFlipped: Bool {
-        !viewModel.isUserPossession
+        let baseFlip = !viewModel.isUserPossession
+        // For behind-offense (default), use the base logic
+        // For behind-defense, invert it
+        // For behind-home/visiting, the ViewModel resolves it
+        switch viewModel.cameraAngle {
+        case .behindOffense:
+            return baseFlip
+        case .behindDefense:
+            return !baseFlip
+        case .behindHome:
+            // Behind home: home end zone is near camera (bottom)
+            // If home is offense (baseFlip=false for user=home), we want camera behind home
+            return viewModel.effectiveCameraIsBehindDefense ? !baseFlip : baseFlip
+        case .behindVisiting:
+            return viewModel.effectiveCameraIsBehindDefense ? !baseFlip : baseFlip
+        case .sideRight, .sideLeft, .overhead:
+            return baseFlip  // Side/overhead use default orientation for coordinate mapping
+        }
     }
 
     private func setupFieldPositions() {
@@ -2028,6 +2450,42 @@ struct PlayerControlIndicator: View {
                 .padding(.bottom, 40)
             }
         }
+    }
+}
+
+// MARK: - User-Controlled Player Highlight (alternating red/orange border around controlled player)
+
+struct UserControlledPlayerHighlight: View {
+    @State private var phase = false
+
+    var body: some View {
+        Rectangle()
+            .stroke(phase ? VGA.orange : VGA.brightRed, lineWidth: 2)
+            .frame(width: 28, height: 28)
+            .onAppear {
+                Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+                    phase.toggle()
+                }
+            }
+    }
+}
+
+// MARK: - Receiver Target Number (shown over eligible receivers in passing mode)
+
+struct ReceiverTargetNumber: View {
+    let number: Int
+    let isHighlighted: Bool
+
+    var body: some View {
+        Text("\(number)")
+            .font(.system(size: 11, weight: .bold, design: .monospaced))
+            .foregroundColor(isHighlighted ? .black : VGA.white)
+            .frame(width: 16, height: 16)
+            .background(isHighlighted ? VGA.digitalAmber : VGA.panelVeryDark.opacity(0.8))
+            .overlay(
+                Rectangle()
+                    .stroke(isHighlighted ? VGA.digitalAmber : VGA.darkGray, lineWidth: 1)
+            )
     }
 }
 

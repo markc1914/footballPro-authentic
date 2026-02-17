@@ -13,59 +13,79 @@ struct FPSPlayCallingScreen: View {
     @ObservedObject var viewModel: GameViewModel
     @State private var selectedSlot: Int? = nil
     @State private var showSpecialTeams = false
+    @State private var showSubstitution = false
+    @State private var showEditAudibles = false
 
     var body: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                // TOP BAND: Button bar + user play grid
-                topButtonBar
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
+        ZStack {
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    // TOP BAND: Button bar + user play grid
+                    topButtonBar
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
 
-                // User play slot grid (2 cols x 8 rows) with status overlay
-                ZStack {
-                    playSlotGrid
+                    // User play slot grid (2 cols x 8 rows) with status overlay
+                    ZStack {
+                        playSlotGrid
 
-                    // Status message overlaid in CENTER of user's grid (like original)
-                    statusMessageOverlay
-                }
-                .padding(.horizontal, 4)
-                .frame(maxHeight: .infinity)
-
-                // MIDDLE BAND: Scoreboard
-                FPSScoreboardBar(viewModel: viewModel)
-
-                // BOTTOM BAND: Opponent play grid (2 cols x 8 rows) with notification overlay
-                opponentSlotGrid
+                        // Status message overlaid in CENTER of user's grid (like original)
+                        statusMessageOverlay
+                    }
                     .padding(.horizontal, 4)
                     .frame(maxHeight: .infinity)
 
-                // Bottom button bar (mirror)
-                bottomButtonBar
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
-            }
-            .background(VGA.panelBg)
-            .onAppear {
-                if viewModel.game?.isKickoff == true || viewModel.game?.isExtraPoint == true {
-                    showSpecialTeams = true
+                    // MIDDLE BAND: Scoreboard
+                    FPSScoreboardBar(viewModel: viewModel)
+
+                    // BOTTOM BAND: Opponent play grid (2 cols x 8 rows) with notification overlay
+                    opponentSlotGrid
+                        .padding(.horizontal, 4)
+                        .frame(maxHeight: .infinity)
+
+                    // Bottom button bar (mirror)
+                    bottomButtonBar
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 4)
+                }
+                .background(VGA.panelBg)
+                .onAppear {
+                    if viewModel.game?.isKickoff == true || viewModel.game?.isExtraPoint == true {
+                        showSpecialTeams = true
+                    }
+                }
+                .onKeyPress(.leftArrow) {
+                    viewModel.previousPage(isSpecialTeams: showSpecialTeams)
+                    selectedSlot = nil
+                    return .handled
+                }
+                .onKeyPress(.rightArrow) {
+                    viewModel.nextPage(isSpecialTeams: showSpecialTeams)
+                    selectedSlot = nil
+                    return .handled
+                }
+                .onKeyPress(.tab) {
+                    showSpecialTeams.toggle()
+                    viewModel.currentPlaybookPage = 0
+                    selectedSlot = nil
+                    return .handled
                 }
             }
-            .onKeyPress(.leftArrow) {
-                viewModel.previousPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-                return .handled
+
+            // Substitution overlay panel
+            if showSubstitution {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showSubstitution = false }
+                FPSSubstitutionPanel(viewModel: viewModel, isPresented: $showSubstitution)
             }
-            .onKeyPress(.rightArrow) {
-                viewModel.nextPage(isSpecialTeams: showSpecialTeams)
-                selectedSlot = nil
-                return .handled
-            }
-            .onKeyPress(.tab) {
-                showSpecialTeams.toggle()
-                viewModel.currentPlaybookPage = 0
-                selectedSlot = nil
-                return .handled
+
+            // Edit Audibles overlay panel
+            if showEditAudibles {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showEditAudibles = false }
+                FPSEditAudiblesPanel(viewModel: viewModel, isPresented: $showEditAudibles)
             }
         }
     }
@@ -73,9 +93,7 @@ struct FPSPlayCallingScreen: View {
     // MARK: - Top Button Bar
 
     private var topButtonBar: some View {
-        HStack(spacing: 0) {
-            Spacer()
-
+        HStack(spacing: 4) {
             FPSButton("TIME OUT") {
                 viewModel.callTimeout()
             }
@@ -83,6 +101,15 @@ struct FPSPlayCallingScreen: View {
             .disabled(viewModel.possessingTeamTimeouts <= 0)
 
             Spacer()
+
+            FPSButton("SUBS") {
+                showSubstitution = true
+            }
+
+            FPSButton("AUDIBLES") {
+                showEditAudibles = true
+            }
+
             Spacer()
 
             FPSButton("READY - BREAK!") {
@@ -90,8 +117,6 @@ struct FPSPlayCallingScreen: View {
             }
             .opacity(selectedSlot != nil ? 1.0 : 0.5)
             .disabled(selectedSlot == nil)
-
-            Spacer()
         }
     }
 
@@ -208,23 +233,51 @@ struct FPSPlayCallingScreen: View {
     // MARK: - Green Slot View
 
     private func greenSlot(number: Int, name: String) -> some View {
-        Button(action: {
-            if !name.isEmpty && name != "---" {
+        let isSelected = selectedSlot == number
+        let hasPlay = !name.isEmpty && name != "---"
+        let rawPlayName = rawPlayNameForSlot(number)
+        let isOffensive = viewModel.isUserPossession
+        let diagram = hasPlay ? MiniDiagramCache.shared.diagram(
+            forPlayName: rawPlayName, isOffensive: isOffensive
+        ) : nil
+
+        return Button(action: {
+            if hasPlay {
                 selectedSlot = number
             }
         }) {
-            HStack {
-                if !name.isEmpty && name != "---" {
-                    Text(name)
-                        .font(RetroFont.small())
-                        .foregroundColor(selectedSlot == number ? .black : .white)
-                        .lineLimit(1)
+            VStack(spacing: 0) {
+                if hasPlay {
+                    if let diagram = diagram {
+                        // Diagram + play name layout
+                        MiniPlayDiagramView(diagram: diagram, isSelected: isSelected)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        Text(name)
+                            .font(RetroFont.tiny())
+                            .foregroundColor(isSelected ? .black : .white)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .padding(.bottom, 1)
+                    } else {
+                        // Text-only fallback (no STOCK.DAT data)
+                        HStack {
+                            Text(name)
+                                .font(RetroFont.small())
+                                .foregroundColor(isSelected ? .black : .white)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else {
+                    Spacer()
                 }
-                Spacer()
             }
-            .padding(.horizontal, 6)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(selectedSlot == number ? VGA.playSlotSelected : VGA.playSlotGreen)
+            .background(isSelected ? VGA.playSlotSelected : VGA.playSlotGreen)
             .border(VGA.playSlotDark, width: 1)
         }
         .buttonStyle(PlainButtonStyle())
@@ -327,6 +380,20 @@ struct FPSPlayCallingScreen: View {
         return ""
     }
 
+    /// Returns the raw (8-char) play name for STOCK.DAT lookup, not the human-readable display name.
+    private func rawPlayNameForSlot(_ number: Int) -> String {
+        let globalIndex = globalIndexForSlot(number)
+        if viewModel.isUserPossession {
+            let plays = showSpecialTeams ? viewModel.availableSpecialTeamsPlays : viewModel.availableOffensivePlays
+            guard globalIndex >= 0 && globalIndex < plays.count else { return "" }
+            return plays[globalIndex].play.name
+        } else {
+            let plays = viewModel.availableDefensivePlays
+            guard globalIndex >= 0 && globalIndex < plays.count else { return "" }
+            return plays[globalIndex].play.name
+        }
+    }
+
     /// Resolve the global index of a slot on the current page
     private func globalIndexForSlot(_ slot: Int) -> Int {
         return viewModel.currentPlaybookPage * viewModel.playsPerPage + (slot - 1)
@@ -347,15 +414,13 @@ struct FPSPlayCallingScreen: View {
                 // Check for special teams actions by name
                 let upper = play.play.name.uppercased()
                 if upper.contains("PUNT") {
-                    Task { await viewModel.punt() }
+                    viewModel.startKickingMinigame(.punt)
                 } else if upper.contains("FG") || upper.contains("PAT") {
-                    Task { await viewModel.attemptFieldGoal() }
+                    viewModel.startKickingMinigame(.fieldGoal)
                 } else if upper.contains("ONSIDE") {
                     Task { await viewModel.executeOnsideKick() }
                 } else if upper.contains("KICK") {
-                    // Kickoff — run as regular play for now
-                    viewModel.selectedOffensivePlay = play
-                    Task { await viewModel.runPlay() }
+                    viewModel.startKickingMinigame(.kickoff)
                 } else {
                     viewModel.selectedOffensivePlay = play
                     Task { await viewModel.runPlay() }

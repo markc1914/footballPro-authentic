@@ -299,7 +299,7 @@ struct FreeAgencyView: View {
                             detailLabel("WT", value: "\(agent.player.weight)lb")
                         }
 
-                        Divider().background(VGA.panelDark)
+                        DOSSeparator()
 
                         // Key ratings for position
                         Text("RATINGS")
@@ -309,7 +309,7 @@ struct FreeAgencyView: View {
 
                         ratingsGrid(for: agent.player)
 
-                        Divider().background(VGA.panelDark)
+                        DOSSeparator()
 
                         // Contract terms
                         Text("CONTRACT")

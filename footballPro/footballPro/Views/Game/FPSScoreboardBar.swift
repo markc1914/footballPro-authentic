@@ -12,9 +12,16 @@ import SwiftUI
 struct FPSScoreboardBar: View {
     @ObservedObject var viewModel: GameViewModel
 
-    // Random wind generated once per game (cosmetic display)
-    @State private var windDirection: String = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].randomElement()!
-    @State private var windSpeed: Int = Int.random(in: 0...15)
+    // Wind display — uses GameWeather if available, falls back to random
+    @State private var fallbackWindDirection: String = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].randomElement()!
+    @State private var fallbackWindSpeed: Int = Int.random(in: 0...15)
+
+    private var windDirection: String {
+        viewModel.game?.gameWeather?.windDirectionName ?? fallbackWindDirection
+    }
+    private var windSpeed: Int {
+        viewModel.game?.gameWeather?.windSpeed ?? fallbackWindSpeed
+    }
 
     var body: some View {
         if let game = viewModel.game {

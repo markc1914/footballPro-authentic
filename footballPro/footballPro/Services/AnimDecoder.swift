@@ -545,8 +545,17 @@ struct AnimDecoder {
                 guard pi < sprite.pixels.count else { continue }
                 let palIdx = Int(sprite.pixels[pi])
                 let dstOff = (y * w + x) * 4
-                if palIdx == 0 {
-                    // Transparent
+                // When team color overrides are active, CT1-4 map indices 1-15, 20-31, 46-47
+                // to transparent (palette 0). With identity CT decompression, these values pass
+                // through as-is, so we must explicitly treat them as transparent here.
+                let isTransparent: Bool = {
+                    if palIdx == 0 { return true }
+                    guard colorOverrides != nil else { return false }
+                    return (palIdx >= 1 && palIdx <= 15) ||
+                           (palIdx >= 20 && palIdx <= 31) ||
+                           (palIdx >= 46 && palIdx <= 47)
+                }()
+                if isTransparent {
                     rgba[dstOff] = 0
                     rgba[dstOff + 1] = 0
                     rgba[dstOff + 2] = 0

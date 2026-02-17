@@ -58,12 +58,16 @@ struct SaveLoadView: View {
         }
         .background(VGA.screenBg)
         .onAppear { refreshSlots() }
-        .sheet(isPresented: $showSaveConfirm) {
-            saveConfirmDialog
-        }
-        .sheet(isPresented: $showDeleteConfirm) {
-            deleteConfirmDialog
-        }
+        .overlay(
+            Group {
+                if showSaveConfirm {
+                    saveConfirmDialog
+                }
+                if showDeleteConfirm {
+                    deleteConfirmDialog
+                }
+            }
+        )
     }
 
     // MARK: - Top Bar
@@ -223,7 +227,8 @@ struct SaveLoadView: View {
 
     private var saveConfirmDialog: some View {
         ZStack {
-            VGA.screenBg.ignoresSafeArea()
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
 
             FPSDialog("CONFIRM OVERWRITE") {
                 VStack(spacing: 16) {
@@ -249,12 +254,12 @@ struct SaveLoadView: View {
                 .frame(width: 340)
             }
         }
-        .frame(width: 380, height: 180)
     }
 
     private var deleteConfirmDialog: some View {
         ZStack {
-            VGA.screenBg.ignoresSafeArea()
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
 
             FPSDialog("CONFIRM DELETE") {
                 VStack(spacing: 16) {
@@ -280,7 +285,6 @@ struct SaveLoadView: View {
                 .frame(width: 340)
             }
         }
-        .frame(width: 380, height: 180)
     }
 
     // MARK: - Actions (UserDefaults-based slot persistence)

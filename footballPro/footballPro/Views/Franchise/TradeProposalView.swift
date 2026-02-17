@@ -143,31 +143,47 @@ struct TradeProposalView: View {
     // MARK: - Team Selector
 
     private var teamSelector: some View {
-        HStack {
-            Text("TRADE PARTNER:")
-                .font(RetroFont.bodyBold())
-                .foregroundColor(VGA.lightGray)
+        VStack(spacing: 0) {
+            HStack {
+                Text("TRADE PARTNER:")
+                    .font(RetroFont.bodyBold())
+                    .foregroundColor(VGA.lightGray)
 
-            Picker("", selection: $selectedPartnerIndex) {
-                ForEach(Array(partnerTeams.enumerated()), id: \.offset) { index, team in
-                    Text("\(team.abbreviation) \(team.fullName)")
-                        .font(RetroFont.body())
-                        .tag(index)
+                Spacer()
+
+                FPSButton("< PREV") {
+                    if selectedPartnerIndex > 0 {
+                        selectedPartnerIndex -= 1
+                        requestedPlayerIds.removeAll()
+                        tradeResultMessage = nil
+                        showingResult = false
+                    }
                 }
-            }
-            .pickerStyle(.menu)
-            .frame(maxWidth: 280)
-            .onChange(of: selectedPartnerIndex) { _, _ in
-                requestedPlayerIds.removeAll()
-                tradeResultMessage = nil
-                showingResult = false
-            }
 
-            Spacer()
+                Text(partnerTeam.map { "\($0.abbreviation) \($0.fullName)" } ?? "---")
+                    .font(RetroFont.bodyBold())
+                    .foregroundColor(VGA.digitalAmber)
+                    .frame(minWidth: 180)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(VGA.panelVeryDark)
+                    .modifier(DOSPanelBorder(.sunken, width: 1))
+
+                FPSButton("NEXT >") {
+                    if selectedPartnerIndex < partnerTeams.count - 1 {
+                        selectedPartnerIndex += 1
+                        requestedPlayerIds.removeAll()
+                        tradeResultMessage = nil
+                        showingResult = false
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(VGA.panelDark)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(VGA.panelDark)
     }
 
     // MARK: - Roster Column

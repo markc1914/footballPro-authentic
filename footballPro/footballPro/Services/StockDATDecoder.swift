@@ -531,11 +531,26 @@ extension StockDATDecoder {
         let lateralScale: CGFloat = 0.082
         // Depth: stock Y -> blueprint X. QB at stock Y=-244 is ~28px behind LOS.
         // Use stock Y=-141 as the LOS depth reference (where OL lines up).
-        let depthScale: CGFloat = 0.27
+        // Use logarithmic compression for backfield to prevent extreme depths:
+        // Stock Y=-500 (RB) should map to ~35-40px behind LOS, not 97px.
         let relativeDepth = stockPoint.y - stockLOSDepth
 
+        let blueprintDepth: CGFloat
+        if relativeDepth < 0 {
+            // Backfield: use sqrt compression so deep positions stay reasonable
+            // sqrt(359) ~ 19, * 2.3 ~ 44px -- keeps RBs within ~7 yards of LOS
+            let absDepth = abs(relativeDepth)
+            let compressed = sqrt(absDepth) * 2.3
+            // Clamp to max 45px behind LOS (~7-8 yards in blueprint space)
+            blueprintDepth = -min(compressed, 45)
+        } else {
+            // Downfield: linear scale for forward positions
+            let forwardScale: CGFloat = 0.27
+            blueprintDepth = relativeDepth * forwardScale
+        }
+
         return CGPoint(
-            x: losX + relativeDepth * depthScale,
+            x: losX + blueprintDepth,
             y: centerY + stockPoint.x * lateralScale
         )
     }

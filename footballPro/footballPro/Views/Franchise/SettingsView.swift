@@ -223,7 +223,7 @@ struct FranchiseSettingsView: View {
         HStack(spacing: 8) {
             ZStack {
                 // Track background
-                RoundedRectangle(cornerRadius: 0)
+                Rectangle()
                     .fill(VGA.panelVeryDark)
                     .frame(height: 12)
                     .modifier(DOSPanelBorder(.sunken, width: 1))

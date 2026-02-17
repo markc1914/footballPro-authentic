@@ -194,7 +194,7 @@ struct PlayoffBracketView: View {
         .background(VGA.panelVeryDark)
         .modifier(DOSPanelBorder(.raised, width: 1))
         .overlay(
-            RoundedRectangle(cornerRadius: 0)
+            Rectangle()
                 .stroke(isUserGame ? VGA.digitalAmber : Color.clear, lineWidth: isUserGame ? 2 : 0)
         )
     }

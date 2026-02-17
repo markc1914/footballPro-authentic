@@ -332,12 +332,13 @@ public struct Game: Identifiable, Codable, Equatable {
 
     public var gameStatus: GameStatus
     public var weather: Weather
+    public var gameWeather: GameWeather?
 
     // Stats tracking
     public var homeTeamStats: TeamGameStats
     public var awayTeamStats: TeamGameStats
 
-    public init(homeTeamId: UUID, awayTeamId: UUID, week: Int, seasonYear: Int, quarterMinutes: Int = 15, weather: Weather? = nil) {
+    public init(homeTeamId: UUID, awayTeamId: UUID, week: Int, seasonYear: Int, quarterMinutes: Int = 15, weather: Weather? = nil, gameWeather: GameWeather? = nil) {
         self.id = UUID()
         self.homeTeamId = homeTeamId
         self.awayTeamId = awayTeamId
@@ -367,6 +368,7 @@ public struct Game: Identifiable, Codable, Equatable {
 
         self.gameStatus = .pregame
         self.weather = weather ?? Weather.random()
+        self.gameWeather = gameWeather
 
         self.homeTeamStats = TeamGameStats()
         self.awayTeamStats = TeamGameStats()

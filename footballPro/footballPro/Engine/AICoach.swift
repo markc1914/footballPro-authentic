@@ -2,7 +2,8 @@
 //  AICoach.swift
 //  footballPro
 //
-//  CPU play calling AI with situational awareness
+//  CPU play calling AI with situational awareness.
+//  Uses CoachingProfile (2,520 situation lookup) when available, falls back to heuristic logic.
 //
 
 import Foundation
@@ -12,12 +13,22 @@ class AICoach {
     // Track recent play types to avoid repetition (last 5 calls)
     private var recentPlayTypes: [String] = []
 
+    // Active coaching profiles (set from GameViewModel before play selection)
+    var offensiveProfile: CoachingProfile?
+    var defensiveProfile: CoachingProfile?
+
     /// Record a play type and trim to last 5
     private func recordPlayType(_ playType: String) {
         recentPlayTypes.append(playType)
         if recentPlayTypes.count > 5 {
             recentPlayTypes.removeFirst()
         }
+    }
+
+    /// Set the coaching profiles for the AI team
+    func setProfiles(offensive: CoachingProfile?, defensive: CoachingProfile?) {
+        self.offensiveProfile = offensive
+        self.defensiveProfile = defensive
     }
 
     // MARK: - Offensive Play Selection
@@ -41,6 +52,41 @@ class AICoach {
             return fallbackOffensivePlay(for: team, situation: situation)
         }
 
+        // --- Coaching Profile path: use situational lookup ---
+        if let profile = offensiveProfile {
+            let key = CoachingSituationKey.from(situation: situation)
+            if let coachingPlayType = profile.rollOffensivePlayType(for: key) {
+                // Map coaching play type to authentic playbook categories
+                let matchingCategories = coachingPlayType.matchingCategories
+                let filtered = nonSTPlays.filter { matchingCategories.contains($0.category) }
+                let candidates = filtered.isEmpty ? nonSTPlays : filtered
+
+                // Apply repetition penalty (reduce weight by 50% for recently called plays)
+                let weights: [Double] = candidates.map { play in
+                    recentPlayTypes.contains(play.name) ? 0.5 : 1.0
+                }
+                let totalWeight = weights.reduce(0, +)
+                guard totalWeight > 0 else {
+                    // Shouldn't happen, but fall through to heuristic
+                    return selectOffensivePlayHeuristic(for: team, situation: situation, playbook: nonSTPlays)
+                }
+                var roll = Double.random(in: 0..<totalWeight)
+                var pick = candidates.last!
+                for (i, w) in weights.enumerated() {
+                    roll -= w
+                    if roll <= 0 { pick = candidates[i]; break }
+                }
+                recordPlayType(pick.name)
+                return AuthenticPlayCall(play: pick)
+            }
+        }
+
+        // --- Heuristic fallback (original logic) ---
+        return selectOffensivePlayHeuristic(for: team, situation: situation, playbook: nonSTPlays)
+    }
+
+    /// Original heuristic-based offensive play selection (used when no coaching profile is set)
+    private func selectOffensivePlayHeuristic(for team: Team, situation: GameSituation, playbook: [AuthenticPlayDefinition]) -> any PlayCall {
         // Evaluate team strengths
         let passingStrength = evaluatePassingGame(team)
         let rushingStrength = evaluateRushingGame(team)
@@ -82,8 +128,8 @@ class AICoach {
         }
 
         // Filter by preferred categories
-        let filtered = nonSTPlays.filter { preferredCategories.contains($0.category) }
-        let chosen = filtered.isEmpty ? nonSTPlays : filtered
+        let filtered = playbook.filter { preferredCategories.contains($0.category) }
+        let chosen = filtered.isEmpty ? playbook : filtered
 
         // Weight selection: reduce weight of recently called play types by 50%
         let weights: [Double] = chosen.map { play in
@@ -129,6 +175,25 @@ class AICoach {
         let formation: OffensiveFormation
         let playType: PlayType
 
+        // If coaching profile is set, use it even for fallback (StandardPlayCall path)
+        if let profile = offensiveProfile {
+            let key = CoachingSituationKey.from(situation: situation)
+            if let coachingPlayType = profile.rollOffensivePlayType(for: key) {
+                let matchingPlayTypes = coachingPlayType.matchingPlayTypes
+                let selectedPlayType = matchingPlayTypes.randomElement() ?? .insideRun
+                let selectedFormation: OffensiveFormation
+                if coachingPlayType == .goalLineRun || coachingPlayType == .goalLinePass {
+                    selectedFormation = .goalLine
+                } else if coachingPlayType.isRun {
+                    selectedFormation = [.singleback, .iFormation].randomElement()!
+                } else {
+                    selectedFormation = [.shotgun, .singleback].randomElement()!
+                }
+                recordPlayType(String(describing: selectedPlayType))
+                return StandardPlayCall(formation: selectedFormation, playType: selectedPlayType)
+            }
+        }
+
         // Kill clock: lean fully into the run game
         if situation.shouldRunClock {
             formation = [.singleback, .iFormation, .goalLine, .jumbo].randomElement()!
@@ -164,6 +229,28 @@ class AICoach {
             return fallbackDefensivePlay(situation: situation)
         }
 
+        // --- Coaching Profile path: use situational lookup ---
+        if let profile = defensiveProfile {
+            let key = CoachingSituationKey.from(situation: situation)
+            if let defPlayType = profile.rollDefensivePlayType(for: key) {
+                // Map coaching defensive play type to preferred formations
+                let preferredFormations = defPlayType.preferredFormations
+                let filtered = nonSTPlays.filter { play in
+                    let formation = DefensiveFormation.fromPrfFormationCode(play.formationCode)
+                    return preferredFormations.contains(formation)
+                }
+                let candidates = filtered.isEmpty ? nonSTPlays : filtered
+                let pick = candidates.randomElement()!
+                return AuthenticDefensiveCall(play: pick)
+            }
+        }
+
+        // --- Heuristic fallback (original logic) ---
+        return selectDefensivePlayHeuristic(situation: situation, playbook: nonSTPlays)
+    }
+
+    /// Original heuristic-based defensive play selection
+    private func selectDefensivePlayHeuristic(situation: GameSituation, playbook: [AuthenticPlayDefinition]) -> any DefensiveCall {
         // Situational formation preferences
         let preferredFormations: [DefensiveFormation]
 
@@ -182,11 +269,11 @@ class AICoach {
         }
 
         // Filter by preferred formation
-        let filtered = nonSTPlays.filter { play in
+        let filtered = playbook.filter { play in
             let formation = DefensiveFormation.fromPrfFormationCode(play.formationCode)
             return preferredFormations.contains(formation)
         }
-        let chosen = filtered.isEmpty ? nonSTPlays : filtered
+        let chosen = filtered.isEmpty ? playbook : filtered
 
         let pick = chosen.randomElement()!
         return AuthenticDefensiveCall(play: pick)
@@ -194,6 +281,17 @@ class AICoach {
 
     /// Legacy fallback for when no authentic defensive playbook is loaded
     private func fallbackDefensivePlay(situation: GameSituation) -> any DefensiveCall {
+        // If coaching profile is set, use it for formation/coverage selection
+        if let profile = defensiveProfile {
+            let key = CoachingSituationKey.from(situation: situation)
+            if let defPlayType = profile.rollDefensivePlayType(for: key) {
+                let formation = defPlayType.preferredFormations.randomElement() ?? .base43
+                let coverage = defPlayType.matchingCoverages.randomElement() ?? .coverTwo
+                let isBlitz = coverage == .blitz || coverage == .zoneBlitz
+                return StandardDefensiveCall(formation: formation, coverage: coverage, isBlitzing: isBlitz)
+            }
+        }
+
         let formation: DefensiveFormation
         let coverage: PlayType
 
@@ -234,32 +332,32 @@ class AICoach {
             }
         }
 
-        // Field goal range (roughly inside 35-yard line = 52 yard FG)
+        // Use coaching profile FG range if available, otherwise calculate
+        let profileFGRange = offensiveProfile?.fgRange ?? 45
         let fieldGoalDistance = 100 - fieldPosition + 17
-        let kickerAccuracy = kicker?.ratings.kickAccuracy ?? 70
-        let kickerPower = kicker?.ratings.kickPower ?? 70
 
-        var fgMakeChance: Double
-        if fieldGoalDistance <= 35 {
-            fgMakeChance = 0.90
-        } else if fieldGoalDistance <= 45 {
-            fgMakeChance = 0.75
-        } else if fieldGoalDistance <= 55 {
-            fgMakeChance = 0.50
-        } else {
-            fgMakeChance = 0.20
-        }
-
-        // Adjust for kicker rating
-        fgMakeChance *= Double(kickerAccuracy + kickerPower) / 140.0
-
-        // If in good FG range
-        if fgMakeChance > 0.6 && fieldPosition >= 60 {
-            // But short yardage might go for it
-            if yardsToGo <= 1 && fieldPosition >= 70 {
-                return Bool.random() ? .goForIt : .fieldGoal
+        // Check coaching profile FG range first
+        if fieldGoalDistance <= profileFGRange && fieldPosition >= 60 {
+            let kickerAccuracy = kicker?.ratings.kickAccuracy ?? 70
+            let kickerPower = kicker?.ratings.kickPower ?? 70
+            var fgMakeChance: Double
+            if fieldGoalDistance <= 35 {
+                fgMakeChance = 0.90
+            } else if fieldGoalDistance <= 45 {
+                fgMakeChance = 0.75
+            } else if fieldGoalDistance <= 55 {
+                fgMakeChance = 0.50
+            } else {
+                fgMakeChance = 0.20
             }
-            return .fieldGoal
+            fgMakeChance *= Double(kickerAccuracy + kickerPower) / 140.0
+
+            if fgMakeChance > 0.5 {
+                if yardsToGo <= 1 && fieldPosition >= 70 {
+                    return Bool.random() ? .goForIt : .fieldGoal
+                }
+                return .fieldGoal
+            }
         }
 
         // Go for it calculations

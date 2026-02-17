@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct GameDayView: View {
     @EnvironmentObject var gameState: GameState
@@ -25,6 +26,9 @@ struct GameDayView: View {
                 case .pregameNarration:
                     PregameNarrationView(viewModel: viewModel)
 
+                case .coinToss:
+                    CoinTossView(viewModel: viewModel)
+
                 case .playCalling:
                     FPSPlayCallingScreen(viewModel: viewModel)
 
@@ -34,14 +38,66 @@ struct GameDayView: View {
                         FPSVCRToolbar(viewModel: viewModel)
                         // Pre-snap situation text box (FPS '93 style)
                         FPSPresnapSituationBox(viewModel: viewModel)
+                        // Audible flash text (appears when arrow key is pressed)
+                        if let audibleText = viewModel.audibleCalledText {
+                            FPSAudibleFlash(text: audibleText)
+                        }
                     }
+                    .onKeyPress(.upArrow) {
+                        if viewModel.isUserPossession {
+                            viewModel.callOffensiveAudible(direction: .up)
+                        } else {
+                            viewModel.callDefensiveAudible(direction: .up)
+                        }
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        if viewModel.isUserPossession {
+                            viewModel.callOffensiveAudible(direction: .down)
+                        } else {
+                            viewModel.callDefensiveAudible(direction: .down)
+                        }
+                        return .handled
+                    }
+                    .onKeyPress(.leftArrow) {
+                        if viewModel.isUserPossession {
+                            viewModel.callOffensiveAudible(direction: .left)
+                        } else {
+                            viewModel.callDefensiveAudible(direction: .left)
+                        }
+                        return .handled
+                    }
+                    .onKeyPress(.rightArrow) {
+                        if viewModel.isUserPossession {
+                            viewModel.callOffensiveAudible(direction: .right)
+                        } else {
+                            viewModel.callDefensiveAudible(direction: .right)
+                        }
+                        return .handled
+                    }
+                    // Camera controls during pre-snap
+                    .onKeyPress(characters: .init(charactersIn: "cC")) { _ in viewModel.cycleCamera(); return .handled }
+                    .onKeyPress(characters: .init(charactersIn: "oO")) { _ in viewModel.toggleOverhead(); return .handled }
+                    .onKeyPress(characters: .init(charactersIn: "=+")) { _ in viewModel.zoomIn(); return .handled }
+                    .onKeyPress(characters: .init(charactersIn: "-")) { _ in viewModel.zoomOut(); return .handled }
 
                 case .playAnimation:
                     ZStack {
                         FPSFieldView(viewModel: viewModel)
                         // VCR toolbar at top during play animation (FPS '93 style)
                         FPSVCRToolbar(viewModel: viewModel)
+                        // Control mode indicator (bottom-left, near player silhouette)
+                        PlayerControlModeIndicator(controlState: viewModel.playerControl)
+                        // Receiver indicators when in passing mode
+                        if viewModel.playerControl.mode == .passingMode {
+                            PassingModeHUD(controlState: viewModel.playerControl)
+                        }
                     }
+                    .focusable()
+                    .overlay(
+                        PlayAnimationKeyHandler(viewModel: viewModel)
+                            .frame(width: 0, height: 0)
+                    )
 
                 case .playResult:
                     ZStack {
@@ -104,7 +160,7 @@ struct GameDayView: View {
                                     .font(RetroFont.header())
                                     .foregroundColor(VGA.digitalAmber)
                                 FPSButton("KICK EXTRA POINT") {
-                                    Task { await viewModel.kickExtraPoint() }
+                                    viewModel.startKickingMinigame(.extraPoint)
                                 }
                                 FPSButton("GO FOR TWO") {
                                     Task { await viewModel.attemptTwoPointConversion() }
@@ -170,10 +226,23 @@ struct GameDayView: View {
                         }
                     }
 
+                case .kicking(let kickType):
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSKickingView(viewModel: viewModel, kickType: kickType) { angle, aimOffset in
+                            viewModel.completeKick(type: kickType, angle: angle, aimOffset: aimOffset)
+                        }
+                    }
+
                 case .paused:
                     ZStack {
                         Color.black.ignoresSafeArea()
                         PauseMenuView(viewModel: viewModel)
+                    }
+
+                case .kicking(let kickType):
+                    FPSKickingView(viewModel: viewModel, kickType: kickType) { angle, aim in
+                        // Kick result handled by FPSKickingView internally
                     }
                 }
 
@@ -191,6 +260,13 @@ struct GameDayView: View {
                         viewModel.transitionTo(.halftime)
                     }
                 }
+
+                // Game Settings overlay (F1 key)
+                if viewModel.showGameSettings {
+                    FPSGameSettingsView(viewModel: viewModel) {
+                        viewModel.showGameSettings = false
+                    }
+                }
             } else {
                 Text("No game loaded")
                     .font(RetroFont.header())
@@ -201,6 +277,10 @@ struct GameDayView: View {
             setupGame()
             loadKickingScreens()
         }
+        .overlay(
+            F1KeyHandler(viewModel: viewModel)
+                .frame(width: 0, height: 0)
+        )
     }
 
     private var isCurrentGameChampionship: Bool {
@@ -613,6 +693,262 @@ struct FPSVCRToolbar: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Audible Flash Overlay (FPS '93 style — flashes on field when audible is called)
+
+struct FPSAudibleFlash: View {
+    let text: String
+
+    @State private var opacity: Double = 1.0
+
+    var body: some View {
+        VStack {
+            Text(text)
+                .font(RetroFont.header())
+                .foregroundColor(VGA.digitalAmber)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(VGA.panelVeryDark.opacity(0.9))
+                .modifier(DOSPanelBorder(.raised, width: 1))
+                .opacity(opacity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.2)) {
+                opacity = 0.0
+            }
+        }
+    }
+}
+
+// MARK: - Play Animation Key Handler (NSEvent-based for proper key up/down tracking)
+
+struct PlayAnimationKeyHandler: NSViewRepresentable {
+    @ObservedObject var viewModel: GameViewModel
+
+    func makeNSView(context: Context) -> PlayAnimationKeyView {
+        let view = PlayAnimationKeyView()
+        view.viewModel = viewModel
+        DispatchQueue.main.async {
+            view.window?.makeFirstResponder(view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: PlayAnimationKeyView, context: Context) {
+        nsView.viewModel = viewModel
+    }
+}
+
+class PlayAnimationKeyView: NSView {
+    weak var viewModel: GameViewModel?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard let vm = viewModel else { return }
+        // Prevent key repeat for action buttons
+        let isRepeat = event.isARepeat
+
+        switch event.keyCode {
+        // Arrow keys
+        case 126: vm.playerControl.movement.up = true       // Up
+        case 125: vm.playerControl.movement.down = true     // Down
+        case 123: vm.playerControl.movement.left = true     // Left
+        case 124: vm.playerControl.movement.right = true    // Right
+        // WASD
+        case 13: vm.playerControl.movement.up = true        // W
+        case 1:  vm.playerControl.movement.down = true      // S
+        case 0:  vm.playerControl.movement.left = true      // A
+        case 2:  vm.playerControl.movement.right = true     // D
+        // Space (action) — no repeat
+        case 49:
+            if !isRepeat { vm.handleActionButton() }
+        // X (secondary) — no repeat
+        case 7:
+            if !isRepeat { vm.handleSecondaryButton() }
+        // Tab — switch defender
+        case 48:
+            if !isRepeat {
+                if let bp = vm.currentAnimationBlueprint {
+                    let ballPos = bp.ballPath.flatPosition(
+                        at: 0.5,
+                        offensivePaths: bp.offensivePaths,
+                        defensivePaths: bp.defensivePaths
+                    )
+                    vm.switchToNearestDefender(
+                        ballPosition: ballPos,
+                        defensivePaths: bp.defensivePaths,
+                        progress: 0.5
+                    )
+                }
+            }
+        // Number keys 1-5 for throwing
+        case 18: if !isRepeat { vm.handleThrowToReceiver(1) }
+        case 19: if !isRepeat { vm.handleThrowToReceiver(2) }
+        case 20: if !isRepeat { vm.handleThrowToReceiver(3) }
+        case 21: if !isRepeat { vm.handleThrowToReceiver(4) }
+        case 23: if !isRepeat { vm.handleThrowToReceiver(5) }
+        // Camera controls (FPS '93 original game settings)
+        case 8:  if !isRepeat { vm.cycleCamera() }           // C — cycle camera angle
+        case 31: if !isRepeat { vm.toggleOverhead() }         // O — toggle overhead view
+        case 24: vm.zoomIn()                                   // + / = key
+        case 27: vm.zoomOut()                                  // - key
+        default:
+            break
+        }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        guard let vm = viewModel else { return }
+
+        switch event.keyCode {
+        // Arrow keys
+        case 126: vm.playerControl.movement.up = false
+        case 125: vm.playerControl.movement.down = false
+        case 123: vm.playerControl.movement.left = false
+        case 124: vm.playerControl.movement.right = false
+        // WASD
+        case 13: vm.playerControl.movement.up = false
+        case 1:  vm.playerControl.movement.down = false
+        case 0:  vm.playerControl.movement.left = false
+        case 2:  vm.playerControl.movement.right = false
+        default:
+            break
+        }
+    }
+}
+
+// MARK: - Player Control Mode Indicator (bottom-left HUD during play animation)
+
+struct PlayerControlModeIndicator: View {
+    @ObservedObject var controlState: PlayerControlState
+
+    private var modeText: String {
+        switch controlState.mode {
+        case .none: return ""
+        case .quarterback: return "QB CONTROL"
+        case .ballCarrier: return "BALL CARRIER"
+        case .defender: return "DEFENSE"
+        case .passingMode: return "PASSING MODE"
+        }
+    }
+
+    private var hintText: String {
+        switch controlState.mode {
+        case .none: return ""
+        case .quarterback: return "WASD:Move  SPACE:Pass Mode  1-5:Throw"
+        case .ballCarrier: return "WASD:Run  SPACE:Dive  X:Stiff Arm"
+        case .defender: return "WASD:Move  SPACE:Tackle  TAB:Switch"
+        case .passingMode: return "SPACE:Cycle  1-5:Throw to WR"
+        }
+    }
+
+    var body: some View {
+        if controlState.mode != .none {
+            VStack {
+                Spacer()
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(modeText)
+                            .font(RetroFont.small())
+                            .foregroundColor(VGA.digitalAmber)
+                        Text(hintText)
+                            .font(RetroFont.tiny())
+                            .foregroundColor(VGA.lightGray)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(VGA.panelVeryDark.opacity(0.85))
+                    .modifier(DOSPanelBorder(.raised, width: 1))
+
+                    Spacer()
+                }
+                .padding(.leading, 8)
+                .padding(.bottom, 36) // Above the clock displays
+            }
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+// MARK: - Passing Mode HUD (shows receiver numbers when QB is in passing mode)
+
+struct PassingModeHUD: View {
+    @ObservedObject var controlState: PlayerControlState
+
+    var body: some View {
+        VStack {
+            HStack(spacing: 8) {
+                ForEach(0..<controlState.eligibleReceiverIndices.count, id: \.self) { i in
+                    let isHighlighted = i == controlState.highlightedReceiverIndex
+                    Text("\(i + 1)")
+                        .font(RetroFont.header())
+                        .foregroundColor(isHighlighted ? VGA.digitalAmber : VGA.lightGray)
+                        .frame(width: 24, height: 24)
+                        .background(isHighlighted ? VGA.playSlotGreen : VGA.panelVeryDark)
+                        .overlay(
+                            Rectangle()
+                                .stroke(isHighlighted ? VGA.digitalAmber : VGA.darkGray, lineWidth: 1.5)
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(VGA.panelVeryDark.opacity(0.9))
+            .modifier(DOSPanelBorder(.raised, width: 1))
+
+            Spacer()
+        }
+        .padding(.top, 28) // Below VCR toolbar
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - F1 Key Handler (NSEvent-based for function key detection)
+
+struct F1KeyHandler: NSViewRepresentable {
+    @ObservedObject var viewModel: GameViewModel
+
+    func makeNSView(context: Context) -> F1KeyView {
+        let view = F1KeyView()
+        view.viewModel = viewModel
+        return view
+    }
+
+    func updateNSView(_ nsView: F1KeyView, context: Context) {
+        nsView.viewModel = viewModel
+    }
+}
+
+class F1KeyView: NSView {
+    weak var viewModel: GameViewModel?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        guard let vm = viewModel, !event.isARepeat else {
+            super.keyDown(with: event)
+            return
+        }
+
+        // F1 key = keyCode 122
+        if event.keyCode == 122 {
+            DispatchQueue.main.async {
+                vm.showGameSettings.toggle()
+            }
+            return
+        }
+
+        super.keyDown(with: event)
     }
 }
 

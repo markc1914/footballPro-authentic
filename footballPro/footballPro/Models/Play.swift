@@ -300,6 +300,40 @@ public enum DefensiveFormation: String, Codable, CaseIterable { // Public
         case .goalLineDef: return 45
         }
     }
+
+    /// Number of defensive linemen in this formation
+    public var dLineCount: Int {
+        switch self {
+        case .base43: return 4
+        case .base34: return 3
+        case .nickel: return 4
+        case .dime: return 4
+        case .goalLine: return 5
+        case .prevent: return 3
+        case .base46: return 4
+        case .base33: return 3
+        case .base44: return 4
+        case .flex: return 4
+        case .goalLineDef: return 5
+        }
+    }
+
+    /// Number of linebackers in this formation
+    public var lbCount: Int {
+        switch self {
+        case .base43: return 3
+        case .base34: return 4
+        case .nickel: return 2
+        case .dime: return 1
+        case .goalLine: return 3
+        case .prevent: return 2
+        case .base46: return 3
+        case .base33: return 3
+        case .base44: return 4
+        case .flex: return 3
+        case .goalLineDef: return 3
+        }
+    }
 }
 
 // NEW HELPER: Map UInt16 defensive formation code to DefensiveFormation enum
@@ -486,6 +520,54 @@ public enum PenaltyType: String, Codable, CaseIterable {
             return false
         }
     }
+}
+
+// MARK: - Audible Set (FPS '93 arrow-key audible system)
+
+/// Stores the four audible plays assigned to arrow keys.
+/// Offensive: Up=Long Pass, Down=Short Pass, Left=Run Outside, Right=Run Inside
+/// Defensive: Up=Man Coverage, Down=Zone Coverage, Left=Outside Run D, Right=Inside Run D
+public struct AudibleSet: Codable, Equatable {
+    public var up: AudibleSlot?      // Long pass / Man-to-man
+    public var down: AudibleSlot?    // Short pass / Zone
+    public var left: AudibleSlot?    // Run outside / Outside run D
+    public var right: AudibleSlot?   // Run inside / Inside run D
+
+    public static var empty: AudibleSet {
+        AudibleSet(up: nil, down: nil, left: nil, right: nil)
+    }
+}
+
+/// Arrow key direction for audible calls
+public enum AudibleDirection: String, CaseIterable {
+    case up, down, left, right
+
+    public var offensiveLabel: String {
+        switch self {
+        case .up: return "LONG PASS"
+        case .down: return "SHORT PASS"
+        case .left: return "RUN OUTSIDE"
+        case .right: return "RUN INSIDE"
+        }
+    }
+
+    public var defensiveLabel: String {
+        switch self {
+        case .up: return "MAN COVERAGE"
+        case .down: return "ZONE COVERAGE"
+        case .left: return "OUTSIDE RUN D"
+        case .right: return "INSIDE RUN D"
+        }
+    }
+}
+
+/// An audible slot stores enough info to identify and display the audible play.
+public struct AudibleSlot: Codable, Equatable {
+    public var playName: String
+    public var playType: PlayType
+    public var formationName: String
+    /// Index into the authentic playbook array for quick lookup
+    public var playbookIndex: Int
 }
 
 // MARK: - Playbook

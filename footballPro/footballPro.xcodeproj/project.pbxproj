@@ -17,6 +17,8 @@
 		MOD004 /* Play.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC005; };
 		MOD005 /* Season.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC006; };
 		MOD006 /* League.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC007; };
+		MOD007 /* WeatherSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC082; };
+		MOD008 /* CoachingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC084; };
 
 		/* Engine */
 		ENG001 /* SimulationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC008; };
@@ -87,6 +89,12 @@
 		VIW019 /* DepthChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC071; };
 		VIW020 /* SaveLoadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC072; };
 		VIW021 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC073; };
+		VIW022 /* ExhibitionSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC078; };
+		VIW023 /* CoinTossView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC079; };
+		VIW024 /* FPSKickingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW006FR; };
+		VIW025 /* PlayerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC081; };
+		MOD007 /* WeatherSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC082; };
+		INP004 /* PlayerControlState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC083; };
 
 		/* Additional Views */
 		VIW007 /* GameAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -122,6 +130,9 @@
 		NEW003BF /* FPSPlayResultOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW003FR /* FPSPlayResultOverlay.swift */; };
 		NEW004BF /* FPSRefereeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW004FR /* FPSRefereeOverlay.swift */; };
 		NEW005BF /* FPSReplayControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW005FR /* FPSReplayControls.swift */; };
+		NEW007BF /* FPSSubstitutionPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW007FR /* FPSSubstitutionPanel.swift */; };
+		NEW008BF /* FPSEditAudiblesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW008FR /* FPSEditAudiblesPanel.swift */; };
+		NEW009BF /* FPSGameSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW009FR /* FPSGameSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -223,6 +234,12 @@
 		SRC071 /* DepthChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthChartView.swift; sourceTree = "<group>"; };
 		SRC072 /* SaveLoadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveLoadView.swift; sourceTree = "<group>"; };
 		SRC073 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		SRC078 /* ExhibitionSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExhibitionSetupView.swift; sourceTree = "<group>"; };
+		SRC079 /* CoinTossView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoinTossView.swift; sourceTree = "<group>"; };
+		SRC081 /* PlayerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerEditorView.swift; sourceTree = "<group>"; };
+		SRC082 /* WeatherSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSystem.swift; sourceTree = "<group>"; };
+		SRC083 /* PlayerControlState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlState.swift; sourceTree = "<group>"; };
+		SRC084 /* CoachingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingProfile.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -243,6 +260,10 @@
 		NEW003FR /* FPSPlayResultOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSPlayResultOverlay.swift; sourceTree = SOURCE_ROOT; };
 		NEW004FR /* FPSRefereeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSRefereeOverlay.swift; sourceTree = SOURCE_ROOT; };
 		NEW005FR /* FPSReplayControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSReplayControls.swift; sourceTree = SOURCE_ROOT; };
+		NEW006FR /* FPSKickingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSKickingView.swift; sourceTree = SOURCE_ROOT; };
+		NEW007FR /* FPSSubstitutionPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSSubstitutionPanel.swift; sourceTree = SOURCE_ROOT; };
+		NEW008FR /* FPSEditAudiblesPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSEditAudiblesPanel.swift; sourceTree = SOURCE_ROOT; };
+		NEW009FR /* FPSGameSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = footballPro/Views/Game/FPSGameSettingsView.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -299,6 +320,8 @@
 				SRC006 /* Season.swift */,
 				SRC007 /* League.swift */,
 				B433A2E0D0AA1760A54BDB2F /* PlayAnimationBlueprint.swift */,
+				SRC082 /* WeatherSystem.swift */,
+				SRC084 /* CoachingProfile.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -325,6 +348,7 @@
 				SRC013 /* InputManager.swift */,
 				SRC014 /* ControllerManager.swift */,
 				SRC015 /* KeyboardShortcuts.swift */,
+				SRC083 /* PlayerControlState.swift */,
 			);
 			path = Input;
 			sourceTree = "<group>";
@@ -419,6 +443,7 @@
 			isa = PBXGroup;
 			children = (
 				SRC020 /* MainMenuView.swift */,
+				SRC078 /* ExhibitionSetupView.swift */,
 			);
 			path = MainMenu;
 			sourceTree = "<group>";
@@ -430,6 +455,10 @@
 				SRC033 /* RetroFieldView.swift */,
 				SRC034 /* FieldView3D.swift */,
 				SRC036 /* InteractiveFieldView.swift */,
+				SRC079 /* CoinTossView.swift */,
+				NEW007FR /* FPSSubstitutionPanel.swift */,
+				NEW008FR /* FPSEditAudiblesPanel.swift */,
+				NEW009FR /* FPSGameSettingsView.swift */,
 			);
 			path = Game;
 			sourceTree = "<group>";
@@ -467,6 +496,7 @@
 				SRC071 /* DepthChartView.swift */,
 				SRC072 /* SaveLoadView.swift */,
 				SRC073 /* SettingsView.swift */,
+				SRC081 /* PlayerEditorView.swift */,
 			);
 			path = Franchise;
 			sourceTree = "<group>";
@@ -569,6 +599,8 @@
 				MOD004 /* Play.swift in Sources */,
 				MOD005 /* Season.swift in Sources */,
 				MOD006 /* League.swift in Sources */,
+				MOD007 /* WeatherSystem.swift in Sources */,
+				MOD008 /* CoachingProfile.swift in Sources */,
 				ENG001 /* SimulationEngine.swift in Sources */,
 				ENG002 /* PlayResolver.swift in Sources */,
 				ENG003 /* StatCalculator.swift in Sources */,
@@ -617,6 +649,9 @@
 				NEW003BF /* FPSPlayResultOverlay.swift in Sources */,
 				NEW004BF /* FPSRefereeOverlay.swift in Sources */,
 				NEW005BF /* FPSReplayControls.swift in Sources */,
+				NEW007BF /* FPSSubstitutionPanel.swift in Sources */,
+				NEW008BF /* FPSEditAudiblesPanel.swift in Sources */,
+				NEW009BF /* FPSGameSettingsView.swift in Sources */,
 				SVC017 /* ScreenshotService.swift in Sources */,
 				SVC018 /* ScreenshotHarness.swift in Sources */,
 				SVC019 /* MsgDecoder.swift in Sources */,
@@ -641,6 +676,11 @@
 				VIW019 /* DepthChartView.swift in Sources */,
 				VIW020 /* SaveLoadView.swift in Sources */,
 				VIW021 /* SettingsView.swift in Sources */,
+				VIW022 /* ExhibitionSetupView.swift in Sources */,
+				VIW023 /* CoinTossView.swift in Sources */,
+				VIW024 /* FPSKickingView.swift in Sources */,
+				VIW025 /* PlayerEditorView.swift in Sources */,
+				INP004 /* PlayerControlState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

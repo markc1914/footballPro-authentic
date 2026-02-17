@@ -94,6 +94,10 @@ struct ContentView: View {
                 TeamManagementView()
             case .gameDay:
                 GameDayContainerView()
+            case .exhibitionSetup:
+                ExhibitionSetupView()
+            case .exhibitionGame:
+                ExhibitionGameContainerView()
             case .season:
                 SeasonView()
             case .management:
@@ -188,6 +192,8 @@ enum GameScreen {
     case mainMenu
     case teamManagement
     case gameDay
+    case exhibitionSetup
+    case exhibitionGame
     case season
     case management
 }
@@ -238,6 +244,28 @@ class GameState: ObservableObject {
 
     // Current franchise name for saves
     @Published var franchiseName: String = ""
+
+    // Exhibition mode state
+    @Published var isExhibitionMode = false
+    @Published var exhibitionHomeTeam: Team?
+    @Published var exhibitionAwayTeam: Team?
+    @Published var exhibitionLeague: League?  // holds teams for picker
+
+    func startExhibitionGame(homeTeam: Team, awayTeam: Team) {
+        self.isExhibitionMode = true
+        self.exhibitionHomeTeam = homeTeam
+        self.exhibitionAwayTeam = awayTeam
+        // Exhibition games don't need league/season/saves
+        self.currentScreen = .exhibitionGame
+    }
+
+    func endExhibitionGame() {
+        self.isExhibitionMode = false
+        self.exhibitionHomeTeam = nil
+        self.exhibitionAwayTeam = nil
+        self.exhibitionLeague = nil
+        self.currentScreen = .mainMenu
+    }
 
     func startNewGame(teamId: UUID, league: League, franchiseName: String, modelContext: ModelContext) {
         self.currentLeague = league
@@ -1239,6 +1267,287 @@ struct GameDayContainerView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Exhibition Game Container View
+
+struct ExhibitionGameContainerView: View {
+    @EnvironmentObject var gameState: GameState
+
+    var body: some View {
+        if gameState.exhibitionHomeTeam != nil && gameState.exhibitionAwayTeam != nil {
+            ExhibitionGameDayView()
+        } else {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                VStack(spacing: 16) {
+                    Text("NO TEAMS SELECTED")
+                        .font(RetroFont.header())
+                        .foregroundColor(VGA.lightGray)
+                    FPSButton("BACK TO MENU") {
+                        gameState.endExhibitionGame()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Exhibition Game Day View (standalone, no league/season dependency)
+
+struct ExhibitionGameDayView: View {
+    @EnvironmentObject var gameState: GameState
+    @StateObject private var viewModel = GameViewModel()
+    @State private var ballImage: CGImage?
+    @State private var kickImage: CGImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let game = viewModel.game {
+                switch viewModel.currentPhase {
+                case .pregameNarration:
+                    PregameNarrationView(viewModel: viewModel)
+
+                case .coinToss:
+                    CoinTossView(viewModel: viewModel)
+
+                case .playCalling:
+                    FPSPlayCallingScreen(viewModel: viewModel)
+
+                case .presnap:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
+                        FPSPresnapSituationBox(viewModel: viewModel)
+                    }
+
+                case .playAnimation:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
+                    }
+
+                case .playResult:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
+                        FPSPlayResultOverlay(viewModel: viewModel)
+                    }
+
+                case .refereeCall(let message):
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSVCRToolbar(viewModel: viewModel)
+                        FPSRefereeOverlay(message: message) {
+                            viewModel.continueAfterResult()
+                        }
+                    }
+
+                case .specialResult(let text):
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        if isKickingResult(text), let bg = ballImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.4)
+                        }
+                        if isPuntResult(text), let bg = kickImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.4)
+                        }
+                        Text(text)
+                            .font(RetroFont.score())
+                            .foregroundColor(VGA.digitalAmber)
+                            .shadow(color: .black, radius: 0, x: 2, y: 2)
+                    }
+
+                case .extraPointChoice:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        if let bg = ballImage {
+                            Image(decorative: bg, scale: 1.0)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .opacity(0.35)
+                        }
+                        FPSDialog("TOUCHDOWN!") {
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 8)
+                                Text("\(viewModel.possessionTeamName) scored!")
+                                    .font(RetroFont.header())
+                                    .foregroundColor(VGA.digitalAmber)
+                                FPSButton("KICK EXTRA POINT") {
+                                    Task { await viewModel.kickExtraPoint() }
+                                }
+                                FPSButton("GO FOR TWO") {
+                                    Task { await viewModel.attemptTwoPointConversion() }
+                                }
+                                Spacer().frame(height: 8)
+                            }
+                            .padding(24)
+                        }
+                    }
+
+                case .halftime:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        FPSDialog("HALFTIME") {
+                            VStack(spacing: 16) {
+                                HStack(spacing: 24) {
+                                    VStack(spacing: 4) {
+                                        Text(viewModel.awayTeam?.abbreviation ?? "AWY")
+                                            .font(RetroFont.header())
+                                            .foregroundColor(VGA.lightGray)
+                                        Text("\(game.score.awayScore)")
+                                            .font(RetroFont.score())
+                                            .foregroundColor(VGA.digitalAmber)
+                                    }
+                                    Text("-")
+                                        .font(RetroFont.huge())
+                                        .foregroundColor(VGA.darkGray)
+                                    VStack(spacing: 4) {
+                                        Text(viewModel.homeTeam?.abbreviation ?? "HME")
+                                            .font(RetroFont.header())
+                                            .foregroundColor(VGA.lightGray)
+                                        Text("\(game.score.homeScore)")
+                                            .font(RetroFont.score())
+                                            .foregroundColor(VGA.digitalAmber)
+                                    }
+                                }
+                                FPSButton("START 2ND HALF") {
+                                    viewModel.startSecondHalf()
+                                    viewModel.transitionTo(.playCalling)
+                                }
+                            }
+                            .padding(24)
+                        }
+                    }
+
+                case .gameOver:
+                    GameOverView(
+                        homeTeam: viewModel.homeTeam,
+                        awayTeam: viewModel.awayTeam,
+                        game: game,
+                        isChampionship: false,
+                        onContinue: {
+                            gameState.endExhibitionGame()
+                        }
+                    )
+
+                case .replay:
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSReplayControls(viewModel: viewModel) {
+                            viewModel.exitReplay()
+                        }
+                    }
+
+                case .kicking(let kickType):
+                    ZStack {
+                        FPSFieldView(viewModel: viewModel)
+                        FPSKickingView(viewModel: viewModel, kickType: kickType) { angle, aimOffset in
+                            viewModel.completeKick(type: kickType, angle: angle, aimOffset: aimOffset)
+                        }
+                    }
+
+                case .paused:
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        ExhibitionPauseMenuView(viewModel: viewModel)
+                    }
+                }
+
+                if game.gameStatus == .final && viewModel.currentPhase != .gameOver {
+                    Color.clear.onAppear {
+                        viewModel.transitionTo(.gameOver)
+                    }
+                }
+                if game.gameStatus == .halftime && viewModel.currentPhase != .halftime &&
+                   viewModel.currentPhase != .paused {
+                    Color.clear.onAppear {
+                        viewModel.transitionTo(.halftime)
+                    }
+                }
+            } else {
+                Text("Setting up exhibition game...")
+                    .font(RetroFont.header())
+                    .foregroundColor(VGA.digitalAmber)
+            }
+        }
+        .onAppear {
+            setupExhibitionGame()
+            loadKickingScreens()
+        }
+    }
+
+    private func setupExhibitionGame() {
+        guard let homeTeam = gameState.exhibitionHomeTeam,
+              let awayTeam = gameState.exhibitionAwayTeam else { return }
+
+        viewModel.setupGame(
+            homeTeam: homeTeam,
+            awayTeam: awayTeam,
+            week: 1,
+            seasonYear: 1993,
+            userTeamId: homeTeam.id,
+            quarterMinutes: gameState.quarterLength.rawValue
+        )
+    }
+
+    private func isKickingResult(_ text: String) -> Bool {
+        let upper = text.uppercased()
+        return upper.contains("FIELD GOAL") || upper.contains("EXTRA POINT")
+    }
+
+    private func isPuntResult(_ text: String) -> Bool {
+        text.uppercased().contains("PUNT")
+    }
+
+    private func loadKickingScreens() {
+        let gameDir = SCRDecoder.defaultDirectory
+        if let scr = try? SCRDecoder.decode(at: gameDir.appendingPathComponent("TTM/BALL.SCR")),
+           let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            ballImage = scr.cgImage(palette: pal)
+        } else if let scr = SCRDecoder.load(named: "BALL.SCR"),
+                  let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            ballImage = scr.cgImage(palette: pal)
+        }
+        if let scr = try? SCRDecoder.decode(at: gameDir.appendingPathComponent("TTM/KICK.SCR")),
+           let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            kickImage = scr.cgImage(palette: pal)
+        } else if let scr = SCRDecoder.load(named: "KICK.SCR"),
+                  let pal = PALDecoder.loadPalette(named: "GAMINTRO.PAL") {
+            kickImage = scr.cgImage(palette: pal)
+        }
+    }
+}
+
+// MARK: - Exhibition Pause Menu
+
+struct ExhibitionPauseMenuView: View {
+    @ObservedObject var viewModel: GameViewModel
+    @EnvironmentObject var gameState: GameState
+
+    var body: some View {
+        FPSDialog("GAME PAUSED") {
+            VStack(spacing: 12) {
+                Spacer().frame(height: 8)
+                FPSButton("RESUME", width: 200) {
+                    viewModel.togglePause()
+                }
+                FPSButton("QUIT TO MENU", width: 200) {
+                    gameState.endExhibitionGame()
+                }
+                Spacer().frame(height: 8)
+            }
+            .padding()
         }
     }
 }

@@ -16,6 +16,7 @@ import Combine // Import Combine for @Published (already implicitly there, but g
 
 public enum GamePhase: Equatable { // Made public
     case pregameNarration     // Pre-game intro text from GAMINTRO.DAT
+    case coinToss             // Coin toss before opening kickoff
     case playCalling          // Full-screen play calling grid
     case presnap              // Brief pre-snap field view
     case playAnimation        // Full-screen field during play
@@ -27,6 +28,19 @@ public enum GamePhase: Equatable { // Made public
     case gameOver             // Final score
     case replay               // Instant replay of last play
     case paused               // Pause menu overlay
+    case kicking(KickType)    // Kicking minigame (angle + aim bars)
+}
+
+// MARK: - Camera Angle (FPS '93 original view options)
+
+public enum CameraAngle: String, CaseIterable {
+    case behindOffense = "BEHIND OFFENSE"
+    case behindDefense = "BEHIND DEFENSE"
+    case sideRight = "SIDE RIGHT"
+    case sideLeft = "SIDE LEFT"
+    case overhead = "OVERHEAD"
+    case behindHome = "BEHIND HOME"
+    case behindVisiting = "BEHIND VISITING"
 }
 
 @MainActor
@@ -73,6 +87,14 @@ public class GameViewModel: ObservableObject { // Made public
     @Published public var playClockSeconds: Int = 25 // Play clock countdown (25 or 40 seconds)
     @Published public var selectedCelebration: String = "EZSPIKE" // Current TD celebration animation
 
+    // Coin toss state
+    @Published public var coinTossResult: CoinTossResult?
+    /// Whether the current kickoff is the opening kickoff (vs post-score)
+    @Published public var isOpeningKickoff: Bool = false
+
+    // In-game settings overlay (F1 key)
+    @Published public var showGameSettings = false
+
     // Phase before pause was entered (to restore on resume)
     private var phaseBeforePause: GamePhase = .playCalling
 
@@ -86,10 +108,29 @@ public class GameViewModel: ObservableObject { // Made public
     private var authenticOffensivePlaybook: [AuthenticPlayDefinition] = []
     private var authenticDefensivePlaybook: [AuthenticPlayDefinition] = []
 
+    // Audible system (FPS '93 arrow-key play changes at line of scrimmage)
+    @Published public var offensiveAudibles: AudibleSet = .empty
+    @Published public var defensiveAudibles: AudibleSet = .empty
+    @Published public var audibleCalledText: String? = nil  // Flash text when audible is called
+
+    // Camera system (FPS '93 original has 11 camera angles + zoom)
+    @Published var cameraAngle: CameraAngle = .behindOffense
+    @Published var zoomLevel: CGFloat = 1.0
+    @Published var cameraAngleFlashText: String? = nil
+
     // Animation state (moved out of FPSFieldView)
     @Published var offAnimStates: [PlayerAnimationState] = Array(repeating: PlayerAnimationState(), count: 11)
     @Published var defAnimStates: [PlayerAnimationState] = Array(repeating: PlayerAnimationState(), count: 11)
     @Published var cameraFocusX: CGFloat = 320
+
+    // On-field player control state
+    @Published public var playerControl = PlayerControlState()
+
+    /// Whether the play animation is waiting for user (e.g. QB hasn't thrown yet)
+    @Published public var playAnimationHeld: Bool = false
+
+    /// Signal from player control that the play should end early (user-initiated throw completed, etc.)
+    @Published public var userEndedPlay: Bool = false
 
     // Pagination for play calling screen (16 slots per page)
     @Published public var currentPlaybookPage: Int = 0
@@ -125,6 +166,10 @@ public class GameViewModel: ObservableObject { // Made public
         // Load authentic playbooks
         loadAuthenticPlaybooks()
         applyTeamColors()
+        buildDefaultAudibles()
+
+        // Set default coaching profiles for AI opponent
+        setupAICoachingProfiles()
 
         simulationEngine.startGame()
         self.game = simulationEngine.currentGame
@@ -141,7 +186,12 @@ public class GameViewModel: ObservableObject { // Made public
             awayRecord: "0-0",
             stadium: homeTeam.stadiumName
         ) {
-            narrationText = narration
+            // Append weather conditions to narration text
+            if let gw = game?.gameWeather {
+                narrationText = narration + "\n\nWeather: \(gw.narrativeDescription)."
+            } else {
+                narrationText = narration
+            }
             currentPhase = .pregameNarration
         } else {
             // No narration available — skip straight to kickoff
@@ -161,6 +211,24 @@ public class GameViewModel: ObservableObject { // Made public
         } catch {
             print("Error loading authentic playbooks: \(error)")
         }
+    }
+
+    /// Set up default coaching profiles for AI play calling
+    /// Uses OFF1 (conservative) + DEF1 (conservative) by default.
+    /// Can be switched via setAICoachingProfiles() before game starts.
+    private func setupAICoachingProfiles() {
+        let offProfile = CoachingProfileDefaults.off1
+        let defProfile = CoachingProfileDefaults.def1
+        aiCoach.setProfiles(offensive: offProfile, defensive: defProfile)
+        print("AI coaching profiles set: \(offProfile.name) offense (\(offProfile.offensiveSituationCount) situations), \(defProfile.name) defense (\(defProfile.defensiveSituationCount) situations)")
+    }
+
+    /// Allow external callers (e.g., exhibition setup) to change the AI coaching profiles
+    public func setAICoachingProfiles(offensiveName: String, defensiveName: String) {
+        let allProfiles = CoachingProfileDefaults.allProfiles
+        let offProfile = allProfiles.first { $0.name == offensiveName } ?? CoachingProfileDefaults.off1
+        let defProfile = allProfiles.first { $0.name == defensiveName } ?? CoachingProfileDefaults.def1
+        aiCoach.setProfiles(offensive: offProfile, defensive: defProfile)
     }
 
     /// Apply team colors to sprite cache (home = color table 1, away = color table 2)
@@ -199,6 +267,76 @@ public class GameViewModel: ObservableObject { // Made public
         ]
 
         SpriteCache.shared.setTeamColors(homeColors: homeColors, awayColors: awayColors)
+    }
+
+    // MARK: - Camera Controls
+
+    /// Cycle to the next camera angle and flash the name briefly.
+    public func cycleCamera() {
+        let allCases = CameraAngle.allCases
+        if let idx = allCases.firstIndex(of: cameraAngle) {
+            cameraAngle = allCases[(idx + 1) % allCases.count]
+        } else {
+            cameraAngle = .behindOffense
+        }
+        flashCameraName()
+    }
+
+    /// Toggle overhead view (O key shortcut).
+    public func toggleOverhead() {
+        if cameraAngle == .overhead {
+            cameraAngle = .behindOffense
+        } else {
+            cameraAngle = .overhead
+        }
+        flashCameraName()
+    }
+
+    /// Zoom in by 0.1 (max 2.0).
+    public func zoomIn() {
+        zoomLevel = min(2.0, zoomLevel + 0.1)
+    }
+
+    /// Zoom out by 0.1 (min 0.5).
+    public func zoomOut() {
+        zoomLevel = max(0.5, zoomLevel - 0.1)
+    }
+
+    /// Resolve the effective camera orientation for the current game state.
+    /// Returns whether the camera should be "behind defense" (i.e. flipped from offense view).
+    public var effectiveCameraIsBehindDefense: Bool {
+        switch cameraAngle {
+        case .behindOffense:
+            return false
+        case .behindDefense:
+            return true
+        case .behindHome:
+            // Behind home team -- if home is on offense, same as behind offense
+            return !(game?.isHomeTeamPossession ?? true)
+        case .behindVisiting:
+            // Behind visiting team -- if away is on offense, same as behind offense
+            return game?.isHomeTeamPossession ?? true
+        case .sideRight, .sideLeft, .overhead:
+            return false  // Side/overhead don't use behind-offense logic
+        }
+    }
+
+    /// Whether the current camera is a sideline view.
+    public var isSidelineCamera: Bool {
+        cameraAngle == .sideRight || cameraAngle == .sideLeft
+    }
+
+    /// Whether the current camera is overhead.
+    public var isOverheadCamera: Bool {
+        cameraAngle == .overhead
+    }
+
+    /// Flash the camera angle name for 1.5 seconds.
+    private func flashCameraName() {
+        cameraAngleFlashText = cameraAngle.rawValue
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.cameraAngleFlashText = nil
+        }
     }
 
     // MARK: - Prose Result Generator (FPS '93 authentic style)
@@ -284,10 +422,63 @@ public class GameViewModel: ObservableObject { // Made public
         }
     }
 
-    // NEW: Placeholder for opening kickoff logic
+    // MARK: - Kickoff Animation Pipeline
+
+    /// Execute a kickoff with full field animation (opening or post-score)
+    internal func executeKickoffWithAnimation() async {
+        guard let game = game else { return }
+
+        isSimulating = true
+        defer { isSimulating = false }
+
+        // Start crowd ambient sound on opening kickoff
+        if isOpeningKickoff {
+            SoundManager.shared.startCrowdAmbient()
+        }
+        SoundManager.shared.play(.whistle)
+
+        // Run the simulation
+        let result = await simulationEngine.executeKickoff()
+        self.game = simulationEngine.currentGame
+        lastPlayResult = result
+        playByPlay.append(result)
+
+        // Generate kickoff animation blueprint
+        let losX: Int = 35  // Kickoff from 35-yard line
+        currentAnimationBlueprint = PlayBlueprintGenerator.generateKickoffBlueprint(
+            result: result,
+            los: losX
+        )
+
+        // Show the field animation
+        currentPhase = .playAnimation
+
+        // Wait for the animation to complete
+        try? await Task.sleep(nanoseconds: UInt64((currentAnimationBlueprint?.totalDuration ?? 4.0) * 1_000_000_000))
+
+        // Whistle at end
+        SoundManager.shared.play(.whistle)
+
+        // Show the result overlay
+        currentPhase = .playResult
+        SoundManager.shared.playSoundForResult(result)
+
+        // Handle kick return TD
+        if result.isTouchdown {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await handleSpecialSituations()
+        } else {
+            // Normal kickoff return -- after result display, go to play calling
+            // The result overlay will call continueAfterResult() when tapped
+        }
+
+        isOpeningKickoff = false
+        updatePossessionStatus()
+    }
+
+    /// Legacy: silent kickoff for simulations (no animation)
     internal func executeOpeningKickoff() async {
         print("Executing opening kickoff...")
-        // Start crowd ambient sound
         SoundManager.shared.startCrowdAmbient()
         SoundManager.shared.play(.whistle)
         _ = await simulationEngine.executeKickoff()
@@ -306,8 +497,49 @@ public class GameViewModel: ObservableObject { // Made public
 
     /// Called when user taps "START GAME" on pre-game narration screen
     public func startGameAfterNarration() {
+        isOpeningKickoff = true
+        currentPhase = .coinToss
+    }
+
+    /// Called after coin toss completes — user chose kick or receive
+    public func startKickoffAfterCoinToss(userElectsToReceive: Bool) {
+        guard let game = game else { return }
+
+        // If user elects to receive and their team is away (default receiver), no change needed.
+        // If user elects to kick, we need to swap possession so user's team kicks.
+        let userIsHome = userTeamId == game.homeTeamId
+
+        if userElectsToReceive {
+            // User wants to receive: make sure user's team is the receiving team
+            // In kickoff, possessingTeamId = kicking team, receiving team gets ball after
+            // After executeKickoff, possession switches to receiving team
+            // Currently: away team has possession (will receive after kickoff logic)
+            // We need kicking team to have possession during kickoff setup
+            if userIsHome {
+                // User is home and wants to receive — away kicks (current: away has poss, good)
+                // Actually SimulationEngine.startGame sets possessingTeamId = awayTeamId
+                // and executeKickoff switches to the other team. So away "has possession" means
+                // away receives. We need home to receive = away to kick.
+                // Set kicking team as away (they have possession before kickoff flips it)
+                simulationEngine.currentGame?.possessingTeamId = game.awayTeamId
+            } else {
+                // User is away and wants to receive — home kicks
+                simulationEngine.currentGame?.possessingTeamId = game.homeTeamId
+            }
+        } else {
+            // User wants to kick
+            if userIsHome {
+                // Home kicks — home has possession before kickoff
+                simulationEngine.currentGame?.possessingTeamId = game.homeTeamId
+            } else {
+                // Away kicks — away has possession before kickoff
+                simulationEngine.currentGame?.possessingTeamId = game.awayTeamId
+            }
+        }
+        self.game = simulationEngine.currentGame
+
         Task {
-            await self.executeOpeningKickoff()
+            await executeKickoffWithAnimation()
         }
     }
 
@@ -359,12 +591,7 @@ public class GameViewModel: ObservableObject { // Made public
         showDriveResult(text: text)
         self.game = simulationEngine.currentGame
 
-        if self.game?.isKickoff == true {
-            let result = await simulationEngine.executeKickoff()
-            self.game = simulationEngine.currentGame
-            lastPlayResult = result
-            playByPlay.append(result)
-        }
+        // Kickoff will be handled by handleSpecialSituations via continueAfterResult
         updatePossessionStatus()
     }
 
@@ -601,15 +828,16 @@ public class GameViewModel: ObservableObject { // Made public
             // Check if AI kicking team should attempt onside kick
             let kickSituation = currentSituation()
             let aiIsKicking = !isUserPossession
-            let kickResult: PlayResult
             if aiIsKicking && aiCoach.shouldAttemptOnsideKick(situation: kickSituation) {
-                kickResult = await simulationEngine.executeOnsideKick()
+                let kickResult = await simulationEngine.executeOnsideKick()
+                self.game = simulationEngine.currentGame
+                lastPlayResult = kickResult
+                playByPlay.append(kickResult)
             } else {
-                kickResult = await simulationEngine.executeKickoff()
+                // Post-score kickoff with field animation
+                await executeKickoffWithAnimation()
+                return // executeKickoffWithAnimation handles phase transitions
             }
-            self.game = simulationEngine.currentGame
-            lastPlayResult = kickResult
-            playByPlay.append(kickResult)
         }
 
         // Show injury notification if the last play had one
@@ -646,6 +874,103 @@ public class GameViewModel: ObservableObject { // Made public
         return false
     }
 
+    // MARK: - Kicking Minigame
+
+    /// Start the interactive kicking minigame for the given kick type
+    public func startKickingMinigame(_ type: KickType) {
+        currentPhase = .kicking(type)
+    }
+
+    /// Called when the kicking minigame completes with angle and aim values
+    public func completeKick(type: KickType, angle: Double, aimOffset: Double) {
+        Task {
+            await executeKickWithParameters(type: type, angle: angle, aimOffset: aimOffset)
+        }
+    }
+
+    /// Execute a kick using the angle/aim from the minigame
+    private func executeKickWithParameters(type: KickType, angle: Double, aimOffset: Double) async {
+        let aimAccuracy = 1.0 - abs(aimOffset)
+        let angleDelta = abs(angle - 45.0) / 20.0
+        let distanceModifier = 1.0 - (angleDelta * 0.3)
+
+        switch type {
+        case .fieldGoal:
+            await attemptFieldGoalWithKick(aimAccuracy: aimAccuracy, distanceModifier: distanceModifier)
+        case .extraPoint:
+            await attemptExtraPointWithKick(aimAccuracy: aimAccuracy)
+        case .punt:
+            await puntWithKick(distanceModifier: distanceModifier)
+        case .kickoff:
+            await kickoffWithKick(distanceModifier: distanceModifier)
+        }
+    }
+
+    private func attemptFieldGoalWithKick(aimAccuracy: Double, distanceModifier: Double) async {
+        guard let game = game else { return }
+
+        isSimulating = true
+        defer { isSimulating = false }
+
+        let distance = 100 - game.fieldPosition.yardLine + 17
+        let aimThreshold = 0.3
+        var success: Bool
+        if aimAccuracy < aimThreshold {
+            success = false
+        } else {
+            success = await simulationEngine.executeFieldGoal(from: game.fieldPosition.yardLine)
+            if !success && aimAccuracy > 0.8 && distanceModifier > 0.9 && distance <= 45 {
+                success = Double.random(in: 0...1) < 0.3
+            }
+        }
+
+        let text: String
+        if success {
+            text = "\(distance)-yard field goal is GOOD!"
+        } else if aimAccuracy < aimThreshold {
+            text = "\(distance)-yard field goal is WIDE \(Double.random(in: 0...1) < 0.5 ? "LEFT" : "RIGHT")!"
+        } else {
+            text = "\(distance)-yard field goal is NO GOOD!"
+        }
+
+        showDriveResult(text: text)
+        self.game = simulationEngine.currentGame
+        updatePossessionStatus()
+    }
+
+    private func attemptExtraPointWithKick(aimAccuracy: Double) async {
+        isSimulating = true
+        defer { isSimulating = false }
+
+        var success: Bool
+        if aimAccuracy < 0.2 {
+            success = false
+        } else {
+            success = await simulationEngine.executeExtraPoint()
+        }
+
+        let text = success ? "Extra point is GOOD!" : "Extra point MISSED!"
+        showDriveResult(text: text)
+        self.game = simulationEngine.currentGame
+        updatePossessionStatus()
+    }
+
+    private func puntWithKick(distanceModifier: Double) async {
+        isSimulating = true
+        defer { isSimulating = false }
+
+        let result = await simulationEngine.executePunt()
+        lastPlayResult = result
+        playByPlay.append(result)
+        showDriveResult(text: "Punt: \(result.description)")
+        self.game = simulationEngine.currentGame
+        updatePossessionStatus()
+    }
+
+    private func kickoffWithKick(distanceModifier: Double) async {
+        await executeKickoffWithAnimation()
+    }
+
     // MARK: - Special Teams
 
     public func attemptFieldGoal() async { // Made public
@@ -674,12 +999,7 @@ public class GameViewModel: ObservableObject { // Made public
         showDriveResult(text: text)
         self.game = simulationEngine.currentGame
 
-        if self.game?.isKickoff == true {
-            let result = await simulationEngine.executeKickoff()
-            self.game = simulationEngine.currentGame
-            lastPlayResult = result
-            playByPlay.append(result)
-        }
+        // Kickoff will be handled by handleSpecialSituations via continueAfterResult
         updatePossessionStatus()
     }
 
@@ -976,6 +1296,12 @@ public class GameViewModel: ObservableObject { // Made public
             currentPhase = .gameOver
         } else if game?.gameStatus == .halftime {
             currentPhase = .halftime
+        } else if game?.isKickoff == true {
+            // Post-score kickoff — animate it on the field
+            Task { await handleSpecialSituations() }
+        } else if game?.isExtraPoint == true {
+            // Extra point choice after TD
+            Task { await handleSpecialSituations() }
         } else {
             // Check if AI has the ball on 4th down — auto-execute punt/FG
             if !isUserPossession, let game = game, game.downAndDistance.down == 4,
@@ -1032,6 +1358,102 @@ public class GameViewModel: ObservableObject { // Made public
         selectedCelebration = SpriteCache.randomCelebration()
     }
 
+    // MARK: - On-Field Player Control
+
+    /// Initialize player control when play animation starts.
+    /// Called from FPSFieldView when animation begins.
+    public func initializePlayerControl(blueprint: PlayAnimationBlueprint) {
+        playerControl.reset()
+        userEndedPlay = false
+        playAnimationHeld = false
+
+        if isUserPossession {
+            // Find QB index (typically index 5 in offensive formation, after 5 OL)
+            let qbIndex = blueprint.offensivePaths.firstIndex(where: { $0.role == .quarterback }) ?? 5
+
+            // Find eligible receiver indices (WR, TE, RB — not OL)
+            let receiverIndices = blueprint.offensivePaths.enumerated().compactMap { idx, path -> Int? in
+                switch path.role {
+                case .receiver, .tightend, .runningback, .runningBack, .fullback:
+                    return idx
+                default:
+                    return nil
+                }
+            }
+
+            playerControl.beginOffensiveControl(qbIndex: qbIndex, receiverIndices: receiverIndices)
+        } else {
+            // Defense: control nearest defender to the ball (start with first LB)
+            let lbIndex = blueprint.defensivePaths.firstIndex(where: { $0.role == .linebacker }) ?? 4
+            let startPos = blueprint.defensivePaths[lbIndex].position(at: 0)
+            playerControl.beginDefensiveControl(nearestDefenderIndex: lbIndex, currentPosition: startPos)
+        }
+    }
+
+    /// Handle Space key during play animation.
+    public func handleActionButton() {
+        switch playerControl.mode {
+        case .quarterback:
+            playerControl.enterPassingMode()
+        case .passingMode:
+            playerControl.cycleReceiver()
+        case .ballCarrier:
+            playerControl.actionPressed = true
+        case .defender:
+            playerControl.actionPressed = true
+        case .none:
+            break
+        }
+    }
+
+    /// Handle X key during play animation (stiff arm / switch defender).
+    public func handleSecondaryButton() {
+        playerControl.secondaryPressed = true
+    }
+
+    /// Handle number key (1-5) for throwing to a receiver.
+    public func handleThrowToReceiver(_ number: Int) {
+        guard playerControl.mode == .passingMode || playerControl.mode == .quarterback else { return }
+        let idx = number - 1  // 1-based to 0-based
+        guard idx >= 0 && idx < playerControl.eligibleReceiverIndices.count else { return }
+        playerControl.throwTarget = idx
+
+        // After throw, ball carrier switches to that receiver
+        let receiverPlayerIdx = playerControl.eligibleReceiverIndices[idx]
+        // Delay the switch to allow the throw animation to play
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s for throw
+            if playerControl.mode == .passingMode || playerControl.mode == .quarterback {
+                if let blueprint = currentAnimationBlueprint {
+                    let recPos = blueprint.offensivePaths[receiverPlayerIdx].position(at: 0.6)
+                    playerControl.switchToBallCarrier(index: receiverPlayerIdx, currentPosition: recPos)
+                }
+            }
+        }
+    }
+
+    /// Switch to nearest defender to ball carrier.
+    public func switchToNearestDefender(ballPosition: CGPoint, defensivePaths: [AnimatedPlayerPath], progress: Double) {
+        guard playerControl.mode == .defender else { return }
+
+        var closestIdx = 0
+        var closestDist = CGFloat.infinity
+
+        for (idx, path) in defensivePaths.enumerated() {
+            let pos = path.position(at: progress)
+            let dx = pos.x - ballPosition.x
+            let dy = pos.y - ballPosition.y
+            let dist = sqrt(dx * dx + dy * dy)
+            if dist < closestDist {
+                closestDist = dist
+                closestIdx = idx
+            }
+        }
+
+        let pos = defensivePaths[closestIdx].position(at: progress)
+        playerControl.switchDefender(toIndex: closestIdx, currentPosition: pos)
+    }
+
     /// Enter instant replay mode for the last play
     public func enterReplay() {
         guard currentAnimationBlueprint != nil else { return }
@@ -1049,6 +1471,148 @@ public class GameViewModel: ObservableObject { // Made public
         guard let result = lastPlayResult else { return false }
         let yards = abs(result.yardsGained)
         return result.isTouchdown || result.isTurnover || yards >= 20
+    }
+
+    // MARK: - Audible System (FPS '93 arrow-key play changes)
+
+    /// Build default audibles from the current playbook, matching play types to arrow directions.
+    public func buildDefaultAudibles() {
+        // Offensive audibles: Up=Deep Pass, Down=Short Pass, Left=Outside Run, Right=Inside Run
+        let offPlays = availableOffensivePlays
+        offensiveAudibles = AudibleSet(
+            up: findAudibleSlot(in: offPlays, matching: [.deepPass, .mediumPass, .playAction]),
+            down: findAudibleSlot(in: offPlays, matching: [.shortPass, .screen]),
+            left: findAudibleSlot(in: offPlays, matching: [.outsideRun, .sweep]),
+            right: findAudibleSlot(in: offPlays, matching: [.insideRun, .draw, .counter])
+        )
+
+        // Defensive audibles: Up=Man Coverage, Down=Zone, Left=Outside Run D, Right=Inside Run D
+        let defPlays = availableDefensivePlays
+        defensiveAudibles = AudibleSet(
+            up: findDefensiveAudibleSlot(in: defPlays, matching: [.manCoverage]),
+            down: findDefensiveAudibleSlot(in: defPlays, matching: [.coverTwo, .coverThree, .coverFour]),
+            left: findDefensiveAudibleSlot(in: defPlays, blitzing: false),
+            right: findDefensiveAudibleSlot(in: defPlays, blitzing: true)
+        )
+    }
+
+    private func findAudibleSlot(in plays: [AuthenticPlayCall], matching types: [PlayType]) -> AudibleSlot? {
+        for type in types {
+            if let idx = plays.firstIndex(where: { $0.playType == type }) {
+                let play = plays[idx]
+                return AudibleSlot(
+                    playName: play.displayName,
+                    playType: play.playType,
+                    formationName: play.formationDisplayName,
+                    playbookIndex: idx
+                )
+            }
+        }
+        return nil
+    }
+
+    private func findDefensiveAudibleSlot(in plays: [AuthenticDefensiveCall], matching types: [PlayType]) -> AudibleSlot? {
+        for type in types {
+            if let idx = plays.firstIndex(where: { $0.coverage == type }) {
+                let play = plays[idx]
+                return AudibleSlot(
+                    playName: play.displayName,
+                    playType: type,
+                    formationName: play.formation.rawValue,
+                    playbookIndex: idx
+                )
+            }
+        }
+        return nil
+    }
+
+    private func findDefensiveAudibleSlot(in plays: [AuthenticDefensiveCall], blitzing: Bool) -> AudibleSlot? {
+        if let idx = plays.firstIndex(where: { $0.isBlitzing == blitzing }) {
+            let play = plays[idx]
+            return AudibleSlot(
+                playName: play.displayName,
+                playType: play.coverage,
+                formationName: play.formation.rawValue,
+                playbookIndex: idx
+            )
+        }
+        return nil
+    }
+
+    /// Call an offensive audible from the pre-snap field view (arrow key direction).
+    public func callOffensiveAudible(direction: AudibleDirection) {
+        let slot: AudibleSlot?
+        switch direction {
+        case .up: slot = offensiveAudibles.up
+        case .down: slot = offensiveAudibles.down
+        case .left: slot = offensiveAudibles.left
+        case .right: slot = offensiveAudibles.right
+        }
+        guard let audible = slot else { return }
+        let plays = availableOffensivePlays
+        guard audible.playbookIndex >= 0 && audible.playbookIndex < plays.count else { return }
+        selectedOffensivePlay = plays[audible.playbookIndex]
+        showAudibleFlash(audible.playName)
+    }
+
+    /// Call a defensive audible from the pre-snap field view (arrow key direction).
+    public func callDefensiveAudible(direction: AudibleDirection) {
+        let slot: AudibleSlot?
+        switch direction {
+        case .up: slot = defensiveAudibles.up
+        case .down: slot = defensiveAudibles.down
+        case .left: slot = defensiveAudibles.left
+        case .right: slot = defensiveAudibles.right
+        }
+        guard let audible = slot else { return }
+        let plays = availableDefensivePlays
+        guard audible.playbookIndex >= 0 && audible.playbookIndex < plays.count else { return }
+        selectedDefensivePlay = plays[audible.playbookIndex]
+        showAudibleFlash(audible.playName)
+    }
+
+    private func showAudibleFlash(_ playName: String) {
+        audibleCalledText = "AUDIBLE! \(playName)"
+        SoundManager.shared.play(.hike)
+        // Clear after 1.5 seconds
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if audibleCalledText?.contains(playName) == true {
+                audibleCalledText = nil
+            }
+        }
+    }
+
+    // MARK: - Substitution System
+
+    /// Swap a starter with a bench player at the given position on the specified team.
+    /// Returns true if the substitution was successful.
+    @discardableResult
+    public func substitutePlayer(teamIsHome: Bool, position: Position, starterIndex: Int, replacementId: UUID) -> Bool {
+        if teamIsHome {
+            guard var team = homeTeam else { return false }
+            team.depthChart.setStarter(replacementId, at: position)
+            homeTeam = team
+            return true
+        } else {
+            guard var team = awayTeam else { return false }
+            team.depthChart.setStarter(replacementId, at: position)
+            awayTeam = team
+            return true
+        }
+    }
+
+    /// Get the current starters and backups for the user's team, grouped by position.
+    public var userTeamForSubstitution: Team? {
+        guard let game = game, let uid = userTeamId else { return nil }
+        if game.homeTeamId == uid { return homeTeam }
+        return awayTeam
+    }
+
+    /// Whether the user's team is home
+    public var isUserHome: Bool {
+        guard let game = game, let uid = userTeamId else { return true }
+        return game.homeTeamId == uid
     }
 
     // MARK: - PRF Play Art Decoding Helpers
@@ -1176,6 +1740,16 @@ public struct AuthenticPlayCall: PlayCall { // Made public, conforms to new Play
         return play.humanReadableName
     }
     public var formationDisplayName: String { play.formationName }
+}
+
+// MARK: - Coin Toss Result
+public struct CoinTossResult {
+    public let calledHeads: Bool
+    public let wasHeads: Bool
+    public var userWon: Bool { calledHeads == wasHeads }
+    public let winnerTeamName: String
+    public let loserTeamName: String
+    public let winnerElectsToReceive: Bool
 }
 
 // Helper struct to wrap an AuthenticPlay as a DefensiveCall
