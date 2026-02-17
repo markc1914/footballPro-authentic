@@ -84,3 +84,47 @@ Interpretation:
 3. Add authentic field yard numbers and refine field-detail composition.
 4. Tune play-result/referee overlays to match original panel framing.
 5. Re-run comparison and track deltas against this baseline report.
+
+## Agents & Verification Commands
+
+These agents run headless visual verification with audio disabled (`DISABLE_AUDIO=1`) and use the screenshot/reference comparison skill script:
+
+- Skill script path:
+  - `~/.codex/skills/compare-screenshot-reference-frames/scripts/compare_frames.py`
+- Reference frames used:
+  - `reference_frames/vGlkUSrFcGU/`
+
+### Full Issue Sweep
+
+- Run all issues:
+  - `tools/agent_issues_sweep.sh`
+- Reuse existing screenshots (skip capture):
+  - `tools/agent_issues_sweep.sh --skip-capture`
+
+### Per-Issue Agents
+
+- Play-calling mismatch:
+  - `tools/agent_issue_playcalling.sh`
+- Field geometry/details mismatch:
+  - `tools/agent_issue_field.sh`
+- Play result/overlay styling:
+  - `tools/agent_issue_overlays.sh`
+- Referee popup style:
+  - `tools/agent_issue_referee.sh`
+- Main menu/end-state UI:
+  - `tools/agent_issue_menu_endstate.sh`
+
+### Output Artifacts
+
+Each run writes a timestamped folder in:
+
+- `/tmp/fps_issue_reports/<timestamp>/`
+
+Key artifacts:
+
+- `compare_results.json` (raw compare output)
+- `compare_results.csv` (flat scores)
+- `issues_summary.json` (issue-grouped stats)
+- `issues_summary.md` (human-readable summary)
+- `issue_<issue_key>.json` (per-issue details)
+- `agent_issue_verify.log` (run log)
