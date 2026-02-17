@@ -33,12 +33,12 @@ struct ScreenshotHarness {
     private static func mockTeams() -> (home: Team, away: Team) {
         let buffalo = mockTeam(
             name: "Bills", city: "Buffalo", abbr: "BUF",
-            primary: "00338D", secondary: "C60C30",
+            primary: "C60C30", secondary: "00338D",
             stadium: "Rich Stadium", coach: "Marv Levy"
         )
         let dallas = mockTeam(
             name: "Cowboys", city: "Dallas", abbr: "DAL",
-            primary: "003594", secondary: "869397",
+            primary: "FFFFFF", secondary: "003594",
             stadium: "Texas Stadium", coach: "Jimmy Johnson"
         )
         return (home: buffalo, away: dallas)

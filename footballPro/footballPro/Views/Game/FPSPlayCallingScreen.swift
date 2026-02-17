@@ -61,6 +61,12 @@ struct FPSPlayCallingScreen: View {
                 selectedSlot = nil
                 return .handled
             }
+            .onKeyPress(.tab) {
+                showSpecialTeams.toggle()
+                viewModel.currentPlaybookPage = 0
+                selectedSlot = nil
+                return .handled
+            }
         }
     }
 
@@ -68,6 +74,8 @@ struct FPSPlayCallingScreen: View {
 
     private var topButtonBar: some View {
         HStack(spacing: 0) {
+            Spacer()
+
             FPSButton("TIME OUT") {
                 viewModel.callTimeout()
             }
@@ -75,13 +83,6 @@ struct FPSPlayCallingScreen: View {
             .disabled(viewModel.possessingTeamTimeouts <= 0)
 
             Spacer()
-
-            FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") {
-                showSpecialTeams.toggle()
-                viewModel.currentPlaybookPage = 0
-                selectedSlot = nil
-            }
-
             Spacer()
 
             FPSButton("READY - BREAK!") {
@@ -89,6 +90,8 @@ struct FPSPlayCallingScreen: View {
             }
             .opacity(selectedSlot != nil ? 1.0 : 0.5)
             .disabled(selectedSlot == nil)
+
+            Spacer()
         }
     }
 
@@ -96,18 +99,18 @@ struct FPSPlayCallingScreen: View {
 
     private var bottomButtonBar: some View {
         HStack(spacing: 0) {
+            Spacer()
+
             FPSButton("TIME OUT") { }
                 .disabled(true)
 
             Spacer()
-
-            FPSButton(showSpecialTeams ? "REGULAR PLAYS" : "SPECIAL TEAMS") { }
-                .disabled(true)
-
             Spacer()
 
             FPSButton("READY - BREAK!") { }
                 .disabled(true)
+
+            Spacer()
         }
     }
 

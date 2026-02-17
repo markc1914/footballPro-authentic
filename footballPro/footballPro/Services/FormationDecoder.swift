@@ -187,8 +187,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 30, y: centerY + 18),    // RB offset right
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX - 30, y: centerY - 18),    // FB offset left
             ]
@@ -198,8 +198,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 40, y: centerY),          // RB deep behind FB
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX - 25, y: centerY),          // FB behind QB
             ]
@@ -209,10 +209,10 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 28, y: centerY),          // QB in shotgun
                 CGPoint(x: losX - 35, y: centerY + 15),     // RB beside QB
-                CGPoint(x: losX + 2, y: centerY - 105),     // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),     // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),     // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),     // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),           // TE right
-                CGPoint(x: losX + 5, y: centerY - 65),      // Slot left
+                CGPoint(x: losX - 3, y: centerY - 65),      // Slot left
             ]
 
         case .singleback:
@@ -220,10 +220,10 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 32, y: centerY),          // RB behind QB
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
-                CGPoint(x: losX + 5, y: centerY - 65),     // Slot left
+                CGPoint(x: losX - 3, y: centerY - 65),     // Slot left
             ]
 
         case .pistol:
@@ -231,10 +231,10 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 20, y: centerY),          // QB short shotgun
                 CGPoint(x: losX - 35, y: centerY),          // RB directly behind
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
-                CGPoint(x: losX + 5, y: centerY - 65),     // Slot left
+                CGPoint(x: losX - 3, y: centerY - 65),     // Slot left
             ]
 
         case .spread:
@@ -242,21 +242,21 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 28, y: centerY),          // QB in shotgun
                 CGPoint(x: losX - 35, y: centerY + 12),     // RB beside QB
-                CGPoint(x: losX + 2, y: centerY - 115),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 115),    // WR2 wide right
-                CGPoint(x: losX + 5, y: centerY + 65),     // Slot right (no TE)
-                CGPoint(x: losX + 5, y: centerY - 65),     // Slot left
+                CGPoint(x: losX - 2, y: centerY - 115),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 115),    // WR2 wide right
+                CGPoint(x: losX - 3, y: centerY + 65),     // Slot right (no TE)
+                CGPoint(x: losX - 3, y: centerY - 65),     // Slot left
             ]
 
         case .emptySet:
             // No backs, 5 receivers
             return ol + [
                 CGPoint(x: losX - 28, y: centerY),          // QB in shotgun
-                CGPoint(x: losX + 5, y: centerY + 75),     // Slot right (was RB)
-                CGPoint(x: losX + 2, y: centerY - 115),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 115),    // WR2 wide right
+                CGPoint(x: losX - 3, y: centerY + 75),     // Slot right (was RB)
+                CGPoint(x: losX - 2, y: centerY - 115),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 115),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
-                CGPoint(x: losX + 5, y: centerY - 65),     // Slot left
+                CGPoint(x: losX - 3, y: centerY - 65),     // Slot left
             ]
 
         case .goalLine:
@@ -264,8 +264,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 25, y: centerY + 10),    // RB close
-                CGPoint(x: losX + 2, y: centerY - 80),     // WR1 (tighter)
-                CGPoint(x: losX + 2, y: centerY + 80),     // WR2 (tighter)
+                CGPoint(x: losX - 2, y: centerY - 80),     // WR1 (tighter)
+                CGPoint(x: losX - 2, y: centerY + 80),     // WR2 (tighter)
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX - 18, y: centerY - 10),    // FB close
             ]
@@ -275,8 +275,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 25, y: centerY),          // RB behind
-                CGPoint(x: losX + 2, y: centerY - 80),     // WR1
-                CGPoint(x: losX + 2, y: centerY + 80),     // WR2
+                CGPoint(x: losX - 2, y: centerY - 80),     // WR1
+                CGPoint(x: losX - 2, y: centerY + 80),     // WR2
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX, y: centerY - 52),          // TE left (extra)
             ]
@@ -286,10 +286,10 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 28, y: centerY),          // QB shotgun
                 CGPoint(x: losX - 35, y: centerY + 12),     // RB beside
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left (iso)
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left (iso)
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY - 52),          // TE left
-                CGPoint(x: losX + 5, y: centerY + 70),     // Slot right (trips)
+                CGPoint(x: losX - 3, y: centerY + 70),     // Slot right (trips)
             ]
 
         case .nearFormation:
@@ -297,8 +297,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 30, y: centerY + 15),    // RB offset strong
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left (weak)
-                CGPoint(x: losX + 2, y: centerY + 90),     // WR2 flanker strong
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left (weak)
+                CGPoint(x: losX - 2, y: centerY + 90),     // WR2 flanker strong
                 CGPoint(x: losX, y: centerY + 52),          // TE strong side
                 CGPoint(x: losX - 22, y: centerY + 25),    // FB strong side
             ]
@@ -308,8 +308,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 30, y: centerY),          // RB deep
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX - 5, y: centerY - 55),     // Wingback left
             ]
@@ -319,8 +319,8 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 40, y: centerY),          // RB deep (I-form)
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
                 CGPoint(x: losX - 25, y: centerY),          // FB (I-form)
             ]
@@ -330,10 +330,10 @@ struct FormationPositions {
             return ol + [
                 CGPoint(x: losX - 8, y: centerY),          // QB under center
                 CGPoint(x: losX - 42, y: centerY),          // RB very deep
-                CGPoint(x: losX + 2, y: centerY - 105),    // WR1 wide left
-                CGPoint(x: losX + 2, y: centerY + 105),    // WR2 wide right
+                CGPoint(x: losX - 2, y: centerY - 105),    // WR1 wide left
+                CGPoint(x: losX - 2, y: centerY + 105),    // WR2 wide right
                 CGPoint(x: losX, y: centerY + 52),          // TE right
-                CGPoint(x: losX + 5, y: centerY - 65),     // Slot left
+                CGPoint(x: losX - 3, y: centerY - 65),     // Slot left
             ]
         }
     }
