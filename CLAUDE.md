@@ -413,6 +413,9 @@ Block engagement  → L2LOCK/L2BFSDL → opponent direction
 - **Replay:** GamePhase.replay with FPSReplayControls VCR transport, auto-trigger on big plays
 - **Player progression:** Age-based rating changes, retirement logic (age >36 or age >34 + low rating)
 
+### Bug Fixes (Feb 2026)
+- **Play animation race condition fixed** — runPlay() and executeKickoff() now set `currentPhase = .playAnimation` BEFORE setting `currentAnimationBlueprint`, with a 50ms yield between. Previously the blueprint was set first and the phase changed second, causing the new FPSFieldView's `.onChange` handler to miss the blueprint (already set before the view mounted). Plays now animate for their full 4.5-6s duration instead of skipping to the result.
+
 ---
 
 ## Implementation Priority
@@ -435,7 +438,7 @@ Animation fixes ─────────────────────�
 
 ## Testing
 
-- 191 tests, 25 suites: `swift test --disable-sandbox --parallel`
+- 211 tests, 26 suites: `swift test --disable-sandbox --parallel`
 - ScreenshotHarness captures 32 screenshots to `/tmp/fps_screenshots/`
 - Reference frames at `/tmp/fps_frame_001.jpg` through `/tmp/fps_frame_036.jpg`
 - Test game files at `footballPro/FBPRO_ORIGINAL/`

@@ -445,16 +445,19 @@ public class GameViewModel: ObservableObject { // Made public
 
         // Generate kickoff animation blueprint
         let losX: Int = 35  // Kickoff from 35-yard line
-        currentAnimationBlueprint = PlayBlueprintGenerator.generateKickoffBlueprint(
+        let blueprint = PlayBlueprintGenerator.generateKickoffBlueprint(
             result: result,
             los: losX
         )
 
-        // Show the field animation
+        // Set phase FIRST so SwiftUI mounts FPSFieldView before blueprint is set.
+        currentAnimationBlueprint = nil
         currentPhase = .playAnimation
+        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms yield for view mount
+        currentAnimationBlueprint = blueprint
 
         // Wait for the animation to complete
-        try? await Task.sleep(nanoseconds: UInt64((currentAnimationBlueprint?.totalDuration ?? 4.0) * 1_000_000_000))
+        try? await Task.sleep(nanoseconds: UInt64(blueprint.totalDuration * 1_000_000_000))
 
         // Whistle at end
         SoundManager.shared.play(.whistle)
@@ -762,19 +765,24 @@ public class GameViewModel: ObservableObject { // Made public
             playByPlay.insert(result, at: 0)
             lastPlayResult = result
 
-            currentAnimationBlueprint = PlayBlueprintGenerator.generateBlueprint(
+            let blueprint = PlayBlueprintGenerator.generateBlueprint(
                 playArt: selectedPlayArt,
                 defensiveArt: selectedDefensivePlayArt,
                 result: result,
                 los: preLOS
             )
 
+            // Set phase FIRST so SwiftUI mounts FPSFieldView before blueprint is set.
+            // This ensures .onChange(of: currentAnimationBlueprint) fires reliably.
+            currentAnimationBlueprint = nil
             currentPhase = .playAnimation
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms yield for view mount
+            currentAnimationBlueprint = blueprint
 
             // Hike/snap sound at play start
             SoundManager.shared.play(.hike)
 
-            try? await Task.sleep(nanoseconds: UInt64((currentAnimationBlueprint?.totalDuration ?? 3.0) * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(blueprint.totalDuration * 1_000_000_000))
 
             // Whistle at end of play
             SoundManager.shared.play(.whistle)
