@@ -93,6 +93,7 @@
 		VIW023 /* CoinTossView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC079; };
 		VIW024 /* FPSKickingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NEW006FR; };
 		VIW025 /* PlayerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC081; };
+		VIW026 /* TrainingCampView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC085; };
 		MOD007 /* WeatherSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC082; };
 		INP004 /* PlayerControlState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC083; };
 
@@ -106,6 +107,7 @@
 		ENG006 /* PhysicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC035; };
 		ENG007 /* RouteScriptDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC039; };
 		ENG008 /* PlayerAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC060; };
+		ENG009 /* FastSimEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC086; };
 
 		/* Resources */
 		RES001 /* PlaybookData.json in Resources */ = {isa = PBXBuildFile; fileRef = SRC028; };
@@ -240,6 +242,8 @@
 		SRC082 /* WeatherSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSystem.swift; sourceTree = "<group>"; };
 		SRC083 /* PlayerControlState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlState.swift; sourceTree = "<group>"; };
 		SRC084 /* CoachingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingProfile.swift; sourceTree = "<group>"; };
+		SRC086 /* FastSimEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FastSimEngine.swift; sourceTree = "<group>"; };
+		SRC085 /* TrainingCampView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingCampView.swift; sourceTree = "<group>"; };
 
 		/* Entitlements */
 		ENT001 /* footballPro.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = footballPro.entitlements; sourceTree = "<group>"; };
@@ -338,6 +342,7 @@
 				FEB89F5B73F019E858B139B4 /* PlayBlueprintGenerator.swift */,
 				SRC039 /* RouteScriptDecoder.swift */,
 				SRC060 /* PlayerAnimationState.swift */,
+				SRC086 /* FastSimEngine.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -497,6 +502,7 @@
 				SRC072 /* SaveLoadView.swift */,
 				SRC073 /* SettingsView.swift */,
 				SRC081 /* PlayerEditorView.swift */,
+				SRC085 /* TrainingCampView.swift */,
 			);
 			path = Franchise;
 			sourceTree = "<group>";
@@ -641,6 +647,7 @@
 				ENG006 /* PhysicsEngine.swift in Sources */,
 				ENG007 /* RouteScriptDecoder.swift in Sources */,
 				ENG008 /* PlayerAnimationState.swift in Sources */,
+				ENG009 /* FastSimEngine.swift in Sources */,
 				VIW010 /* InteractiveFieldView.swift in Sources */,
 				C206A443E87EA7FEFBA62E7A /* PlayAnimationBlueprint.swift in Sources */,
 				3937F22D72A5371AA6B9A9E8 /* PlayBlueprintGenerator.swift in Sources */,
@@ -680,6 +687,7 @@
 				VIW023 /* CoinTossView.swift in Sources */,
 				VIW024 /* FPSKickingView.swift in Sources */,
 				VIW025 /* PlayerEditorView.swift in Sources */,
+				VIW026 /* TrainingCampView.swift in Sources */,
 				INP004 /* PlayerControlState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

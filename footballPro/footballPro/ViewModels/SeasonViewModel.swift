@@ -134,8 +134,8 @@ class SeasonViewModel: ObservableObject {
             guard let homeTeam = league.team(withId: game.homeTeamId),
                   let awayTeam = league.team(withId: game.awayTeamId) else { continue }
 
-            // Simulate the game
-            let result = simulateGame(homeTeam: homeTeam, awayTeam: awayTeam)
+            // Fast sim the game using rating-based engine
+            let result = FastSimEngine.fastSimGame(home: homeTeam, away: awayTeam)
 
             // Record the result
             season.recordGameResult(gameId: game.id, result: result)
@@ -150,59 +150,6 @@ class SeasonViewModel: ObservableObject {
         if canAdvanceWeek() && season.currentWeek <= season.totalWeeks {
             advanceWeek()
         }
-    }
-
-    /// Simulates a single game between two teams and returns the result
-    private func simulateGame(homeTeam: Team, awayTeam: Team) -> GameResult {
-        // Calculate team strengths
-        let homeOVR = Double(homeTeam.overallRating)
-        let awayOVR = Double(awayTeam.overallRating)
-
-        // Home field advantage (~3 points)
-        let homeAdvantage = 3.0
-
-        // Calculate expected point differential
-        let expectedDiff = (homeOVR - awayOVR) * 0.3 + homeAdvantage
-
-        // Generate scores with variance
-        let baseScore = Double.random(in: 17...28)
-        let variance = Double.random(in: -10...10)
-
-        let homeScore = max(0, Int(baseScore + expectedDiff / 2 + variance))
-        let awayScore = max(0, Int(baseScore - expectedDiff / 2 + Double.random(in: -8...8)))
-
-        // Generate simplified stats
-        let homeStats = generateSimulatedStats(score: homeScore)
-        let awayStats = generateSimulatedStats(score: awayScore)
-
-        return GameResult(
-            homeScore: homeScore,
-            awayScore: awayScore,
-            homeTeamStats: homeStats,
-            awayTeamStats: awayStats,
-            winnerId: homeScore > awayScore ? homeTeam.id : (awayScore > homeScore ? awayTeam.id : nil),
-            loserId: homeScore > awayScore ? awayTeam.id : (awayScore > homeScore ? homeTeam.id : nil)
-        )
-    }
-
-    private func generateSimulatedStats(score: Int) -> TeamGameStats {
-        // Estimate stats based on score
-
-
-        let passingYards = Int.random(in: 150...350)
-        let rushingYards = Int.random(in: 80...180)
-        let totalYards = passingYards + rushingYards
-        let firstDowns = totalYards / 15
-
-        var stats = TeamGameStats()
-        stats.totalYards = totalYards
-        stats.passingYards = passingYards
-        stats.rushingYards = rushingYards
-        stats.firstDowns = firstDowns
-        stats.turnovers = Int.random(in: 0...2)
-        stats.timeOfPossession = Int.random(in: 25...35) * 60 // In seconds
-
-        return stats
     }
 
     func advanceWeek() {

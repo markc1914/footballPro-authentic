@@ -54,6 +54,79 @@ public extension Color { // Public extension
     }
 }
 
+// MARK: - Roster Slot System (FPS '93 authentic 47-slot structure)
+
+/// The type of a roster slot — assigned to a specific position, open (flex), or injured reserve.
+public enum SlotType: Codable, Equatable {
+    case assigned(Position)
+    case open
+    case injuredReserve
+}
+
+/// A single slot in the 47-slot roster structure.
+/// 34 assigned (position-specific) + 11 open (any position) + 2 IR.
+public struct RosterSlot: Codable, Equatable, Identifiable {
+    public let id: UUID
+    public let slotType: SlotType
+    public var playerId: UUID?
+
+    public init(id: UUID = UUID(), slotType: SlotType, playerId: UUID? = nil) {
+        self.id = id
+        self.slotType = slotType
+        self.playerId = playerId
+    }
+
+    public var isEmpty: Bool { playerId == nil }
+}
+
+/// Generates the authentic FPS '93 47-slot roster template.
+/// 34 assigned: QB(2), RB(3), WR/TE(5), OL(6), DL(4), LB(5), DB(7), K(1), P(1)
+/// 11 open slots, 2 IR slots.
+public struct RosterSlotTemplate {
+    public static let assignedSlots: [(Position, Int)] = [
+        (.quarterback, 2),
+        (.runningBack, 2),
+        (.fullback, 1),
+        (.wideReceiver, 3),
+        (.tightEnd, 2),
+        (.leftTackle, 1),
+        (.leftGuard, 1),
+        (.center, 1),
+        (.rightGuard, 1),
+        (.rightTackle, 1),
+        (.defensiveEnd, 2),
+        (.defensiveTackle, 2),
+        (.outsideLinebacker, 3),
+        (.middleLinebacker, 2),
+        (.cornerback, 4),
+        (.freeSafety, 1),
+        (.strongSafety, 2),
+        (.kicker, 1),
+        (.punter, 1),
+    ]
+
+    public static let openSlotCount = 11
+    public static let irSlotCount = 2
+    public static let totalSlots = 47
+
+    /// Create a fresh set of 47 empty roster slots.
+    public static func makeSlots() -> [RosterSlot] {
+        var slots: [RosterSlot] = []
+        for (position, count) in assignedSlots {
+            for _ in 0..<count {
+                slots.append(RosterSlot(slotType: .assigned(position)))
+            }
+        }
+        for _ in 0..<openSlotCount {
+            slots.append(RosterSlot(slotType: .open))
+        }
+        for _ in 0..<irSlotCount {
+            slots.append(RosterSlot(slotType: .injuredReserve))
+        }
+        return slots
+    }
+}
+
 // MARK: - Depth Chart
 
 public struct DepthChart: Codable, Equatable { // Public
@@ -248,6 +321,7 @@ public struct Team: Identifiable, Codable, Equatable { // Public
     public var divisionId: UUID
 
     public var roster: [Player]
+    public var rosterSlots: [RosterSlot]
     public var depthChart: DepthChart
     public var finances: TeamFinances
     public var record: TeamRecord
@@ -295,6 +369,7 @@ public struct Team: Identifiable, Codable, Equatable { // Public
         self.weatherZone = weatherZone
         self.divisionId = divisionId
         self.roster = []
+        self.rosterSlots = RosterSlotTemplate.makeSlots()
         self.depthChart = DepthChart()
         self.finances = .standard
         self.record = TeamRecord()
@@ -303,12 +378,154 @@ public struct Team: Identifiable, Codable, Equatable { // Public
         self.isUserControlled = isUserControlled
     }
 
+    // MARK: - Codable (backward compatibility for saves without rosterSlots)
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, city, abbreviation, colors, stadiumName, coachName, weatherZone
+        case divisionId, roster, rosterSlots, depthChart, finances, record
+        case offensiveScheme, defensiveScheme, isUserControlled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        city = try container.decode(String.self, forKey: .city)
+        abbreviation = try container.decode(String.self, forKey: .abbreviation)
+        colors = try container.decode(TeamColors.self, forKey: .colors)
+        stadiumName = try container.decode(String.self, forKey: .stadiumName)
+        coachName = try container.decode(String.self, forKey: .coachName)
+        weatherZone = try container.decode(Int.self, forKey: .weatherZone)
+        divisionId = try container.decode(UUID.self, forKey: .divisionId)
+        roster = try container.decode([Player].self, forKey: .roster)
+        depthChart = try container.decode(DepthChart.self, forKey: .depthChart)
+        finances = try container.decode(TeamFinances.self, forKey: .finances)
+        record = try container.decode(TeamRecord.self, forKey: .record)
+        offensiveScheme = try container.decode(OffensiveScheme.self, forKey: .offensiveScheme)
+        defensiveScheme = try container.decode(DefensiveScheme.self, forKey: .defensiveScheme)
+        isUserControlled = try container.decode(Bool.self, forKey: .isUserControlled)
+
+        // Backward compatibility: old saves won't have rosterSlots
+        if let slots = try? container.decode([RosterSlot].self, forKey: .rosterSlots) {
+            rosterSlots = slots
+        } else {
+            rosterSlots = RosterSlotTemplate.makeSlots()
+            // Rebuild from existing roster
+            for player in roster {
+                if player.status.injuryType == .seasonEnding {
+                    // Try assigned slot first, then IR
+                    if let idx = rosterSlots.firstIndex(where: {
+                        if case .assigned(let p) = $0.slotType { return p == player.position && $0.isEmpty }
+                        return false
+                    }) {
+                        rosterSlots[idx].playerId = player.id
+                    } else if let idx = rosterSlots.firstIndex(where: {
+                        if case .injuredReserve = $0.slotType { return $0.isEmpty }
+                        return false
+                    }) {
+                        rosterSlots[idx].playerId = player.id
+                    }
+                } else {
+                    // Assign to position slot first, then open
+                    if let idx = rosterSlots.firstIndex(where: {
+                        if case .assigned(let p) = $0.slotType { return p == player.position && $0.isEmpty }
+                        return false
+                    }) {
+                        rosterSlots[idx].playerId = player.id
+                    } else if let idx = rosterSlots.firstIndex(where: {
+                        if case .open = $0.slotType { return $0.isEmpty }
+                        return false
+                    }) {
+                        rosterSlots[idx].playerId = player.id
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Roster Slot Queries
+
+    /// Assigned slots for a given position.
+    public func assignedSlots(for position: Position) -> [RosterSlot] {
+        rosterSlots.filter {
+            if case .assigned(let p) = $0.slotType { return p == position }
+            return false
+        }
+    }
+
+    /// All open (flex) slots.
+    public var openSlots: [RosterSlot] {
+        rosterSlots.filter {
+            if case .open = $0.slotType { return true }
+            return false
+        }
+    }
+
+    /// All IR slots.
+    public var irSlots: [RosterSlot] {
+        rosterSlots.filter {
+            if case .injuredReserve = $0.slotType { return true }
+            return false
+        }
+    }
+
+    /// Number of empty open slots available.
+    public var availableOpenSlots: Int {
+        openSlots.filter { $0.isEmpty }.count
+    }
+
+    /// Number of empty IR slots available.
+    public var availableIRSlots: Int {
+        irSlots.filter { $0.isEmpty }.count
+    }
+
+    /// Whether the roster has room for a new player (either assigned or open slot).
+    public func hasRoomFor(position: Position) -> Bool {
+        // Check assigned slots first
+        if assignedSlots(for: position).contains(where: { $0.isEmpty }) { return true }
+        // Fall back to open slots
+        return availableOpenSlots > 0
+    }
+
+    /// Players currently on IR.
+    public var irPlayers: [Player] {
+        let irPlayerIds = irSlots.compactMap { $0.playerId }
+        return roster.filter { irPlayerIds.contains($0.id) }
+    }
+
+    /// Whether a player is on injured reserve.
+    public func isOnIR(_ playerId: UUID) -> Bool {
+        irSlots.contains { $0.playerId == playerId }
+    }
+
     // MARK: - Roster Management
 
     public mutating func addPlayer(_ player: Player) {
         roster.append(player)
+        assignPlayerToSlot(player)
         depthChart.addPlayer(player.id, at: player.position)
         finances.addContract(player.contract)
+    }
+
+    /// Assign a player to the best available slot: assigned position slot first, then open slot.
+    private mutating func assignPlayerToSlot(_ player: Player) {
+        // Try assigned slot for this position
+        if let idx = rosterSlots.firstIndex(where: {
+            if case .assigned(let p) = $0.slotType { return p == player.position && $0.isEmpty }
+            return false
+        }) {
+            rosterSlots[idx].playerId = player.id
+            return
+        }
+        // Fall back to open slot
+        if let idx = rosterSlots.firstIndex(where: {
+            if case .open = $0.slotType { return $0.isEmpty }
+            return false
+        }) {
+            rosterSlots[idx].playerId = player.id
+            return
+        }
+        // No slot available — player is still on roster but unslotted
     }
 
     public mutating func removePlayer(_ playerId: UUID, cutMidSeason: Bool = false) {
@@ -316,7 +533,52 @@ public struct Team: Identifiable, Codable, Equatable { // Public
         let player = roster[index]
         finances.removeContract(player.contract, cutMidSeason: cutMidSeason)
         roster.remove(at: index)
+        clearPlayerFromSlots(playerId)
         depthChart.removePlayer(playerId)
+    }
+
+    /// Remove a player from whatever roster slot they occupy.
+    private mutating func clearPlayerFromSlots(_ playerId: UUID) {
+        for i in rosterSlots.indices {
+            if rosterSlots[i].playerId == playerId {
+                rosterSlots[i].playerId = nil
+            }
+        }
+    }
+
+    /// Move a player to injured reserve. Returns true if successful.
+    @discardableResult
+    public mutating func moveToIR(_ playerId: UUID) -> Bool {
+        guard let irIdx = rosterSlots.firstIndex(where: {
+            if case .injuredReserve = $0.slotType { return $0.isEmpty }
+            return false
+        }) else { return false }
+
+        clearPlayerFromSlots(playerId)
+        rosterSlots[irIdx].playerId = playerId
+        return true
+    }
+
+    /// Move a player off IR back to an active slot.
+    @discardableResult
+    public mutating func activateFromIR(_ playerId: UUID) -> Bool {
+        guard let player = self.player(withId: playerId) else { return false }
+        clearPlayerFromSlots(playerId)
+        assignPlayerToSlot(player)
+        return true
+    }
+
+    /// Rebuild roster slots from current roster (for migration from old saves).
+    public mutating func rebuildRosterSlots() {
+        rosterSlots = RosterSlotTemplate.makeSlots()
+        for player in roster {
+            if player.status.injuryType == .seasonEnding && availableIRSlots > 0 {
+                assignPlayerToSlot(player)
+                moveToIR(player.id)
+            } else {
+                assignPlayerToSlot(player)
+            }
+        }
     }
 
     public func player(withId id: UUID) -> Player? {

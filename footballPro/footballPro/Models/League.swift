@@ -200,6 +200,22 @@ enum TradeStatus: String, Codable {
     case expired
 }
 
+// MARK: - League Type
+
+enum LeagueType: String, Codable, CaseIterable {
+    case career = "Career"
+    case singleSeason = "Single Season"
+
+    var displayName: String { rawValue }
+
+    var description: String {
+        switch self {
+        case .career: return "Multi-year franchise with drafts, aging, and progression"
+        case .singleSeason: return "Play one season, crown a champion, then done"
+        }
+    }
+}
+
 // MARK: - League
 
 struct League: Identifiable, Codable, Equatable {
@@ -208,6 +224,7 @@ struct League: Identifiable, Codable, Equatable {
     var teams: [Team]
     var divisions: [Division]
     var settings: LeagueSettings
+    var leagueType: LeagueType
 
     var freeAgents: [FreeAgent]
     var draftClass: DraftClass?
@@ -216,12 +233,13 @@ struct League: Identifiable, Codable, Equatable {
     var records: [LeagueRecord]
     var history: [SeasonSummary]
 
-    init(name: String = "Football Pro League") {
+    init(name: String = "Football Pro League", leagueType: LeagueType = .career) {
         self.id = UUID()
         self.name = name
         self.teams = []
         self.divisions = []
         self.settings = LeagueSettings()
+        self.leagueType = leagueType
         self.freeAgents = []
         self.draftClass = nil
         self.pendingTrades = []

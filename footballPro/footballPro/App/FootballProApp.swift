@@ -1079,6 +1079,32 @@ struct SeasonView: View {
                             .foregroundColor(.green)
                         Text("Final Record: \(team.record.displayRecord)")
                             .foregroundColor(.secondary)
+
+                        if gameState.currentLeague?.leagueType == .singleSeason {
+                            // Single season: show champion and return to menu
+                            if let champion = season.playoffBracket?.championId,
+                               let champTeam = gameState.team(for: champion) {
+                                Text("\(champTeam.fullName) - CHAMPIONS!")
+                                    .font(.headline)
+                                    .foregroundColor(.yellow)
+                            }
+                            Button("RETURN TO MAIN MENU") {
+                                gameState.hasActiveGame = false
+                                gameState.currentLeague = nil
+                                gameState.userTeam = nil
+                                gameState.currentSeason = nil
+                                gameState.navigateTo(.mainMenu)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                        } else {
+                            // Career: advance to next season
+                            Button("ADVANCE TO NEXT SEASON") {
+                                advanceToNextSeason()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                        }
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
@@ -1139,6 +1165,23 @@ struct SeasonView: View {
         }
 
         // Auto-save after simulation
+        gameState.autoSave(modelContext: modelContext)
+    }
+
+    private func advanceToNextSeason() {
+        guard var league = gameState.currentLeague,
+              let season = gameState.currentSeason else { return }
+
+        let newSeason = league.advanceToNextSeason(completedSeason: season)
+        gameState.currentLeague = league
+        gameState.currentSeason = newSeason
+
+        // Refresh user team reference from updated league
+        if let userTeamId = gameState.userTeam?.id {
+            gameState.userTeam = league.team(withId: userTeamId)
+        }
+
+        // Auto-save after season advancement
         gameState.autoSave(modelContext: modelContext)
     }
 }
@@ -1747,6 +1790,7 @@ struct ManagementHubView: View {
         case standings
         case stats
         case depthChart
+        case trainingCamp
         case saveLoad
         case settings
     }
@@ -1803,6 +1847,10 @@ struct ManagementHubView: View {
                 DepthChartView()
                     .environmentObject(gameState)
 
+            case .trainingCamp:
+                TrainingCampView(onDismiss: { currentScreen = .hub })
+                    .environmentObject(gameState)
+
             case .saveLoad:
                 SaveLoadView()
                     .environmentObject(gameState)
@@ -1837,20 +1885,23 @@ struct ManagementHubView: View {
 
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 20) {
-                    Button(action: { currentScreen = .freeAgency }) {
-                        ManagementCard(title: "Free Agency", icon: "person.badge.plus", description: "Sign free agents")
-                    }
-                    .buttonStyle(.plain)
+                    // Career-only management features (hidden in single-season mode)
+                    if gameState.currentLeague?.leagueType != .singleSeason {
+                        Button(action: { currentScreen = .freeAgency }) {
+                            ManagementCard(title: "Free Agency", icon: "person.badge.plus", description: "Sign free agents")
+                        }
+                        .buttonStyle(.plain)
 
-                    Button(action: { currentScreen = .trade }) {
-                        ManagementCard(title: "Trade", icon: "arrow.left.arrow.right", description: "Trade players")
-                    }
-                    .buttonStyle(.plain)
+                        Button(action: { currentScreen = .trade }) {
+                            ManagementCard(title: "Trade", icon: "arrow.left.arrow.right", description: "Trade players")
+                        }
+                        .buttonStyle(.plain)
 
-                    Button(action: { currentScreen = .draft }) {
-                        ManagementCard(title: "Draft", icon: "list.number", description: "Draft prospects")
+                        Button(action: { currentScreen = .draft }) {
+                            ManagementCard(title: "Draft", icon: "list.number", description: "Draft prospects")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     Button(action: { currentScreen = .standings }) {
                         ManagementCard(title: "Standings", icon: "list.bullet", description: "League standings")
@@ -1866,6 +1917,13 @@ struct ManagementHubView: View {
                         ManagementCard(title: "Depth Chart", icon: "person.3", description: "Set your starters")
                     }
                     .buttonStyle(.plain)
+
+                    if gameState.currentLeague?.leagueType != .singleSeason {
+                        Button(action: { currentScreen = .trainingCamp }) {
+                            ManagementCard(title: "Training Camp", icon: "figure.run", description: "July training drills")
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     Button(action: { currentScreen = .saveLoad }) {
                         ManagementCard(title: "Save/Load", icon: "externaldrive", description: "Save or load game")

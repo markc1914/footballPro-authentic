@@ -480,17 +480,21 @@ Animation fixes ─────────────────────�
 | `Models/WeatherSystem.swift` | Weather model + gameplay modifiers |
 | `Models/CoachingProfile.swift` | 2,520-situation AI coaching profiles |
 | `Input/PlayerControlState.swift` | On-field player control state machine |
+| `Views/Franchise/TrainingCampView.swift` | Off-season training camp (8 groups × 8 ratings) |
+| `Engine/FastSimEngine.swift` | Quick game resolution from team ratings |
+
+### League & Roster Features (Feb 2026)
+- **Training Camp** — 8 position groups × 8 ratings, 100 points per group, age-based improvement toward potential. Auto-allocate option. `TrainingCampView.swift`.
+- **Fast Sim** — `FastSimEngine.fastSimGame()` generates realistic scores, quarter-by-quarter, box score stats from team rating averages. Used for CPU-vs-CPU weeks.
+- **Career vs Single-season** — `LeagueType` enum on League. Single-season hides draft/trade/free agency in management hub. Career mode unchanged.
+- **47-slot roster** — 34 assigned (QB2/RB2/FB1/WR3/TE2/OL5/DL4/LB5/DB7/K1/P1) + 11 open + 2 IR. `RosterSlot`/`SlotType` on Team. DepthChartView shows slot counts and IR management.
+- **Catch zone** — Orange circle with X at pass target during ball flight. `CatchZoneIndicator` in FPSFieldView.
 
 ## Known Issues & Gaps (vs Original Game)
 
-### Medium Priority (Features)
-- **Training Camp** — Allocate training time per rating per position (July each year)
-- **Career vs Single-season** league types
-- **Fast Sim** — Quick resolution using ratings only (no individual plays)
-- **Roster structure** — Original has 34 assigned + 11 open + 2 IR = 47 slots per team
+### Remaining Features
 - **Play Editor** — Full play design tool with logic scripting
 - **Practice mode** — Practice Field accessible from Play Editor
-- **Catch Zone** — Visual indicator (orange circle with X) showing where pass will land
 - **Free-floating camera** — Mouse-controlled camera during play
 - **Roster drag-and-drop** — Original lets you drag players between slots
 

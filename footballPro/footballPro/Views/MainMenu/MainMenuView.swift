@@ -279,6 +279,7 @@ struct NewGameView: View {
     @State private var franchiseName: String = ""
     @State private var showNamePrompt = false
     @State private var pendingTeam: Team?
+    @State private var selectedLeagueType: LeagueType = .career
 
     var body: some View {
         ZStack {
@@ -303,6 +304,39 @@ struct NewGameView: View {
                         }
                     } else {
                         VStack(spacing: 0) {
+                            // League type selector
+                            VStack(spacing: 4) {
+                                Text("LEAGUE TYPE")
+                                    .font(RetroFont.small())
+                                    .foregroundColor(VGA.darkGray)
+
+                                HStack(spacing: 8) {
+                                    ForEach(LeagueType.allCases, id: \.self) { leagueType in
+                                        Button(action: { selectedLeagueType = leagueType }) {
+                                            VStack(spacing: 2) {
+                                                Text(leagueType.displayName.uppercased())
+                                                    .font(RetroFont.bodyBold())
+                                                    .foregroundColor(selectedLeagueType == leagueType ? .black : VGA.white)
+                                                Text(leagueType.description)
+                                                    .font(RetroFont.tiny())
+                                                    .foregroundColor(selectedLeagueType == leagueType ? VGA.panelDark : VGA.darkGray)
+                                                    .multilineTextAlignment(.center)
+                                            }
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .frame(maxWidth: .infinity)
+                                            .background(selectedLeagueType == leagueType ? VGA.digitalAmber : VGA.panelDark)
+                                            .modifier(DOSPanelBorder(selectedLeagueType == leagueType ? .sunken : .raised, width: 2))
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+
+                            DOSSeparator()
+
                             Text("SELECT YOUR TEAM")
                                 .font(RetroFont.small())
                                 .foregroundColor(VGA.darkGray)
@@ -343,6 +377,7 @@ struct NewGameView: View {
             FranchiseNamePrompt(
                 franchiseName: $franchiseName,
                 teamName: pendingTeam?.fullName ?? "",
+                leagueType: selectedLeagueType,
                 onConfirm: {
                     startFranchise()
                 },
@@ -356,11 +391,12 @@ struct NewGameView: View {
     }
 
     private func startFranchise() {
-        guard let league = league, let team = pendingTeam else { return }
+        guard var leagueData = league, let team = pendingTeam else { return }
         showNamePrompt = false
+        leagueData.leagueType = selectedLeagueType
         gameState.startNewGame(
             teamId: team.id,
-            league: league,
+            league: leagueData,
             franchiseName: franchiseName,
             modelContext: modelContext
         )
@@ -373,6 +409,7 @@ struct NewGameView: View {
 struct FranchiseNamePrompt: View {
     @Binding var franchiseName: String
     let teamName: String
+    var leagueType: LeagueType = .career
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -385,6 +422,10 @@ struct FranchiseNamePrompt: View {
                     Text("PLAYING AS: \(teamName.uppercased())")
                         .font(RetroFont.small())
                         .foregroundColor(VGA.cyan)
+
+                    Text("MODE: \(leagueType.displayName.uppercased())")
+                        .font(RetroFont.tiny())
+                        .foregroundColor(VGA.digitalAmber)
 
                     DOSPanel(.sunken, backgroundColor: Color.black) {
                         TextField("", text: $franchiseName)

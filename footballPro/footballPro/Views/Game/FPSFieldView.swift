@@ -617,6 +617,24 @@ struct FPSFieldView: View {
         }
     }
 
+    // MARK: - Catch Zone Target
+
+    /// Returns the flat-space endpoint of the current `.thrown` segment if the ball is in flight.
+    /// Used to draw the orange catch zone indicator on the field.
+    private func catchTargetPosition(blueprint: PlayAnimationBlueprint, at progress: Double) -> CGPoint? {
+        for segment in blueprint.ballPath.segments {
+            switch segment {
+            case .thrown(let arcPoints, let startTime, let endTime):
+                if progress >= startTime && progress < endTime, let last = arcPoints.last {
+                    return last
+                }
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
     // MARK: - Pose Determination
 
     /// Determine the visual pose for a player based on role, phase, and movement state.
@@ -899,6 +917,17 @@ struct FPSFieldView: View {
                     .position(ballScreen)
                     .scaleEffect(ballScale)
                     .zIndex(Double(ballDepth) * 1000 + 0.5)
+            }
+
+            // Catch zone indicator — orange circle with X at pass landing spot
+            if let catchTarget = catchTargetPosition(blueprint: blueprint, at: progress) {
+                let catchScreen = animProj.project(flatPos: catchTarget, isFieldFlipped: isFieldFlipped)
+                let catchDS = computeDepthScale(proj: animProj, flatPos: catchTarget)
+
+                CatchZoneIndicator()
+                    .position(catchScreen)
+                    .scaleEffect(catchDS.scale)
+                    .zIndex(Double(catchDS.depth) * 1000 + 0.2)
             }
 
             // Amber LED clocks
@@ -2408,6 +2437,43 @@ struct FootballSprite: View {
             context.stroke(lacePath, with: .color(.white), lineWidth: 1)
         }
         .frame(width: 16, height: 12)
+    }
+}
+
+// MARK: - Catch Zone Indicator (orange circle + X at pass target)
+
+/// Orange circle with X marking the spot where a pass will land.
+/// Matches the original FPS '93 catch zone visual during pass plays.
+struct CatchZoneIndicator: View {
+    var body: some View {
+        Canvas { context, size in
+            let cx = size.width / 2
+            let cy = size.height / 2
+            let radius: CGFloat = 10
+
+            // Orange circle
+            let circleRect = CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
+            context.stroke(
+                Ellipse().path(in: circleRect),
+                with: .color(Color(red: 1.0, green: 0.53, blue: 0.0)), // #FF8800
+                lineWidth: 2
+            )
+
+            // X through the circle
+            let xPath = Path { p in
+                let offset = radius * 0.7
+                p.move(to: CGPoint(x: cx - offset, y: cy - offset))
+                p.addLine(to: CGPoint(x: cx + offset, y: cy + offset))
+                p.move(to: CGPoint(x: cx + offset, y: cy - offset))
+                p.addLine(to: CGPoint(x: cx - offset, y: cy + offset))
+            }
+            context.stroke(
+                xPath,
+                with: .color(Color(red: 1.0, green: 0.53, blue: 0.0)), // #FF8800
+                lineWidth: 2
+            )
+        }
+        .frame(width: 24, height: 24)
     }
 }
 
